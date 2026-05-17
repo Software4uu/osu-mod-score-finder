@@ -6,6 +6,8 @@ Add-Type -AssemblyName System.Drawing
 
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $EnvPath = Join-Path $Root ".env"
+$script:CurrentProcess = $null
+$script:CancelRequested = $false
 
 function Read-DotEnv {
   $values = @{}
@@ -42,16 +44,35 @@ function Resolve-CommandPath($name) {
   return $source
 }
 
+function Refresh-ProcessPath {
+  $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+  $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+  $env:Path = @($machinePath, $userPath) -join ";"
+}
+
 function Test-DependenciesInstalled {
   return (Test-Path (Join-Path $Root "node_modules\realm\package.json")) -and
     (Test-Path (Join-Path $Root "node_modules\rosu-pp-js\package.json"))
 }
 
-function Run-CheckedProcess($fileName, $arguments, $workingDirectory) {
+function Stop-CurrentProcessTree {
+  if (-not $script:CurrentProcess -or $script:CurrentProcess.HasExited) { return }
+
+  try {
+    & taskkill.exe /PID $script:CurrentProcess.Id /T /F | Out-Null
+  } catch {
+    try { $script:CurrentProcess.Kill() } catch { }
+  }
+}
+
+function Run-CheckedProcess($fileName, $arguments, $workingDirectory, $friendlyName) {
   $resolvedFile = Resolve-CommandPath $fileName
   if (-not $resolvedFile) {
     throw "$fileName wurde nicht gefunden."
   }
+
+  $status.Text = "$friendlyName wird gestartet..."
+  [System.Windows.Forms.Application]::DoEvents()
 
   $processInfo = New-Object System.Diagnostics.ProcessStartInfo
   if ($resolvedFile.EndsWith(".cmd", [System.StringComparison]::OrdinalIgnoreCase) -or
@@ -67,14 +88,56 @@ function Run-CheckedProcess($fileName, $arguments, $workingDirectory) {
   $processInfo.RedirectStandardOutput = $true
   $processInfo.RedirectStandardError = $true
 
-  $process = [System.Diagnostics.Process]::Start($processInfo)
-  $output = $process.StandardOutput.ReadToEnd()
-  $errorText = $process.StandardError.ReadToEnd()
+  $lines = [System.Collections.ArrayList]::Synchronized((New-Object System.Collections.ArrayList))
+  $outputHandler = [System.Diagnostics.DataReceivedEventHandler] {
+    param($sender, $eventArgs)
+    if ($eventArgs.Data) { [void]$lines.Add($eventArgs.Data) }
+  }
+  $errorHandler = [System.Diagnostics.DataReceivedEventHandler] {
+    param($sender, $eventArgs)
+    if ($eventArgs.Data) { [void]$lines.Add($eventArgs.Data) }
+  }
+
+  $process = New-Object System.Diagnostics.Process
+  $process.StartInfo = $processInfo
+  $process.add_OutputDataReceived($outputHandler)
+  $process.add_ErrorDataReceived($errorHandler)
+
+  $script:CurrentProcess = $process
+  $script:CancelRequested = $false
+
+  [void]$process.Start()
+  $process.BeginOutputReadLine()
+  $process.BeginErrorReadLine()
+
+  $startedAt = Get-Date
+  while (-not $process.WaitForExit(250)) {
+    $elapsed = [Math]::Max(1, [int]((Get-Date) - $startedAt).TotalSeconds)
+    $status.Text = "$friendlyName laeuft seit ${elapsed}s. Bitte warten, das kann einige Minuten dauern."
+    [System.Windows.Forms.Application]::DoEvents()
+
+    if ($script:CancelRequested) {
+      Stop-CurrentProcessTree
+      throw "$friendlyName wurde abgebrochen."
+    }
+  }
+
   $process.WaitForExit()
+  $script:CurrentProcess = $null
+  $process.remove_OutputDataReceived($outputHandler)
+  $process.remove_ErrorDataReceived($errorHandler)
+
+  if ($script:CancelRequested) {
+    throw "$friendlyName wurde abgebrochen."
+  }
 
   if ($process.ExitCode -ne 0) {
-    throw "$fileName $arguments fehlgeschlagen.`r`n$output`r`n$errorText"
+    $tail = ($lines | Select-Object -Last 18) -join "`r`n"
+    throw "$friendlyName ist fehlgeschlagen (Exit Code $($process.ExitCode)).`r`n$tail"
   }
+
+  $status.Text = "$friendlyName abgeschlossen."
+  [System.Windows.Forms.Application]::DoEvents()
 }
 
 function Save-DotEnv($clientId, $clientSecret, $stableDir, $lazerDir, $port) {
@@ -243,13 +306,30 @@ $cancelButton = New-Object System.Windows.Forms.Button
 $cancelButton.Text = "Abbrechen"
 $cancelButton.Location = New-Object System.Drawing.Point(615, 548)
 $cancelButton.Size = New-Object System.Drawing.Size(110, 34)
-$cancelButton.Add_Click({ $form.Close() })
+$cancelButton.Add_Click({
+  if ($script:CurrentProcess -and -not $script:CurrentProcess.HasExited) {
+    $answer = [System.Windows.Forms.MessageBox]::Show(
+      "Es laeuft gerade eine Installation. Moechtest du sie wirklich abbrechen?",
+      "Installation abbrechen",
+      [System.Windows.Forms.MessageBoxButtons]::YesNo,
+      [System.Windows.Forms.MessageBoxIcon]::Question
+    )
+    if ($answer -eq [System.Windows.Forms.DialogResult]::Yes) {
+      $script:CancelRequested = $true
+      Stop-CurrentProcessTree
+      $status.Text = "Installation wird abgebrochen..."
+    }
+    return
+  }
+
+  $form.Close()
+})
 $form.Controls.Add($cancelButton)
 
 $saveButton.Add_Click({
   try {
     $saveButton.Enabled = $false
-    $status.Text = "Arbeite..."
+    $status.Text = "Setup laeuft. Das Fenster bleibt waehrend der Installation bedienbar."
     [System.Windows.Forms.Application]::DoEvents()
 
     if ($nodeCheck.Enabled -and $nodeCheck.Checked) {
@@ -263,11 +343,13 @@ $saveButton.Add_Click({
         [System.Windows.Forms.MessageBoxIcon]::Question
       )
       if ($answer -eq [System.Windows.Forms.DialogResult]::Yes) {
-        Run-CheckedProcess "winget" "install -e --id OpenJS.NodeJS.LTS" $Root
+        Run-CheckedProcess "winget" "install -e --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements" $Root "Node.js Installation"
+        Refresh-ProcessPath
       }
     }
 
     if ($depsCheck.Enabled -and $depsCheck.Checked) {
+      Refresh-ProcessPath
       if (-not (Test-CommandExists "npm")) {
         throw "npm wurde nicht gefunden. Installiere zuerst Node.js LTS und starte dieses Setup danach neu."
       }
@@ -278,7 +360,7 @@ $saveButton.Add_Click({
         [System.Windows.Forms.MessageBoxIcon]::Question
       )
       if ($answer -eq [System.Windows.Forms.DialogResult]::Yes) {
-        Run-CheckedProcess "npm" "install" $Root
+        Run-CheckedProcess "npm" "install --no-audit --no-fund" $Root "Projekt-Abhaengigkeiten"
       }
     }
 
@@ -308,6 +390,8 @@ $saveButton.Add_Click({
     ) | Out-Null
     $status.Text = "Fehler: $($_.Exception.Message)"
   } finally {
+    $script:CurrentProcess = $null
+    $script:CancelRequested = $false
     $saveButton.Enabled = $true
   }
 })
