@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>osu! Mod Score Finder Beta - Hilfe</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "Segoe UI", Arial, sans-serif;
+        background: #0d1017;
+        color: #f5f7fb;
+      }
+
+      body {
+        margin: 0;
+        padding: 32px;
+        background: #0d1017;
+      }
+
+      main {
+        max-width: 900px;
+        margin: 0 auto;
+        line-height: 1.55;
+      }
+
+      h1,
+      h2 {
+        line-height: 1.15;
+      }
+
+      h1 {
+        font-size: 2.4rem;
+        margin-bottom: 0.4rem;
+      }
+
+      h2 {
+        margin-top: 2rem;
+        color: #68d8ff;
+      }
+
+      a {
+        color: #68d8ff;
+      }
+
+      code,
+      pre {
+        background: #171b25;
+        border: 1px solid #303848;
+        border-radius: 6px;
+      }
+
+      code {
+        padding: 0.12rem 0.3rem;
+      }
+
+      pre {
+        padding: 1rem;
+        overflow-x: auto;
+      }
+
+      .note {
+        border: 1px solid #303848;
+        border-radius: 8px;
+        background: #171b25;
+        padding: 1rem;
+      }
+
+      li {
+        margin: 0.35rem 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>osu! Mod Score Finder Beta</h1>
+      <p class="note">
+        Diese Beta laeuft lokal. API-Daten, lokale Pfade und Score-Daten bleiben auf deinem PC
+        und sind durch <code>.gitignore</code> vom GitHub-Upload ausgeschlossen.
+      </p>
+
+      <h2>Setup</h2>
+      <ol>
+        <li><code>setup-beta.bat</code> starten.</li>
+        <li>Fehlende Installationspunkte auswaehlen. Vorhandene Punkte sind ausgegraut.</li>
+        <li>Client ID, Client Secret, osu! stable Ordner und osu!lazer Ordner eintragen.</li>
+        <li>Speichern und danach <code>start-beta.bat</code> starten.</li>
+      </ol>
+
+      <h2>osu! API</h2>
+      <p>OAuth-App erstellen unter:</p>
+      <p><a href="https://osu.ppy.sh/home/account/edit">https://osu.ppy.sh/home/account/edit</a></p>
+      <pre><code>Callback URL: http://localhost:5173/callback</code></pre>
+
+      <h2>Was wird lokal gespeichert?</h2>
+      <ul>
+        <li><code>.env</code>: Client ID, Client Secret, lokale Pfade, Port.</li>
+        <li><code>data/scores.sqlite</code>: gefundene Scores und berechnete Werte.</li>
+        <li><code>node_modules/</code>: installierte Projekt-Abhaengigkeiten.</li>
+      </ul>
+
+      <h2>Nicht zu GitHub hochladen</h2>
+      <ul>
+        <li><code>.env</code></li>
+        <li><code>data/</code></li>
+        <li><code>node_modules/</code></li>
+        <li><code>*.log</code></li>
+        <li>lokale osu!-Datenbanken oder Replay-Dateien</li>
+      </ul>
+
+      <h2>Start</h2>
+      <pre><code>start-beta.bat</code></pre>
+      <p>Danach oeffnet die App unter <a href="http://localhost:5173">http://localhost:5173</a>.</p>
+
+      <h2>Wichtige Filter</h2>
+      <ul>
+        <li><strong>Scan-Seiten:</strong> wie viele Recent-Seiten aus der osu!api neu gesammelt werden.</li>
+        <li><strong>Anzeige-Limit:</strong> wie viele Ergebnisse sichtbar sind.</li>
+        <li><strong>Bester Try:</strong> entscheidet, welcher Try pro Map-Difficulty behalten wird.</li>
+        <li><strong>Improvement:</strong> vergleicht letzten Try, letzte Stunde oder heutigen Tag.</li>
+      </ul>
+    </main>
+  </body>
+</html>

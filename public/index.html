@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>osu! Mod Score Finder</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow" data-i18n="app.eyebrow">Lokale Beta</p>
+            <h1>osu! Mod Score Finder</h1>
+          </div>
+          <div class="topbar-actions">
+            <label class="language-field" for="languageSelect">
+              <span data-i18n="field.language">Sprache</span>
+              <select id="languageSelect" name="language">
+                <option value="de">Deutsch</option>
+                <option value="en">English</option>
+              </select>
+            </label>
+            <div id="apiStatus" class="status-pill" data-i18n="status.checking">API wird geprueft</div>
+          </div>
+        </header>
+
+        <form id="searchForm" class="search-panel">
+          <label class="field field-wide">
+            <span><span data-i18n="field.username">Spielername</span> <span class="help-icon" data-help-key="help.username">?</span></span>
+            <input
+              id="username"
+              name="username"
+              type="search"
+              data-i18n-placeholder="placeholder.username"
+              placeholder="z. B. WhiteCat"
+              autocomplete="off"
+              required
+            />
+          </label>
+
+          <div class="purpose-field">
+            <span data-i18n="field.search">Suche</span>
+            <strong data-i18n="field.purpose">Gepasste Maps mit Mod</strong>
+          </div>
+
+          <label class="field">
+            <span><span data-i18n="field.mode">Modus</span> <span class="help-icon" data-help-key="help.mode">?</span></span>
+            <select id="mode" name="mode">
+              <option value="osu" data-help-key="help.mode.osu">osu!standard</option>
+              <option value="taiko" data-help-key="help.mode.taiko">taiko</option>
+              <option value="fruits" data-help-key="help.mode.fruits">catch</option>
+              <option value="mania" data-help-key="help.mode.mania">mania</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span><span data-i18n="field.sort">Sortierung</span> <span class="help-icon" data-help-key="help.sort">?</span></span>
+            <select id="sort" name="sort">
+              <option value="date" data-i18n="option.sort.date" data-help-key="help.sort.date">Datum</option>
+              <option value="pp" data-help-key="help.sort.pp">PP</option>
+              <option value="acc" data-help-key="help.sort.acc">Accuracy</option>
+              <option value="score" data-help-key="help.sort.score">Score</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span><span data-i18n="field.match">Mod-Match</span> <span class="help-icon" data-help-key="help.match">?</span></span>
+            <select id="match" name="match">
+              <option value="contains" data-i18n="option.match.contains" data-help-key="help.match.contains">enthaelt alle</option>
+              <option value="exact" data-i18n="option.match.exact" data-help-key="help.match.exact">exakt</option>
+              <option value="any" data-i18n="option.match.any" data-help-key="help.match.any">enthaelt einen</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span><span data-i18n="field.scanPages">Scan-Seiten</span> <span class="help-icon" data-help-key="help.scanPages">?</span></span>
+            <input id="pages" name="pages" type="number" min="1" max="20" value="2" />
+          </label>
+
+          <label class="field">
+            <span><span data-i18n="field.dateRange">Zeitraum</span> <span class="help-icon" data-help-key="help.dateRange">?</span></span>
+            <select id="dateFilter" name="dateFilter">
+              <option value="all" data-i18n="option.date.all" data-help-key="help.date.all">alle Tage</option>
+              <option value="today" data-i18n="option.date.today" data-help-key="help.date.today">heute</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span><span data-i18n="field.rankNumber">Rangnummer</span> <span class="help-icon" data-help-key="help.rankNumber">?</span></span>
+            <select id="rankMode" name="rankMode">
+              <option value="none" data-i18n="option.rank.none" data-help-key="help.rank.none">aus</option>
+              <option value="pp" data-i18n="option.rank.pp" data-help-key="help.rank.pp">PP-Rang</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span><span data-i18n="field.rankFrom">Rang von</span> <span class="help-icon" data-help-key="help.rankFrom">?</span></span>
+            <input id="rankFrom" name="rankFrom" type="number" min="1" max="9999" value="1" />
+          </label>
+
+          <label class="field">
+            <span><span data-i18n="field.rankTo">Rang bis</span> <span class="help-icon" data-help-key="help.rankTo">?</span></span>
+            <input id="rankTo" name="rankTo" type="number" min="1" max="9999" value="100" />
+          </label>
+
+          <label class="field">
+            <span><span data-i18n="field.limit">Anzeige-Limit</span> <span class="help-icon" data-help-key="help.limit">?</span></span>
+            <input id="limit" name="limit" type="number" min="1" max="500" value="100" />
+          </label>
+
+          <label class="field">
+            <span><span data-i18n="field.bestTry">Bester Try</span> <span class="help-icon" data-help-key="help.bestTry">?</span></span>
+            <select id="bestMode" name="bestMode">
+              <option value="score" data-help-key="help.best.score">Score</option>
+              <option value="pp" data-help-key="help.best.pp">PP</option>
+              <option value="acc" data-help-key="help.best.acc">Accuracy</option>
+              <option value="date" data-i18n="option.best.date" data-help-key="help.best.date">neuster</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span><span data-i18n="field.improvement">Improvement</span> <span class="help-icon" data-help-key="help.improvement">?</span></span>
+            <select id="improvementScope" name="improvementScope">
+              <option value="lastTry" data-i18n="option.improvement.lastTry" data-help-key="help.improvement.lastTry">letzter Try</option>
+              <option value="lastHour" data-i18n="option.improvement.lastHour" data-help-key="help.improvement.lastHour">letzte Stunde</option>
+              <option value="today" data-i18n="option.improvement.today" data-help-key="help.improvement.today">heute</option>
+            </select>
+          </label>
+
+          <div class="toggles">
+            <label data-help-key="help.toggle.includeLazer"><input id="includeLazer" type="checkbox" checked /> <span data-i18n="toggle.includeLazer">stable + lazer</span></label>
+            <label data-help-key="help.toggle.useApiV2"><input id="useApiV2" type="checkbox" checked /> <span data-i18n="toggle.useApiV2">osu!api v2</span></label>
+            <label data-help-key="help.toggle.includeHuis"><input id="includeHuis" type="checkbox" checked /> <span data-i18n="toggle.includeHuis">pp.huismetbenen</span></label>
+            <label data-help-key="help.toggle.recalculatePp"><input id="recalculatePp" type="checkbox" checked /> <span data-i18n="toggle.recalculatePp">PP neu berechnen</span></label>
+            <label data-help-key="help.toggle.bestPerMap"><input id="bestPerMap" type="checkbox" checked /> <span data-i18n="toggle.bestPerMap">beste pro Map</span></label>
+            <label data-help-key="help.toggle.rankedOnly"><input id="rankedOnly" type="checkbox" checked /> <span data-i18n="toggle.rankedOnly">ranked/approved</span></label>
+            <label data-help-key="help.toggle.includeLoved"><input id="includeLoved" type="checkbox" /> <span data-i18n="toggle.includeLoved">loved mitnehmen</span></label>
+          </div>
+
+          <div class="mod-picker" data-i18n-aria-label="aria.mods" aria-label="Mods auswaehlen">
+            <div class="picker-head">
+              <span data-i18n="field.mods">Mods</span>
+              <button id="clearMods" class="ghost-button" type="button" data-i18n="button.clear">clear</button>
+            </div>
+
+            <div class="quick-mods" id="modButtons">
+              <button type="button" data-mods="NM">NM</button>
+              <button type="button" data-mods="HD">HD</button>
+              <button type="button" data-mods="HR">HR</button>
+              <button type="button" data-mods="DT">DT</button>
+              <button type="button" data-mods="NC">NC</button>
+              <button type="button" data-mods="FL">FL</button>
+              <button type="button" data-mods="HD,DT">HDDT</button>
+              <button type="button" data-mods="HD,HR">HDHR</button>
+              <button type="button" data-mods="HD,DT,HR">HDDTHR</button>
+              <button type="button" data-mods="CL">CL</button>
+              <button type="button" data-mods="DA">DA</button>
+              <button type="button" data-mods="RA">RA</button>
+              <button type="button" data-mods="AL">AL</button>
+              <button type="button" data-mods="SG">SG</button>
+              <button type="button" data-mods="MR">MR</button>
+              <button type="button" data-mods="TC">TC</button>
+              <button type="button" data-mods="AS">AS</button>
+            </div>
+          </div>
+
+          <button id="submitButton" class="primary-button" type="submit" data-i18n="button.search">Passes suchen</button>
+        </form>
+
+        <section class="notice">
+          <strong data-i18n="notice.label">Hinweis:</strong>
+          <span data-i18n="notice.text">
+            osu! gibt keine komplette alte Score-Historie aus. Diese lokale Beta
+            speichert gefundene Recent-Passes und baut daraus ab jetzt eine History pro Spieler und Mod.
+          </span>
+        </section>
+
+        <section id="summary" class="summary hidden" aria-live="polite"></section>
+        <nav class="view-tabs" data-i18n-aria-label="aria.view" aria-label="Ansicht">
+          <button type="button" class="active" data-view="scores">Scores</button>
+          <button type="button" data-view="improvements">Improvement</button>
+        </nav>
+        <section id="results" class="results" aria-live="polite"></section>
+        <section id="improvements" class="results hidden" aria-live="polite"></section>
+      </section>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
