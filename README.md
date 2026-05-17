@@ -52,7 +52,7 @@ http://localhost:5173/callback
 - Store scores locally in SQLite so results do not always need to be fetched online again
 - Show PP from the API, pp.huismetbenen, or local recalculation
 - Optionally show only the best try for each map/difficulty
-- Display PP rank windows such as `1b` to `5s`
+- Display PP rank windows such as `1` to `100`
 - Improvement view for the latest try, the last hour, or today
 
 ## Start
@@ -70,7 +70,7 @@ npm start
 
 Then open:
 
-http://localhost:5173
+http://127.0.0.1:5173
 
 ---
 
@@ -126,7 +126,7 @@ http://localhost:5173/callback
 - Scores lokal in SQLite speichern, damit später nicht erneut alles online erreichbar sein muss
 - PP aus API, pp.huismetbenen oder lokal neu berechnet anzeigen
 - Optional nur den besten Try pro Map/Difficulty anzeigen
-- PP-Rangfenster wie `1b` bis `5s` anzeigen
+- PP-Rangfenster wie `1` bis `100` anzeigen
 - Improvement-Ansicht für letzten Try, letzte Stunde oder heute
 
 ## Starten
@@ -144,4 +144,4 @@ npm start
 
 Danach öffnen:
 
-http://localhost:5173
+http://127.0.0.1:5173

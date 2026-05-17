@@ -25,6 +25,7 @@ const huisLiveReworkId = 1;
 loadDotEnv();
 
 const port = Number(process.env.PORT || 5173);
+const host = process.env.HOST || "127.0.0.1";
 let tokenCache = null;
 
 const mimeTypes = new Map([
@@ -1064,10 +1065,11 @@ async function handleSearch(req, res) {
 async function serveStatic(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = decodeURIComponent(url.pathname);
-  const requested = pathname === "/" ? "/index.html" : pathname;
-  const filePath = path.normalize(path.join(publicDir, requested));
+  const requested = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "");
+  const filePath = path.resolve(publicDir, requested);
+  const relativePath = path.relative(publicDir, filePath);
 
-  if (!filePath.startsWith(publicDir)) {
+  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
     return text(res, 403, "Forbidden");
   }
 
@@ -1111,6 +1113,6 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(port, () => {
-  console.log(`osu! Mod Score Finder laeuft auf http://localhost:${port}`);
+server.listen(port, host, () => {
+  console.log(`osu! Mod Score Finder laeuft auf http://${host}:${port}`);
 });
