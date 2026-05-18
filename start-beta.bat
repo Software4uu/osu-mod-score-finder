@@ -9,38 +9,40 @@ if errorlevel 1 (
   exit /b 1
 )
 
+set "NEEDS_SETUP=0"
+
 where node >nul 2>nul
 if errorlevel 1 (
-  powershell -ExecutionPolicy Bypass -File "%~dp0setup.ps1"
-  where node >nul 2>nul
-  if errorlevel 1 (
-    echo Node.js wurde noch nicht gefunden. Bitte Setup abschliessen und erneut starten.
-    pause
-    exit /b 1
-  )
+  set "NEEDS_SETUP=1"
 )
 
 if not exist "%~dp0.env" (
-  powershell -ExecutionPolicy Bypass -File "%~dp0setup.ps1"
-  if not exist "%~dp0.env" (
-    echo Setup wurde nicht abgeschlossen. .env fehlt noch.
-    pause
-    exit /b 1
-  )
+  set "NEEDS_SETUP=1"
 )
 
 if not exist "%~dp0node_modules\rosu-pp-js\package.json" (
+  set "NEEDS_SETUP=1"
+)
+
+if "%NEEDS_SETUP%"=="1" (
   powershell -ExecutionPolicy Bypass -File "%~dp0setup.ps1"
-  if not exist "%~dp0node_modules\rosu-pp-js\package.json" (
-    echo Projekt-Abhaengigkeiten fehlen noch.
-    pause
-    exit /b 1
-  )
 )
 
 where node >nul 2>nul
 if errorlevel 1 (
-  echo Node.js wurde noch nicht gefunden. Bitte Setup erneut starten, nachdem Node.js installiert wurde.
+  echo Node.js wurde noch nicht gefunden. Bitte setup-beta.bat starten und Node.js installieren.
+  pause
+  exit /b 1
+)
+
+if not exist "%~dp0.env" (
+  echo Setup wurde nicht abgeschlossen. .env fehlt noch. Bitte setup-beta.bat starten.
+  pause
+  exit /b 1
+)
+
+if not exist "%~dp0node_modules\rosu-pp-js\package.json" (
+  echo Projekt-Abhaengigkeiten fehlen noch. Bitte setup-beta.bat starten und Abhaengigkeiten installieren.
   pause
   exit /b 1
 )

@@ -47,7 +47,12 @@ function Resolve-CommandPath($name) {
 function Refresh-ProcessPath {
   $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
   $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
-  $env:Path = @($machinePath, $userPath) -join ";"
+  $parts = @($machinePath, $userPath)
+  $nodePath = Join-Path $env:ProgramFiles "nodejs"
+  if (Test-Path $nodePath) {
+    $parts += $nodePath
+  }
+  $env:Path = ($parts | Where-Object { $_ }) -join ";"
 }
 
 function Test-DependenciesInstalled {
@@ -184,6 +189,18 @@ $form.StartPosition = "CenterScreen"
 $form.Size = New-Object System.Drawing.Size(760, 640)
 $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox = $false
+$form.Add_FormClosing({
+  param($sender, $eventArgs)
+  if ($script:CurrentProcess -and -not $script:CurrentProcess.HasExited) {
+    $eventArgs.Cancel = $true
+    [System.Windows.Forms.MessageBox]::Show(
+      "Bitte warte, bis die laufende Installation fertig ist, oder nutze den Abbrechen-Button.",
+      "Installation laeuft",
+      [System.Windows.Forms.MessageBoxButtons]::OK,
+      [System.Windows.Forms.MessageBoxIcon]::Information
+    ) | Out-Null
+  }
+})
 
 $font = New-Object System.Drawing.Font("Segoe UI", 9)
 $form.Font = $font
@@ -326,6 +343,44 @@ $cancelButton.Add_Click({
 })
 $form.Controls.Add($cancelButton)
 
+function Update-InstallState {
+  Refresh-ProcessPath
+
+  $nodeNow = Test-CommandExists "node"
+  $npmNow = Test-CommandExists "npm"
+  $depsNow = Test-DependenciesInstalled
+
+  if ($nodeNow) {
+    $nodeCheck.Text = "Node.js LTS ist vorhanden"
+    $nodeCheck.Checked = $true
+    $nodeCheck.Enabled = $false
+  } else {
+    $nodeCheck.Text = "Node.js LTS installieren (via winget)"
+    $nodeCheck.Enabled = $true
+  }
+
+  if ($depsNow) {
+    $depsCheck.Text = "Projekt-Abhaengigkeiten sind vorhanden"
+    $depsCheck.Checked = $true
+    $depsCheck.Enabled = $false
+  } else {
+    $depsCheck.Text = if ($npmNow) {
+      "Projekt-Abhaengigkeiten installieren (npm install)"
+    } else {
+      "Projekt-Abhaengigkeiten installieren, sobald Node.js vorhanden ist"
+    }
+    $depsCheck.Enabled = $true
+  }
+
+  if ($nodeNow -and $depsNow) {
+    $saveButton.Text = "Speichern"
+  } else {
+    $saveButton.Text = "Installieren / Speichern"
+  }
+}
+
+Update-InstallState
+
 $saveButton.Add_Click({
   try {
     $saveButton.Enabled = $false
@@ -345,6 +400,7 @@ $saveButton.Add_Click({
       if ($answer -eq [System.Windows.Forms.DialogResult]::Yes) {
         Run-CheckedProcess "winget" "install -e --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements" $Root "Node.js Installation"
         Refresh-ProcessPath
+        Update-InstallState
       }
     }
 
@@ -361,11 +417,12 @@ $saveButton.Add_Click({
       )
       if ($answer -eq [System.Windows.Forms.DialogResult]::Yes) {
         Run-CheckedProcess "npm" "install --no-audit --no-fund" $Root "Projekt-Abhaengigkeiten"
+        Update-InstallState
       }
     }
 
     Save-DotEnv $clientIdBox.Text.Trim() $clientSecretBox.Text.Trim() $stableBox.Text.Trim() $lazerBox.Text.Trim() $portBox.Text.Trim()
-    $status.Text = ".env wurde lokal gespeichert. Diese Datei ist in .gitignore ausgeschlossen."
+    $status.Text = "Setup fertig. .env wurde lokal gespeichert. Du kannst dieses Fenster jetzt schliessen."
 
     if ($openAfter.Checked) {
       $helpPath = Join-Path $Root "README.html"
@@ -376,7 +433,7 @@ $saveButton.Add_Click({
     }
 
     [System.Windows.Forms.MessageBox]::Show(
-      "Setup ist fertig. Starte die App danach mit start-beta.bat.",
+      "Setup ist fertig. Dieses Fenster bleibt offen. Starte die App danach mit start-beta.bat oder schliesse das Setup.",
       "Fertig",
       [System.Windows.Forms.MessageBoxButtons]::OK,
       [System.Windows.Forms.MessageBoxIcon]::Information
@@ -392,6 +449,7 @@ $saveButton.Add_Click({
   } finally {
     $script:CurrentProcess = $null
     $script:CancelRequested = $false
+    Update-InstallState
     $saveButton.Enabled = $true
   }
 })
