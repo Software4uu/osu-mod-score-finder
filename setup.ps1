@@ -6,8 +6,18 @@ Add-Type -AssemblyName System.Drawing
 
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $EnvPath = Join-Path $Root ".env"
+$SetupLogPath = Join-Path $Root "setup.log"
 $script:CurrentProcess = $null
 $script:CancelRequested = $false
+
+function Write-SetupLog($message) {
+  try {
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    Add-Content -LiteralPath $SetupLogPath -Value "[$timestamp] $message" -Encoding UTF8
+  } catch {
+    # Logging must never break setup.
+  }
+}
 
 function Read-DotEnv {
   $values = @{}
@@ -76,6 +86,7 @@ function Run-CheckedProcess($fileName, $arguments, $workingDirectory, $friendlyN
     throw "$fileName wurde nicht gefunden."
   }
 
+  Write-SetupLog "$friendlyName wird gestartet: $fileName $arguments"
   $status.Text = "$friendlyName wird gestartet..."
   [System.Windows.Forms.Application]::DoEvents()
 
@@ -96,11 +107,17 @@ function Run-CheckedProcess($fileName, $arguments, $workingDirectory, $friendlyN
   $lines = [System.Collections.ArrayList]::Synchronized((New-Object System.Collections.ArrayList))
   $outputHandler = [System.Diagnostics.DataReceivedEventHandler] {
     param($sender, $eventArgs)
-    if ($eventArgs.Data) { [void]$lines.Add($eventArgs.Data) }
+    if ($eventArgs.Data) {
+      [void]$lines.Add($eventArgs.Data)
+      Write-SetupLog $eventArgs.Data
+    }
   }
   $errorHandler = [System.Diagnostics.DataReceivedEventHandler] {
     param($sender, $eventArgs)
-    if ($eventArgs.Data) { [void]$lines.Add($eventArgs.Data) }
+    if ($eventArgs.Data) {
+      [void]$lines.Add($eventArgs.Data)
+      Write-SetupLog $eventArgs.Data
+    }
   }
 
   $process = New-Object System.Diagnostics.Process
@@ -118,7 +135,13 @@ function Run-CheckedProcess($fileName, $arguments, $workingDirectory, $friendlyN
   $startedAt = Get-Date
   while (-not $process.WaitForExit(250)) {
     $elapsed = [Math]::Max(1, [int]((Get-Date) - $startedAt).TotalSeconds)
-    $status.Text = "$friendlyName laeuft seit ${elapsed}s. Bitte warten, das kann einige Minuten dauern."
+    $lastLine = if ($lines.Count -gt 0) { [string]$lines[$lines.Count - 1] } else { "" }
+    if ($lastLine.Length -gt 95) { $lastLine = $lastLine.Substring(0, 95) + "..." }
+    $status.Text = if ($lastLine) {
+      "$friendlyName laeuft seit ${elapsed}s: $lastLine"
+    } else {
+      "$friendlyName laeuft seit ${elapsed}s. Bitte warten, das kann einige Minuten dauern."
+    }
     [System.Windows.Forms.Application]::DoEvents()
 
     if ($script:CancelRequested) {
@@ -138,9 +161,11 @@ function Run-CheckedProcess($fileName, $arguments, $workingDirectory, $friendlyN
 
   if ($process.ExitCode -ne 0) {
     $tail = ($lines | Select-Object -Last 18) -join "`r`n"
+    Write-SetupLog "$friendlyName fehlgeschlagen mit Exit Code $($process.ExitCode)."
     throw "$friendlyName ist fehlgeschlagen (Exit Code $($process.ExitCode)).`r`n$tail"
   }
 
+  Write-SetupLog "$friendlyName abgeschlossen."
   $status.Text = "$friendlyName abgeschlossen."
   [System.Windows.Forms.Application]::DoEvents()
 }
@@ -384,7 +409,9 @@ Update-InstallState
 $saveButton.Add_Click({
   try {
     $saveButton.Enabled = $false
-    $status.Text = "Setup laeuft. Das Fenster bleibt waehrend der Installation bedienbar."
+    Write-SetupLog "Setup gestartet."
+    Save-DotEnv $clientIdBox.Text.Trim() $clientSecretBox.Text.Trim() $stableBox.Text.Trim() $lazerBox.Text.Trim() $portBox.Text.Trim()
+    $status.Text = "Eingaben gespeichert. Installation laeuft jetzt Schritt fuer Schritt."
     [System.Windows.Forms.Application]::DoEvents()
 
     if ($nodeCheck.Enabled -and $nodeCheck.Checked) {
@@ -421,8 +448,8 @@ $saveButton.Add_Click({
       }
     }
 
-    Save-DotEnv $clientIdBox.Text.Trim() $clientSecretBox.Text.Trim() $stableBox.Text.Trim() $lazerBox.Text.Trim() $portBox.Text.Trim()
     $status.Text = "Setup fertig. .env wurde lokal gespeichert. Du kannst dieses Fenster jetzt schliessen."
+    Write-SetupLog "Setup erfolgreich abgeschlossen."
 
     if ($openAfter.Checked) {
       $helpPath = Join-Path $Root "README.html"
@@ -439,6 +466,7 @@ $saveButton.Add_Click({
       [System.Windows.Forms.MessageBoxIcon]::Information
     ) | Out-Null
   } catch {
+    Write-SetupLog "Setup-Fehler: $($_.Exception.Message)"
     [System.Windows.Forms.MessageBox]::Show(
       $_.Exception.Message,
       "Setup-Fehler",

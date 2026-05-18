@@ -4,6 +4,7 @@
 data/
 node_modules/
 *.log
+setup.log
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
