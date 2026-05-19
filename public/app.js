@@ -1118,6 +1118,17 @@ function renderTryHistoryChart(tries, options = {}) {
     return top + (1 - ratio) * plotHeight;
   };
   const formatCoord = (value) => Number(value).toFixed(2);
+  const bestPpPoint = ordered.reduce((best, point) => (point.pp > best.pp ? point : best), ordered[0]);
+  const bestPpY = yFor(metrics[0], bestPpPoint);
+  const bestPpLabelY = Math.max(top + 14, bestPpY - 8);
+  const bestPpLine = bestPpPoint.pp > 0
+    ? `
+      <g class="chart-best-reference">
+        <line class="chart-best-line" x1="${left}" y1="${formatCoord(bestPpY)}" x2="${width - right}" y2="${formatCoord(bestPpY)}"></line>
+        <text class="chart-best-label" x="${width - right - 8}" y="${formatCoord(bestPpLabelY)}" text-anchor="end">#1 ${escapeHtml(metrics[0].format(bestPpPoint.pp))}</text>
+      </g>
+    `
+    : "";
   const gridRows = [0, 0.25, 0.5, 0.75, 1]
     .map((step) => {
       const y = top + plotHeight * step;
@@ -1208,6 +1219,7 @@ function renderTryHistoryChart(tries, options = {}) {
         <svg viewBox="0 0 ${width} ${height}" style="width: ${width}px; min-width: 100%;" role="img" aria-label="${escapeHtml(t("label.historyChart"))}">
           <rect class="chart-bg" x="${left}" y="${top}" width="${plotWidth}" height="${plotHeight}" rx="8"></rect>
           ${gridRows}
+          ${bestPpLine}
           <line class="chart-axis" x1="${left}" y1="${height - bottom}" x2="${width - right}" y2="${height - bottom}"></line>
           <text class="chart-axis-title" x="${left}" y="${height - 8}">${escapeHtml(t("label.timeAxis"))}</text>
           ${ticks}

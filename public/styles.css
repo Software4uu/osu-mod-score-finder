@@ -778,6 +778,23 @@ select:focus {
   stroke-width: 1;
 }
 
+.chart-best-line {
+  stroke: #48b7ff;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 5px rgba(72, 183, 255, 0.52));
+}
+
+.chart-best-label {
+  fill: #8fd8ff;
+  font-size: 12px;
+  font-weight: 900;
+  paint-order: stroke;
+  stroke: rgba(2, 5, 10, 0.88);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
 .chart-axis,
 .chart-tick {
   stroke: rgba(174, 183, 198, 0.34);
