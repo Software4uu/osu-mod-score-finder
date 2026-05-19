@@ -5,6 +5,7 @@ data/
 node_modules/
 .npm-cache/
 .setup-start-app
+.setup-language
 *.log
 setup.log
 *.sqlite

@@ -9,17 +9,193 @@ $EnvPath = Join-Path $Root ".env"
 $SetupLogPath = Join-Path $Root "setup.log"
 $NpmCachePath = Join-Path $Root ".npm-cache"
 $StartAfterSetupPath = Join-Path $Root ".setup-start-app"
+$SetupLanguagePath = Join-Path $Root ".setup-language"
 $script:CurrentProcess = $null
 $script:CancelRequested = $false
 $script:SetupHadError = $false
 $script:SetupMutex = $null
 
+function Read-SetupLanguage {
+  try {
+    if (Test-Path $SetupLanguagePath) {
+      $language = (Get-Content -LiteralPath $SetupLanguagePath -Raw).Trim().ToLowerInvariant()
+      if ($language -eq "en") { return "en" }
+    }
+  } catch {
+    # Invalid language files fall back to German.
+  }
+  return "de"
+}
+
+$script:SetupLanguage = Read-SetupLanguage
+$SetupTexts = @{
+  de = @{
+    "form.title" = "osu! Mod Score Finder - Beta Setup"
+    "title" = "Lokales Beta-Setup"
+    "subtitle" = "Alles bleibt auf diesem PC: .env, Datenbank und lokale osu!-Pfade werden nicht fuer GitHub vorbereitet."
+    "language" = "Sprache"
+    "group.install" = "Installation"
+    "group.config" = "Lokale Konfiguration"
+    "label.clientId" = "Client ID"
+    "label.clientSecret" = "Client Secret"
+    "label.stableDir" = "osu! stable Ordner"
+    "label.lazerDir" = "osu!lazer Ordner"
+    "label.port" = "Port"
+    "button.choose" = "Auswaehlen"
+    "button.cancel" = "Abbrechen"
+    "button.save" = "Speichern"
+    "button.installSave" = "Installieren / Speichern"
+    "checkbox.startAfter" = "Nach dem Setup App in diesem CMD-Fenster starten"
+    "status.ready" = "Bereit."
+    "status.saved" = "Eingaben gespeichert. Installation laeuft jetzt Schritt fuer Schritt."
+    "status.canceling" = "Installation wird abgebrochen..."
+    "status.finished" = "Setup fertig. .env wurde lokal gespeichert. Du kannst dieses Fenster jetzt schliessen."
+    "status.fallback" = "npm install hatte einen Fehler. Fallback wird versucht..."
+    "status.depsPresent" = "Abhaengigkeiten sind vorhanden. Setup wird fortgesetzt."
+    "status.error" = "Fehler: {message}"
+    "status.processStart" = "{name} wird gestartet..."
+    "status.processRunning" = "{name} laeuft seit {seconds}s: {line}"
+    "status.processWaiting" = "{name} laeuft seit {seconds}s. Bitte warten, das kann einige Minuten dauern."
+    "status.processDone" = "{name} abgeschlossen."
+    "node.present" = "Node.js LTS ist vorhanden"
+    "node.install" = "Node.js LTS installieren (via winget)"
+    "deps.present" = "Projekt-Abhaengigkeiten sind vorhanden"
+    "deps.install" = "Projekt-Abhaengigkeiten installieren (npm install)"
+    "deps.waitNode" = "Projekt-Abhaengigkeiten installieren, sobald Node.js vorhanden ist"
+    "folder.stable" = "Waehle den osu! stable Ordner aus"
+    "folder.lazer" = "Waehle den osu!lazer Ordner aus"
+    "msg.setupRunning" = "Das Setup laeuft bereits. Bitte nutze das bereits geoeffnete Setup-Fenster."
+    "title.setupRunning" = "Setup laeuft bereits"
+    "msg.waitInstall" = "Bitte warte, bis die laufende Installation fertig ist, oder nutze den Abbrechen-Button."
+    "title.installRunning" = "Installation laeuft"
+    "msg.cancelQuestion" = "Es laeuft gerade eine Installation. Moechtest du sie wirklich abbrechen?"
+    "title.cancel" = "Installation abbrechen"
+    "msg.noWinget" = "Node.js fehlt und winget wurde nicht gefunden. Bitte Node.js LTS manuell installieren: https://nodejs.org/"
+    "msg.nodeInstallQuestion" = "Node.js LTS wird ueber winget installiert. Fortfahren?"
+    "title.nodeInstall" = "Node.js installieren"
+    "msg.noNpm" = "npm wurde nicht gefunden. Installiere zuerst Node.js LTS und starte dieses Setup danach neu."
+    "msg.depsQuestion" = "Die Projekt-Abhaengigkeiten werden mit npm install geladen. Fortfahren?"
+    "title.depsInstall" = "Abhaengigkeiten installieren"
+    "msg.finished" = "Setup ist fertig. Dieses Fenster bleibt offen. Das CMD-Fenster startet danach die App, wenn der Haken aktiv ist."
+    "title.finished" = "Fertig"
+    "title.setupError" = "Setup-Fehler"
+    "msg.fatal" = "Das Setup ist unerwartet abgestuerzt:`r`n{message}`r`n`r`nBitte setup.log im Projektordner pruefen."
+    "title.fatal" = "Fataler Setup-Fehler"
+    "process.node" = "Node.js Installation"
+    "process.deps" = "Projekt-Abhaengigkeiten"
+    "process.depsFallback" = "Projekt-Abhaengigkeiten Fallback"
+    "log.started" = "Setup gestartet."
+    "log.success" = "Setup erfolgreich abgeschlossen."
+    "log.startFlag" = "App-Start nach Setup wurde fuer setup-beta.bat vorgemerkt."
+    "log.fallback" = "npm install meldete einen Fehler, Fallback ohne eigenen Cache wird versucht."
+    "log.depsContinue" = "npm meldete einen Fehler, aber die benoetigten Pakete sind vorhanden. Setup wird fortgesetzt."
+    "log.processStart" = "{name} wird gestartet: {command}"
+    "log.processFailed" = "{name} fehlgeschlagen mit Exit Code {code}."
+    "log.processDone" = "{name} abgeschlossen."
+    "log.setupError" = "Setup-Fehler: {message}"
+    "log.fatal" = "Fataler Setup-Fehler: {message}"
+    "error.commandMissing" = "{name} wurde nicht gefunden."
+    "error.processCancelled" = "{name} wurde abgebrochen."
+    "error.processFailed" = "{name} ist fehlgeschlagen (Exit Code {code}).`r`n{tail}"
+  }
+  en = @{
+    "form.title" = "osu! Mod Score Finder - Beta Setup"
+    "title" = "Local Beta Setup"
+    "subtitle" = "Everything stays on this PC: .env, database and local osu! paths are not prepared for GitHub."
+    "language" = "Language"
+    "group.install" = "Installation"
+    "group.config" = "Local configuration"
+    "label.clientId" = "Client ID"
+    "label.clientSecret" = "Client Secret"
+    "label.stableDir" = "osu! stable folder"
+    "label.lazerDir" = "osu!lazer folder"
+    "label.port" = "Port"
+    "button.choose" = "Choose"
+    "button.cancel" = "Cancel"
+    "button.save" = "Save"
+    "button.installSave" = "Install / Save"
+    "checkbox.startAfter" = "Start the app in this CMD window after setup"
+    "status.ready" = "Ready."
+    "status.saved" = "Settings saved. Installation now runs step by step."
+    "status.canceling" = "Cancelling installation..."
+    "status.finished" = "Setup complete. .env was saved locally. You can close this window now."
+    "status.fallback" = "npm install reported an error. Trying fallback..."
+    "status.depsPresent" = "Dependencies are present. Setup continues."
+    "status.error" = "Error: {message}"
+    "status.processStart" = "Starting {name}..."
+    "status.processRunning" = "{name} has been running for {seconds}s: {line}"
+    "status.processWaiting" = "{name} has been running for {seconds}s. Please wait, this can take a few minutes."
+    "status.processDone" = "{name} completed."
+    "node.present" = "Node.js LTS is installed"
+    "node.install" = "Install Node.js LTS (via winget)"
+    "deps.present" = "Project dependencies are installed"
+    "deps.install" = "Install project dependencies (npm install)"
+    "deps.waitNode" = "Install project dependencies once Node.js is available"
+    "folder.stable" = "Choose the osu! stable folder"
+    "folder.lazer" = "Choose the osu!lazer folder"
+    "msg.setupRunning" = "Setup is already running. Please use the setup window that is already open."
+    "title.setupRunning" = "Setup already running"
+    "msg.waitInstall" = "Please wait until the current installation is finished, or use the Cancel button."
+    "title.installRunning" = "Installation running"
+    "msg.cancelQuestion" = "An installation is currently running. Do you really want to cancel it?"
+    "title.cancel" = "Cancel installation"
+    "msg.noWinget" = "Node.js is missing and winget was not found. Please install Node.js LTS manually: https://nodejs.org/"
+    "msg.nodeInstallQuestion" = "Node.js LTS will be installed with winget. Continue?"
+    "title.nodeInstall" = "Install Node.js"
+    "msg.noNpm" = "npm was not found. Install Node.js LTS first, then restart this setup."
+    "msg.depsQuestion" = "Project dependencies will be downloaded with npm install. Continue?"
+    "title.depsInstall" = "Install dependencies"
+    "msg.finished" = "Setup is complete. This window stays open. The CMD window starts the app afterwards if the checkbox is enabled."
+    "title.finished" = "Done"
+    "title.setupError" = "Setup error"
+    "msg.fatal" = "Setup crashed unexpectedly:`r`n{message}`r`n`r`nPlease check setup.log in the project folder."
+    "title.fatal" = "Fatal setup error"
+    "process.node" = "Node.js installation"
+    "process.deps" = "Project dependencies"
+    "process.depsFallback" = "Project dependencies fallback"
+    "log.started" = "Setup started."
+    "log.success" = "Setup completed successfully."
+    "log.startFlag" = "App start after setup was queued for setup-beta.bat."
+    "log.fallback" = "npm install reported an error; trying fallback without local cache."
+    "log.depsContinue" = "npm reported an error, but the required packages are present. Setup continues."
+    "log.processStart" = "Starting {name}: {command}"
+    "log.processFailed" = "{name} failed with exit code {code}."
+    "log.processDone" = "{name} completed."
+    "log.setupError" = "Setup error: {message}"
+    "log.fatal" = "Fatal setup error: {message}"
+    "error.commandMissing" = "{name} was not found."
+    "error.processCancelled" = "{name} was cancelled."
+    "error.processFailed" = "{name} failed (exit code {code}).`r`n{tail}"
+  }
+}
+
+function T($key) {
+  if ($SetupTexts.ContainsKey($script:SetupLanguage) -and $SetupTexts[$script:SetupLanguage].ContainsKey($key)) {
+    return $SetupTexts[$script:SetupLanguage][$key]
+  }
+  if ($SetupTexts["de"].ContainsKey($key)) { return $SetupTexts["de"][$key] }
+  return $key
+}
+
+function TFormat($key, $values) {
+  $text = T $key
+  foreach ($entry in $values.GetEnumerator()) {
+    $text = $text.Replace("{$($entry.Key)}", [string]$entry.Value)
+  }
+  return $text
+}
+
+function Save-SetupLanguage($language) {
+  $normalized = if ($language -eq "en") { "en" } else { "de" }
+  Set-Content -LiteralPath $SetupLanguagePath -Value $normalized -Encoding ASCII
+}
+
 $createdSetupMutex = $false
 $script:SetupMutex = New-Object System.Threading.Mutex($true, "Local\OsuModScoreFinderBetaSetup", [ref]$createdSetupMutex)
 if (-not $createdSetupMutex) {
   [System.Windows.Forms.MessageBox]::Show(
-    "Das Setup laeuft bereits. Bitte nutze das bereits geoeffnete Setup-Fenster.",
-    "Setup laeuft bereits",
+    (T "msg.setupRunning"),
+    (T "title.setupRunning"),
     [System.Windows.Forms.MessageBoxButtons]::OK,
     [System.Windows.Forms.MessageBoxIcon]::Information
   ) | Out-Null
@@ -121,11 +297,11 @@ function Stop-CurrentProcessTree {
 function Run-CheckedProcess($fileName, $arguments, $workingDirectory, $friendlyName, $useLocalCache = $true) {
   $resolvedFile = Resolve-CommandPath $fileName
   if (-not $resolvedFile) {
-    throw "$fileName wurde nicht gefunden."
+    throw (TFormat "error.commandMissing" @{ name = $fileName })
   }
 
-  Write-SetupLog "$friendlyName wird gestartet: $fileName $arguments"
-  $status.Text = "$friendlyName wird gestartet..."
+  Write-SetupLog (TFormat "log.processStart" @{ name = $friendlyName; command = "$fileName $arguments" })
+  $status.Text = TFormat "status.processStart" @{ name = $friendlyName }
   [System.Windows.Forms.Application]::DoEvents()
 
   $processInfo = New-Object System.Diagnostics.ProcessStartInfo
@@ -181,15 +357,15 @@ function Run-CheckedProcess($fileName, $arguments, $workingDirectory, $friendlyN
     $lastLine = if ($lines.Count -gt 0) { [string]$lines[$lines.Count - 1] } else { "" }
     if ($lastLine.Length -gt 95) { $lastLine = $lastLine.Substring(0, 95) + "..." }
     $status.Text = if ($lastLine) {
-      "$friendlyName laeuft seit ${elapsed}s: $lastLine"
+      TFormat "status.processRunning" @{ name = $friendlyName; seconds = $elapsed; line = $lastLine }
     } else {
-      "$friendlyName laeuft seit ${elapsed}s. Bitte warten, das kann einige Minuten dauern."
+      TFormat "status.processWaiting" @{ name = $friendlyName; seconds = $elapsed }
     }
     [System.Windows.Forms.Application]::DoEvents()
 
     if ($script:CancelRequested) {
       Stop-CurrentProcessTree
-      throw "$friendlyName wurde abgebrochen."
+      throw (TFormat "error.processCancelled" @{ name = $friendlyName })
     }
   }
 
@@ -199,17 +375,17 @@ function Run-CheckedProcess($fileName, $arguments, $workingDirectory, $friendlyN
   $process.remove_ErrorDataReceived($errorHandler)
 
   if ($script:CancelRequested) {
-    throw "$friendlyName wurde abgebrochen."
+    throw (TFormat "error.processCancelled" @{ name = $friendlyName })
   }
 
   if ($process.ExitCode -ne 0) {
     $tail = ($lines | Select-Object -Last 18) -join "`r`n"
-    Write-SetupLog "$friendlyName fehlgeschlagen mit Exit Code $($process.ExitCode)."
-    throw "$friendlyName ist fehlgeschlagen (Exit Code $($process.ExitCode)).`r`n$tail"
+    Write-SetupLog (TFormat "log.processFailed" @{ name = $friendlyName; code = $process.ExitCode })
+    throw (TFormat "error.processFailed" @{ name = $friendlyName; code = $process.ExitCode; tail = $tail })
   }
 
-  Write-SetupLog "$friendlyName abgeschlossen."
-  $status.Text = "$friendlyName abgeschlossen."
+  Write-SetupLog (TFormat "log.processDone" @{ name = $friendlyName })
+  $status.Text = TFormat "status.processDone" @{ name = $friendlyName }
   [System.Windows.Forms.Application]::DoEvents()
 }
 
@@ -252,7 +428,7 @@ $defaultStable = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA "osu!" } e
 $defaultLazer = if ($env:APPDATA) { Join-Path $env:APPDATA "osu" } else { "%APPDATA%\osu" }
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "osu! Mod Score Finder - Beta Setup"
+$form.Text = T "form.title"
 $form.StartPosition = "CenterScreen"
 $form.Size = New-Object System.Drawing.Size(760, 640)
 $form.FormBorderStyle = "FixedDialog"
@@ -262,8 +438,8 @@ $form.Add_FormClosing({
   if ($script:CurrentProcess -and -not $script:CurrentProcess.HasExited) {
     $eventArgs.Cancel = $true
     [System.Windows.Forms.MessageBox]::Show(
-      "Bitte warte, bis die laufende Installation fertig ist, oder nutze den Abbrechen-Button.",
-      "Installation laeuft",
+      (T "msg.waitInstall"),
+      (T "title.installRunning"),
       [System.Windows.Forms.MessageBoxButtons]::OK,
       [System.Windows.Forms.MessageBoxIcon]::Information
     ) | Out-Null
@@ -274,20 +450,35 @@ $font = New-Object System.Drawing.Font("Segoe UI", 9)
 $form.Font = $font
 
 $title = New-Object System.Windows.Forms.Label
-$title.Text = "Lokales Beta-Setup"
+$title.Text = T "title"
 $title.Font = New-Object System.Drawing.Font("Segoe UI", 16, [System.Drawing.FontStyle]::Bold)
 $title.Location = New-Object System.Drawing.Point(18, 16)
-$title.Size = New-Object System.Drawing.Size(700, 34)
+$title.Size = New-Object System.Drawing.Size(500, 34)
 $form.Controls.Add($title)
 
+$languageLabel = New-Object System.Windows.Forms.Label
+$languageLabel.Text = T "language"
+$languageLabel.Location = New-Object System.Drawing.Point(535, 22)
+$languageLabel.Size = New-Object System.Drawing.Size(75, 22)
+$form.Controls.Add($languageLabel)
+
+$languageSelect = New-Object System.Windows.Forms.ComboBox
+$languageSelect.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+$languageSelect.Location = New-Object System.Drawing.Point(615, 18)
+$languageSelect.Size = New-Object System.Drawing.Size(110, 24)
+[void]$languageSelect.Items.Add("Deutsch")
+[void]$languageSelect.Items.Add("English")
+$languageSelect.SelectedIndex = if ($script:SetupLanguage -eq "en") { 1 } else { 0 }
+$form.Controls.Add($languageSelect)
+
 $subtitle = New-Object System.Windows.Forms.Label
-$subtitle.Text = "Alles bleibt auf diesem PC: .env, Datenbank und lokale osu!-Pfade werden nicht fuer GitHub vorbereitet."
+$subtitle.Text = T "subtitle"
 $subtitle.Location = New-Object System.Drawing.Point(20, 55)
 $subtitle.Size = New-Object System.Drawing.Size(705, 22)
 $form.Controls.Add($subtitle)
 
 $requirements = New-Object System.Windows.Forms.GroupBox
-$requirements.Text = "Installation"
+$requirements.Text = T "group.install"
 $requirements.Location = New-Object System.Drawing.Point(20, 90)
 $requirements.Size = New-Object System.Drawing.Size(705, 112)
 $form.Controls.Add($requirements)
@@ -297,10 +488,10 @@ $nodeCheck.Location = New-Object System.Drawing.Point(18, 28)
 $nodeCheck.Size = New-Object System.Drawing.Size(650, 24)
 $nodeCheck.Checked = $true
 if ($nodeInstalled) {
-  $nodeCheck.Text = "Node.js LTS ist vorhanden"
+  $nodeCheck.Text = T "node.present"
   $nodeCheck.Enabled = $false
 } else {
-  $nodeCheck.Text = "Node.js LTS installieren (via winget)"
+  $nodeCheck.Text = T "node.install"
 }
 $requirements.Controls.Add($nodeCheck)
 
@@ -309,15 +500,15 @@ $depsCheck.Location = New-Object System.Drawing.Point(18, 62)
 $depsCheck.Size = New-Object System.Drawing.Size(650, 24)
 $depsCheck.Checked = $true
 if ($depsInstalled) {
-  $depsCheck.Text = "Projekt-Abhaengigkeiten sind vorhanden"
+  $depsCheck.Text = T "deps.present"
   $depsCheck.Enabled = $false
 } else {
-  $depsCheck.Text = "Projekt-Abhaengigkeiten installieren (npm install)"
+  $depsCheck.Text = T "deps.install"
 }
 $requirements.Controls.Add($depsCheck)
 
 $settings = New-Object System.Windows.Forms.GroupBox
-$settings.Text = "Lokale Konfiguration"
+$settings.Text = T "group.config"
 $settings.Location = New-Object System.Drawing.Point(20, 216)
 $settings.Size = New-Object System.Drawing.Size(705, 270)
 $form.Controls.Add($settings)
@@ -341,35 +532,35 @@ function Add-TextBox($text, $x, $y, $width, $password = $false) {
   return $box
 }
 
-Add-Label "Client ID" 18 34 | Out-Null
+$clientIdLabel = Add-Label (T "label.clientId") 18 34
 $clientIdBox = Add-TextBox (Get-ConfigValue "OSU_CLIENT_ID" "") 165 31 490
 
-Add-Label "Client Secret" 18 75 | Out-Null
+$clientSecretLabel = Add-Label (T "label.clientSecret") 18 75
 $clientSecretBox = Add-TextBox (Get-ConfigValue "OSU_CLIENT_SECRET" "") 165 72 490 $true
 
-Add-Label "osu! stable Ordner" 18 116 | Out-Null
+$stableLabel = Add-Label (T "label.stableDir") 18 116
 $stableBox = Add-TextBox (Get-ConfigValue "OSU_STABLE_DIR" $defaultStable) 165 113 405
 $stableButton = New-Object System.Windows.Forms.Button
-$stableButton.Text = "Auswaehlen"
+$stableButton.Text = T "button.choose"
 $stableButton.Location = New-Object System.Drawing.Point(582, 111)
 $stableButton.Size = New-Object System.Drawing.Size(98, 28)
-$stableButton.Add_Click({ Pick-Folder $stableBox "Waehle den osu! stable Ordner aus" })
+$stableButton.Add_Click({ Pick-Folder $stableBox (T "folder.stable") })
 $settings.Controls.Add($stableButton)
 
-Add-Label "osu!lazer Ordner" 18 157 | Out-Null
+$lazerLabel = Add-Label (T "label.lazerDir") 18 157
 $lazerBox = Add-TextBox (Get-ConfigValue "OSU_LAZER_DIR" $defaultLazer) 165 154 405
 $lazerButton = New-Object System.Windows.Forms.Button
-$lazerButton.Text = "Auswaehlen"
+$lazerButton.Text = T "button.choose"
 $lazerButton.Location = New-Object System.Drawing.Point(582, 152)
 $lazerButton.Size = New-Object System.Drawing.Size(98, 28)
-$lazerButton.Add_Click({ Pick-Folder $lazerBox "Waehle den osu!lazer Ordner aus" })
+$lazerButton.Add_Click({ Pick-Folder $lazerBox (T "folder.lazer") })
 $settings.Controls.Add($lazerButton)
 
-Add-Label "Port" 18 198 | Out-Null
+$portLabel = Add-Label (T "label.port") 18 198
 $portBox = Add-TextBox (Get-ConfigValue "PORT" "5173") 165 195 120
 
 $openAfter = New-Object System.Windows.Forms.CheckBox
-$openAfter.Text = "Nach dem Setup App in diesem CMD-Fenster starten"
+$openAfter.Text = T "checkbox.startAfter"
 $openAfter.Location = New-Object System.Drawing.Point(165, 228)
 $openAfter.Size = New-Object System.Drawing.Size(360, 24)
 $openAfter.Checked = $true
@@ -378,31 +569,31 @@ $settings.Controls.Add($openAfter)
 $status = New-Object System.Windows.Forms.Label
 $status.Location = New-Object System.Drawing.Point(22, 500)
 $status.Size = New-Object System.Drawing.Size(700, 38)
-$status.Text = "Bereit."
+$status.Text = T "status.ready"
 $form.Controls.Add($status)
 
 $saveButton = New-Object System.Windows.Forms.Button
-$saveButton.Text = "Installieren / Speichern"
+$saveButton.Text = T "button.installSave"
 $saveButton.Location = New-Object System.Drawing.Point(430, 548)
 $saveButton.Size = New-Object System.Drawing.Size(170, 34)
 $form.Controls.Add($saveButton)
 
 $cancelButton = New-Object System.Windows.Forms.Button
-$cancelButton.Text = "Abbrechen"
+$cancelButton.Text = T "button.cancel"
 $cancelButton.Location = New-Object System.Drawing.Point(615, 548)
 $cancelButton.Size = New-Object System.Drawing.Size(110, 34)
 $cancelButton.Add_Click({
   if ($script:CurrentProcess -and -not $script:CurrentProcess.HasExited) {
     $answer = [System.Windows.Forms.MessageBox]::Show(
-      "Es laeuft gerade eine Installation. Moechtest du sie wirklich abbrechen?",
-      "Installation abbrechen",
+      (T "msg.cancelQuestion"),
+      (T "title.cancel"),
       [System.Windows.Forms.MessageBoxButtons]::YesNo,
       [System.Windows.Forms.MessageBoxIcon]::Question
     )
     if ($answer -eq [System.Windows.Forms.DialogResult]::Yes) {
       $script:CancelRequested = $true
       Stop-CurrentProcessTree
-      $status.Text = "Installation wird abgebrochen..."
+      $status.Text = T "status.canceling"
     }
     return
   }
@@ -419,56 +610,88 @@ function Update-InstallState {
   $depsNow = Test-DependenciesInstalled
 
   if ($nodeNow) {
-    $nodeCheck.Text = "Node.js LTS ist vorhanden"
+    $nodeCheck.Text = T "node.present"
     $nodeCheck.Checked = $true
     $nodeCheck.Enabled = $false
   } else {
-    $nodeCheck.Text = "Node.js LTS installieren (via winget)"
+    $nodeCheck.Text = T "node.install"
     $nodeCheck.Enabled = $true
   }
 
   if ($depsNow) {
-    $depsCheck.Text = "Projekt-Abhaengigkeiten sind vorhanden"
+    $depsCheck.Text = T "deps.present"
     $depsCheck.Checked = $true
     $depsCheck.Enabled = $false
   } else {
     $depsCheck.Text = if ($npmNow) {
-      "Projekt-Abhaengigkeiten installieren (npm install)"
+      T "deps.install"
     } else {
-      "Projekt-Abhaengigkeiten installieren, sobald Node.js vorhanden ist"
+      T "deps.waitNode"
     }
     $depsCheck.Enabled = $true
   }
 
   if ($nodeNow -and $depsNow) {
-    $saveButton.Text = "Speichern"
+    $saveButton.Text = T "button.save"
   } else {
-    $saveButton.Text = "Installieren / Speichern"
+    $saveButton.Text = T "button.installSave"
   }
 }
 
-Update-InstallState
+function Apply-SetupLanguage {
+  $form.Text = T "form.title"
+  $title.Text = T "title"
+  $subtitle.Text = T "subtitle"
+  $languageLabel.Text = T "language"
+  $requirements.Text = T "group.install"
+  $settings.Text = T "group.config"
+  $clientIdLabel.Text = T "label.clientId"
+  $clientSecretLabel.Text = T "label.clientSecret"
+  $stableLabel.Text = T "label.stableDir"
+  $lazerLabel.Text = T "label.lazerDir"
+  $portLabel.Text = T "label.port"
+  $stableButton.Text = T "button.choose"
+  $lazerButton.Text = T "button.choose"
+  $openAfter.Text = T "checkbox.startAfter"
+  $cancelButton.Text = T "button.cancel"
+  if ($status.Text -eq "Bereit." -or $status.Text -eq "Ready.") {
+    $status.Text = T "status.ready"
+  }
+  Update-InstallState
+}
+
+$languageSelect.Add_SelectedIndexChanged({
+  $selectedLanguage = if ($languageSelect.SelectedIndex -eq 1) { "en" } else { "de" }
+  if ($script:SetupLanguage -ne $selectedLanguage) {
+    $script:SetupLanguage = $selectedLanguage
+    Save-SetupLanguage $selectedLanguage
+    Apply-SetupLanguage
+  }
+})
+
+Apply-SetupLanguage
 
 $saveButton.Add_Click({
   try {
     $saveButton.Enabled = $false
-    Write-SetupLog "Setup gestartet."
+    Write-SetupLog (T "log.started")
+    Save-SetupLanguage $script:SetupLanguage
     Save-DotEnv $clientIdBox.Text.Trim() $clientSecretBox.Text.Trim() $stableBox.Text.Trim() $lazerBox.Text.Trim() $portBox.Text.Trim()
-    $status.Text = "Eingaben gespeichert. Installation laeuft jetzt Schritt fuer Schritt."
+    $status.Text = T "status.saved"
     [System.Windows.Forms.Application]::DoEvents()
 
     if ($nodeCheck.Enabled -and $nodeCheck.Checked) {
       if (-not (Test-CommandExists "winget")) {
-        throw "Node.js fehlt und winget wurde nicht gefunden. Bitte Node.js LTS manuell installieren: https://nodejs.org/"
+        throw (T "msg.noWinget")
       }
       $answer = [System.Windows.Forms.MessageBox]::Show(
-        "Node.js LTS wird ueber winget installiert. Fortfahren?",
-        "Node.js installieren",
+        (T "msg.nodeInstallQuestion"),
+        (T "title.nodeInstall"),
         [System.Windows.Forms.MessageBoxButtons]::YesNo,
         [System.Windows.Forms.MessageBoxIcon]::Question
       )
       if ($answer -eq [System.Windows.Forms.DialogResult]::Yes) {
-        Run-CheckedProcess "winget" "install -e --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements" $Root "Node.js Installation"
+        Run-CheckedProcess "winget" "install -e --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements" $Root (T "process.node")
         Refresh-ProcessPath
         Update-InstallState
       }
@@ -477,14 +700,14 @@ $saveButton.Add_Click({
     if ($depsCheck.Enabled -and $depsCheck.Checked) {
       Refresh-ProcessPath
       if (-not (Test-CommandExists "npm")) {
-        throw "npm wurde nicht gefunden. Installiere zuerst Node.js LTS und starte dieses Setup danach neu."
+        throw (T "msg.noNpm")
       }
       if (-not (Test-Path $NpmCachePath)) {
         New-Item -ItemType Directory -Path $NpmCachePath -Force | Out-Null
       }
       $answer = [System.Windows.Forms.MessageBox]::Show(
-        "Die Projekt-Abhaengigkeiten werden mit npm install geladen. Fortfahren?",
-        "Abhaengigkeiten installieren",
+        (T "msg.depsQuestion"),
+        (T "title.depsInstall"),
         [System.Windows.Forms.MessageBoxButtons]::YesNo,
         [System.Windows.Forms.MessageBoxIcon]::Question
       )
@@ -492,14 +715,14 @@ $saveButton.Add_Click({
         $npmArgs = "install --no-audit --no-fund --prefer-online --cache `"$NpmCachePath`""
         $installError = $null
         try {
-          Run-CheckedProcess "npm" $npmArgs $Root "Projekt-Abhaengigkeiten"
+          Run-CheckedProcess "npm" $npmArgs $Root (T "process.deps")
         } catch {
           $installError = $_.Exception.Message
-          Write-SetupLog "npm install meldete einen Fehler, Fallback ohne eigenen Cache wird versucht."
-          $status.Text = "npm install hatte einen Fehler. Fallback wird versucht..."
+          Write-SetupLog (T "log.fallback")
+          $status.Text = T "status.fallback"
           [System.Windows.Forms.Application]::DoEvents()
           try {
-            Run-CheckedProcess "npm" "install --no-audit --no-fund --omit=optional" $Root "Projekt-Abhaengigkeiten Fallback" $false
+            Run-CheckedProcess "npm" "install --no-audit --no-fund --omit=optional" $Root (T "process.depsFallback") $false
             $installError = $null
           } catch {
             $installError = "$installError`r`n`r`nFallback: $($_.Exception.Message)"
@@ -511,38 +734,38 @@ $saveButton.Add_Click({
           throw $installError
         }
         if ($installError) {
-          Write-SetupLog "npm meldete einen Fehler, aber die benoetigten Pakete sind vorhanden. Setup wird fortgesetzt."
-          $status.Text = "Abhaengigkeiten sind vorhanden. Setup wird fortgesetzt."
+          Write-SetupLog (T "log.depsContinue")
+          $status.Text = T "status.depsPresent"
         }
       }
     }
 
-    $status.Text = "Setup fertig. .env wurde lokal gespeichert. Du kannst dieses Fenster jetzt schliessen."
-    Write-SetupLog "Setup erfolgreich abgeschlossen."
+    $status.Text = T "status.finished"
+    Write-SetupLog (T "log.success")
 
     if ($openAfter.Checked) {
       Set-Content -LiteralPath $StartAfterSetupPath -Value "1" -Encoding ASCII
-      Write-SetupLog "App-Start nach Setup wurde fuer setup-beta.bat vorgemerkt."
+      Write-SetupLog (T "log.startFlag")
     }
 
     [System.Windows.Forms.MessageBox]::Show(
-      "Setup ist fertig. Dieses Fenster bleibt offen. Das CMD-Fenster startet danach die App, wenn der Haken aktiv ist.",
-      "Fertig",
+      (T "msg.finished"),
+      (T "title.finished"),
       [System.Windows.Forms.MessageBoxButtons]::OK,
       [System.Windows.Forms.MessageBoxIcon]::Information
     ) | Out-Null
   } catch {
     $script:SetupHadError = $true
-    Write-SetupLog "Setup-Fehler: $($_.Exception.Message)"
+    Write-SetupLog (TFormat "log.setupError" @{ message = $_.Exception.Message })
     [System.Windows.Forms.MessageBox]::Show(
       $_.Exception.Message,
-      "Setup-Fehler",
+      (T "title.setupError"),
       [System.Windows.Forms.MessageBoxButtons]::OK,
       [System.Windows.Forms.MessageBoxIcon]::Error
     ) | Out-Null
     $message = $_.Exception.Message
     if ($message.Length -gt 180) { $message = $message.Substring(0, 180) + "..." }
-    $status.Text = "Fehler: $message"
+    $status.Text = TFormat "status.error" @{ message = $message }
   } finally {
     $script:CurrentProcess = $null
     $script:CancelRequested = $false
@@ -558,10 +781,10 @@ try {
   exit 0
 } catch {
   Close-SetupMutex
-  Write-SetupLog "Fataler Setup-Fehler: $($_.Exception.Message)"
+  Write-SetupLog (TFormat "log.fatal" @{ message = $_.Exception.Message })
   [System.Windows.Forms.MessageBox]::Show(
-    "Das Setup ist unerwartet abgestuerzt:`r`n$($_.Exception.Message)`r`n`r`nBitte setup.log im Projektordner pruefen.",
-    "Fataler Setup-Fehler",
+    (TFormat "msg.fatal" @{ message = $_.Exception.Message }),
+    (T "title.fatal"),
     [System.Windows.Forms.MessageBoxButtons]::OK,
     [System.Windows.Forms.MessageBoxIcon]::Error
   ) | Out-Null
