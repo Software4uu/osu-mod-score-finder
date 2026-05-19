@@ -721,6 +721,33 @@ select:focus {
   font-size: 0.86rem;
 }
 
+.calendar-filter {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) repeat(2, minmax(110px, 150px)) auto auto;
+  gap: 8px;
+  align-items: end;
+  border: 1px solid rgba(152, 170, 203, 0.18);
+  border-radius: 6px;
+  background: rgba(15, 19, 28, 0.36);
+  padding: 10px;
+}
+
+.calendar-filter strong,
+.calendar-filter span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.calendar-filter label {
+  display: grid;
+  gap: 5px;
+}
+
+.calendar-filter input {
+  min-height: 34px;
+}
+
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -755,6 +782,15 @@ select:focus {
 .calendar-cell.has-scores {
   border-color: rgba(145, 227, 106, 0.5);
   background: rgba(145, 227, 106, 0.16);
+}
+
+.calendar-cell.top-play {
+  border-color: rgba(255, 177, 66, 0.76);
+  background: rgba(255, 177, 66, 0.24);
+}
+
+.calendar-cell.top-play strong {
+  color: #ffbd5a;
 }
 
 .calendar-cell.no-scores {
@@ -808,6 +844,10 @@ select:focus {
 
 .legend-played {
   background: rgba(145, 227, 106, 0.3);
+}
+
+.legend-top {
+  background: rgba(255, 177, 66, 0.36);
 }
 
 .legend-empty {
@@ -971,6 +1011,14 @@ select:focus {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .calendar-filter {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .calendar-filter strong {
+    grid-column: 1 / -1;
+  }
+
   .field-wide {
     grid-column: 1 / -1;
   }
@@ -1025,6 +1073,10 @@ select:focus {
 
   .calendar-cell {
     padding: 6px;
+  }
+
+  .calendar-filter {
+    grid-template-columns: 1fr;
   }
 
   .calendar-cell small {

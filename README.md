@@ -56,6 +56,7 @@ http://localhost:5173/callback
 - Improvement view for the latest try, the last hour, or today
 - Live scanner for newly saved local scores after a search
 - Calendar tab with a month grid, played days, and all stored scores for a selected day
+- Calendar PP range filter plus orange highlight for the day with the month's top PP play
 - Map detail view with all stored tries on the same map difficulty
 
 ## Start
@@ -133,6 +134,7 @@ http://localhost:5173/callback
 - Improvement-Ansicht für letzten Try, letzte Stunde oder heute
 - Live-Scanner für neu gespeicherte lokale Scores nach einer Suche
 - Kalender-Tab mit Monatsraster, gespielten Tagen und allen gespeicherten Scores eines Tages
+- Kalender-PP-Range-Filter plus orange Markierung fuer den Tag mit dem Top-PP-Play des Monats
 - Map-Detailansicht mit allen gespeicherten Tries auf derselben Difficulty
 
 ## Starten
