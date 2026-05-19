@@ -1068,13 +1068,13 @@ function renderTryHistoryChart(tries, options = {}) {
 
   if (!ordered.length) return "";
 
-  const pointGap = compact ? 84 : 104;
+  const pointGap = compact ? 92 : 118;
   const width = Math.max(900, 44 + 18 + Math.max(ordered.length - 1, 1) * pointGap);
-  const height = compact ? 222 : 272;
+  const height = compact ? 252 : 336;
   const left = 44;
   const right = 18;
   const top = 18;
-  const bottom = compact ? 72 : 78;
+  const bottom = compact ? 96 : 122;
   const plotWidth = width - left - right;
   const plotHeight = height - top - bottom;
   const xFor = (point) => {
@@ -1156,7 +1156,7 @@ function renderTryHistoryChart(tries, options = {}) {
   const ticks = ordered
     .map((point) => {
       const x = xFor(point);
-      const labelY = height - (compact ? 8 : 10);
+      const labelY = height - (compact ? 28 : 34);
       return `
         <g>
           <line class="chart-tick" x1="${formatCoord(x)}" y1="${height - bottom}" x2="${formatCoord(x)}" y2="${height - bottom + 5}"></line>
@@ -1209,7 +1209,7 @@ function renderTryHistoryChart(tries, options = {}) {
           <rect class="chart-bg" x="${left}" y="${top}" width="${plotWidth}" height="${plotHeight}" rx="8"></rect>
           ${gridRows}
           <line class="chart-axis" x1="${left}" y1="${height - bottom}" x2="${width - right}" y2="${height - bottom}"></line>
-          <text class="chart-axis-title" x="${left}" y="${height - 5}">${escapeHtml(t("label.timeAxis"))}</text>
+          <text class="chart-axis-title" x="${left}" y="${height - 8}">${escapeHtml(t("label.timeAxis"))}</text>
           ${ticks}
           ${series}
           ${hoverZones}

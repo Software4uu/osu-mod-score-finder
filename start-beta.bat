@@ -110,11 +110,11 @@ if not "!SERVER_EXIT!"=="0" (
 exit /b !SERVER_EXIT!
 
 :LoadLanguage
-set "SETUP_LANG=de"
+set "SETUP_LANG=en"
 if exist "%~dp0.setup-language" (
   set /p SETUP_LANG=<"%~dp0.setup-language"
 )
-if /I not "!SETUP_LANG!"=="en" set "SETUP_LANG=de"
+if /I not "!SETUP_LANG!"=="de" if /I not "!SETUP_LANG!"=="en" set "SETUP_LANG=en"
 exit /b 0
 
 :LoadConfig

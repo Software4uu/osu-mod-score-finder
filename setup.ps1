@@ -22,9 +22,9 @@ function Read-SetupLanguage {
       if ($language -eq "en") { return "en" }
     }
   } catch {
-    # Invalid language files fall back to German.
+    # Invalid language files fall back to English for new beta users.
   }
-  return "de"
+  return "en"
 }
 
 $script:SetupLanguage = Read-SetupLanguage
