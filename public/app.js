@@ -100,6 +100,7 @@ const translations = {
     "button.close": "Schliessen",
     "button.prevMonth": "Vorheriger Monat",
     "button.nextMonth": "Naechster Monat",
+    "button.today": "Heute",
     "button.apply": "Anwenden",
     "button.reset": "Zuruecksetzen",
     "notice.label": "Hinweis:",
@@ -269,6 +270,7 @@ const translations = {
     "button.close": "Close",
     "button.prevMonth": "Previous month",
     "button.nextMonth": "Next month",
+    "button.today": "Today",
     "button.apply": "Apply",
     "button.reset": "Reset",
     "notice.label": "Note:",
@@ -491,6 +493,53 @@ function addMonths(monthKey, offset) {
   const [year, month] = String(monthKey).split("-").map(Number);
   const date = new Date(year || new Date().getFullYear(), (month || 1) - 1 + offset, 1);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function todayDayKey() {
+  return dateToDayKey(new Date());
+}
+
+function monthSortValue(monthKey) {
+  const [year, month] = String(monthKey || "").split("-").map(Number);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return null;
+  return year * 12 + month - 1;
+}
+
+function compareMonthKeys(left, right) {
+  const leftValue = monthSortValue(left);
+  const rightValue = monthSortValue(right);
+  if (leftValue === null && rightValue === null) return 0;
+  if (leftValue === null) return -1;
+  if (rightValue === null) return 1;
+  return leftValue - rightValue;
+}
+
+function clampMonthKey(monthKey, minMonth, maxMonth) {
+  if (monthSortValue(monthKey) === null) return minMonth || maxMonth || dayToMonthKey(todayDayKey());
+  if (minMonth && compareMonthKeys(monthKey, minMonth) < 0) return minMonth;
+  if (maxMonth && compareMonthKeys(monthKey, maxMonth) > 0) return maxMonth;
+  return monthKey;
+}
+
+function calendarMonthBounds(data) {
+  const todayMonth = dayToMonthKey(todayDayKey());
+  const monthKeys = (data?.calendar?.days || [])
+    .map((day) => dayToMonthKey(day.date))
+    .filter((monthKey) => monthSortValue(monthKey) !== null);
+  const sortedMonths = [...new Set(monthKeys)].sort(compareMonthKeys);
+  const minMonth = sortedMonths[0] || todayMonth;
+  const maxDataMonth = sortedMonths[sortedMonths.length - 1] || todayMonth;
+  const maxMonth = compareMonthKeys(maxDataMonth, todayMonth) > 0 ? maxDataMonth : todayMonth;
+
+  return compareMonthKeys(minMonth, maxMonth) > 0
+    ? { minMonth: maxMonth, maxMonth, todayMonth }
+    : { minMonth, maxMonth, todayMonth };
+}
+
+function firstScoreDayInMonth(scoresByDay, monthKey) {
+  return Object.keys(scoresByDay)
+    .filter((dayKey) => dayKey.startsWith(monthKey))
+    .sort()[0] || "";
 }
 
 function weekdayLabels() {
@@ -1050,13 +1099,17 @@ function renderCalendar(data) {
   const scoresByDay = filteredCalendarScoresByDay(data);
   const days = calendarDaysFromScoresByDay(scoresByDay, data.meta?.sort || "date");
   const anchorDays = days.length ? days : baseDays;
+  const { minMonth, maxMonth, todayMonth } = calendarMonthBounds(data);
+  const fallbackDay = anchorDays[0]?.date || todayDayKey();
 
-  if (!currentCalendarDay || !anchorDays.some((day) => day.date === currentCalendarDay)) {
-    currentCalendarDay = anchorDays[0].date;
+  if (!currentCalendarMonth) {
+    currentCalendarMonth = dayToMonthKey(currentCalendarDay || fallbackDay || todayDayKey());
   }
 
-  if (!currentCalendarMonth || !anchorDays.some((day) => day.date.startsWith(currentCalendarMonth))) {
-    currentCalendarMonth = dayToMonthKey(currentCalendarDay || anchorDays[0].date);
+  currentCalendarMonth = clampMonthKey(currentCalendarMonth || todayMonth, minMonth, maxMonth);
+
+  if (!currentCalendarDay || dayToMonthKey(currentCalendarDay) !== currentCalendarMonth) {
+    currentCalendarDay = firstScoreDayInMonth(scoresByDay, currentCalendarMonth) || `${currentCalendarMonth}-01`;
   }
 
   const [year, month] = currentCalendarMonth.split("-").map(Number);
@@ -1098,16 +1151,19 @@ function renderCalendar(data) {
     .map((label) => `<span class="calendar-weekday">${escapeHtml(label)}</span>`)
     .join("");
   const leadingCells = Array.from({ length: leadingEmptyCells }, () => '<span class="calendar-pad"></span>').join("");
+  const prevDisabled = compareMonthKeys(currentCalendarMonth, minMonth) <= 0 ? " disabled" : "";
+  const nextDisabled = compareMonthKeys(currentCalendarMonth, maxMonth) >= 0 ? " disabled" : "";
 
   calendar.innerHTML = `
     <div class="calendar-month-panel">
       <div class="calendar-month-head">
-        <button class="ghost-button" type="button" data-calendar-month="-1" aria-label="${escapeHtml(t("button.prevMonth"))}">&lt;</button>
+        <button class="ghost-button" type="button" data-calendar-month="-1" aria-label="${escapeHtml(t("button.prevMonth"))}"${prevDisabled}>&lt;</button>
         <div>
           <strong>${escapeHtml(formatMonthKey(currentCalendarMonth))}</strong>
           <span>${formatNumber(monthScoreCount)} ${escapeHtml(t("label.calendarMonthScores"))} - ${formatPp(bestMonthPp)}</span>
         </div>
-        <button class="ghost-button" type="button" data-calendar-month="1" aria-label="${escapeHtml(t("button.nextMonth"))}">&gt;</button>
+        <button class="ghost-button today-button" type="button" data-calendar-today="1">${escapeHtml(t("button.today"))}</button>
+        <button class="ghost-button" type="button" data-calendar-month="1" aria-label="${escapeHtml(t("button.nextMonth"))}"${nextDisabled}>&gt;</button>
       </div>
       <div class="calendar-filter">
         <strong>${escapeHtml(t("label.calendarPpFilter"))}</strong>
@@ -1146,14 +1202,30 @@ function selectCalendarDay(dayKey) {
 }
 
 function moveCalendarMonth(offset) {
-  currentCalendarMonth = addMonths(currentCalendarMonth || dayToMonthKey(currentCalendarDay), offset);
+  if (!lastSearchData) return;
+
+  const { minMonth, maxMonth, todayMonth } = calendarMonthBounds(lastSearchData);
+  currentCalendarMonth = clampMonthKey(
+    addMonths(currentCalendarMonth || dayToMonthKey(currentCalendarDay) || todayMonth, offset),
+    minMonth,
+    maxMonth
+  );
   const scoresByDay = lastSearchData ? filteredCalendarScoresByDay(lastSearchData) : {};
-  const firstPlayedDay = Object.keys(scoresByDay)
-    .filter((dayKey) => dayKey.startsWith(currentCalendarMonth))
-    .sort()[0];
+  const firstPlayedDay = firstScoreDayInMonth(scoresByDay, currentCalendarMonth);
 
   currentCalendarDay = firstPlayedDay || `${currentCalendarMonth}-01`;
-  if (lastSearchData) renderCalendar(lastSearchData);
+  renderCalendar(lastSearchData);
+}
+
+function goToCalendarToday() {
+  if (!lastSearchData) return;
+
+  const { minMonth, maxMonth, todayMonth } = calendarMonthBounds(lastSearchData);
+  currentCalendarMonth = clampMonthKey(todayMonth, minMonth, maxMonth);
+  const scoresByDay = filteredCalendarScoresByDay(lastSearchData);
+  const today = todayDayKey();
+  currentCalendarDay = scoresByDay[today] ? today : firstScoreDayInMonth(scoresByDay, currentCalendarMonth) || `${currentCalendarMonth}-01`;
+  renderCalendar(lastSearchData);
 }
 
 function renderMapDetails(scoreKey) {
@@ -1432,6 +1504,12 @@ calendar.addEventListener("click", (event) => {
   const monthButton = event.target.closest("button[data-calendar-month]");
   if (monthButton) {
     moveCalendarMonth(Number(monthButton.dataset.calendarMonth || 0));
+    return;
+  }
+
+  const todayButton = event.target.closest("button[data-calendar-today]");
+  if (todayButton) {
+    goToCalendarToday();
     return;
   }
 

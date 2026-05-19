@@ -20,8 +20,10 @@ if not "%SETUP_EXIT%"=="0" (
     echo setup.log wurde noch nicht erstellt.
   )
 ) else (
-  echo Setup-Fenster wurde geschlossen.
-  echo Wenn das Setup fertig war, starte jetzt start-beta.bat.
+  echo Setup wurde erfolgreich beendet.
+  echo Alles Notwendige wurde eingerichtet oder gespeichert.
+  echo.
+  echo Waehle bzw. starte jetzt start-beta.bat, um das Tool zu oeffnen.
 )
 echo.
 pause

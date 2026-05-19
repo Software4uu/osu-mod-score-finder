@@ -698,10 +698,15 @@ select:focus {
 
 .calendar-month-head {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  grid-template-columns: 40px minmax(0, 1fr) auto 40px;
   gap: 10px;
   align-items: center;
   margin-bottom: 2px;
+}
+
+.calendar-month-head button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .calendar-month-head div {
@@ -719,6 +724,10 @@ select:focus {
 .calendar-month-head span {
   color: var(--muted);
   font-size: 0.86rem;
+}
+
+.today-button {
+  min-width: 74px;
 }
 
 .calendar-filter {
@@ -904,6 +913,7 @@ select:focus {
   position: relative;
   z-index: 1;
   display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 14px;
   width: min(1040px, 100%);
   max-height: min(780px, 88vh);
@@ -958,6 +968,8 @@ select:focus {
 }
 
 .details-table-wrap {
+  max-height: min(520px, 58vh);
+  min-height: 0;
   overflow: auto;
   border: 1px solid rgba(152, 170, 203, 0.18);
   border-radius: 6px;
