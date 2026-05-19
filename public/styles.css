@@ -691,6 +691,91 @@ select:focus {
   font-size: 1.2rem;
 }
 
+.try-chart {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  border: 1px solid rgba(152, 170, 203, 0.18);
+  border-radius: 7px;
+  background: rgba(15, 19, 28, 0.34);
+  padding: 10px;
+}
+
+.try-chart.compact {
+  margin-top: 10px;
+}
+
+.try-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.try-chart-head strong {
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.try-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.try-chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.try-chart-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--chart-color);
+}
+
+.try-chart-legend strong {
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.try-chart svg {
+  display: block;
+  width: 100%;
+  height: 228px;
+}
+
+.try-chart.compact svg {
+  height: 176px;
+}
+
+.chart-bg {
+  fill: rgba(2, 5, 10, 0.22);
+}
+
+.chart-grid-line {
+  stroke: rgba(152, 170, 203, 0.12);
+  stroke-width: 1;
+}
+
+.chart-axis,
+.chart-tick {
+  stroke: rgba(174, 183, 198, 0.34);
+  stroke-width: 1.2;
+}
+
+.chart-axis-text,
+.chart-axis-title {
+  fill: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
+}
+
 .calendar-view {
   display: grid;
   gap: 12px;
@@ -923,7 +1008,7 @@ select:focus {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   gap: 14px;
   width: min(1040px, 100%);
   max-height: min(780px, 88vh);
@@ -978,7 +1063,7 @@ select:focus {
 }
 
 .details-table-wrap {
-  max-height: min(520px, 58vh);
+  max-height: min(360px, 38vh);
   min-height: 0;
   overflow: auto;
   border: 1px solid rgba(152, 170, 203, 0.18);
@@ -1111,5 +1196,19 @@ select:focus {
 
   .details-head {
     flex-direction: column;
+  }
+
+  .try-chart-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .try-chart-legend {
+    justify-content: flex-start;
+  }
+
+  .try-chart svg,
+  .try-chart.compact svg {
+    height: 156px;
   }
 }

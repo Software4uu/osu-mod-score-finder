@@ -97,6 +97,7 @@ const translations = {
     "button.search": "Passes suchen",
     "button.loading": "Laedt Passes...",
     "button.details": "Details",
+    "button.history": "Verlauf",
     "button.close": "Schliessen",
     "button.prevMonth": "Vorheriger Monat",
     "button.nextMonth": "Naechster Monat",
@@ -207,6 +208,11 @@ const translations = {
     "label.monthTopPlay": "Top-Play des Monats",
     "label.noScoresDay": "keine Scores",
     "label.mapDetails": "Map-Details",
+    "label.historyChart": "Improvement-Verlauf",
+    "label.timeAxis": "Zeit",
+    "label.metricPp": "PP",
+    "label.metricAcc": "Acc",
+    "label.metricMisses": "Misses",
     "label.tries": "Tries",
     "label.bestPp": "Beste PP",
     "label.bestScore": "Bester Score",
@@ -267,6 +273,7 @@ const translations = {
     "button.search": "Search passes",
     "button.loading": "Loading passes...",
     "button.details": "Details",
+    "button.history": "History",
     "button.close": "Close",
     "button.prevMonth": "Previous month",
     "button.nextMonth": "Next month",
@@ -377,6 +384,11 @@ const translations = {
     "label.monthTopPlay": "Top play of the month",
     "label.noScoresDay": "no scores",
     "label.mapDetails": "Map details",
+    "label.historyChart": "Improvement history",
+    "label.timeAxis": "Time",
+    "label.metricPp": "PP",
+    "label.metricAcc": "Acc",
+    "label.metricMisses": "Misses",
     "label.tries": "tries",
     "label.bestPp": "Best PP",
     "label.bestScore": "Best score",
@@ -452,6 +464,18 @@ function formatDate(value) {
   return new Intl.DateTimeFormat(locale(), {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "Europe/Berlin",
+  }).format(date);
+}
+
+function formatDateTick(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat(locale(), {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
     timeZone: "Europe/Berlin",
   }).format(date);
 }
@@ -563,7 +587,14 @@ function scoreDomKey(score) {
 }
 
 function scorePpValue(score) {
-  return Number(score.calculated_pp || score.pp || 0);
+  const value = Number(score.calculated_pp || score.pp || 0);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function accuracyPercentValue(score) {
+  const value = Number(score.accuracy || 0);
+  if (!Number.isFinite(value)) return 0;
+  return value > 1 ? value : value * 100;
 }
 
 function mapDomKey(score) {
@@ -585,6 +616,17 @@ function allCalendarScores() {
 function findScoreByDomKey(key) {
   return [...(lastSearchData?.scores || []), ...allCalendarScores()]
     .find((score) => scoreDomKey(score) === key);
+}
+
+function mapTriesForScore(score) {
+  const mapKey = mapDomKey(score);
+  return allCalendarScores()
+    .filter((candidate) => mapDomKey(candidate) === mapKey)
+    .sort((a, b) => {
+      const timeA = Date.parse(a.ended_at || a.created_at || "") || 0;
+      const timeB = Date.parse(b.ended_at || b.created_at || "") || 0;
+      return timeA - timeB;
+    });
 }
 
 function calendarPpBounds() {
@@ -997,9 +1039,162 @@ function scoreSnapshot(label, score) {
   return `
     <div class="score-snapshot">
       <span>${escapeHtml(label)}</span>
-      <strong>${formatPp(score.pp)} - ${formatAccuracy(score.accuracy)}</strong>
+      <strong>${formatPp(scorePpValue(score))} - ${formatAccuracy(score.accuracy)}</strong>
       <small>${formatNumber(score.score)} ${t("label.score")} - ${formatNumber(score.max_combo)}x - ${missCount(score)} ${t("label.miss")}</small>
       <small>${formatDate(score.ended_at || score.created_at)}</small>
+    </div>
+  `;
+}
+
+function renderTryHistoryChart(tries, options = {}) {
+  const compact = Boolean(options.compact);
+  const ordered = [...tries]
+    .sort((a, b) => {
+      const timeA = Date.parse(a.ended_at || a.created_at || "") || 0;
+      const timeB = Date.parse(b.ended_at || b.created_at || "") || 0;
+      return timeA - timeB;
+    })
+    .map((score, index) => {
+      const rawTime = Date.parse(score.ended_at || score.created_at || "") || 0;
+      return {
+        score,
+        index,
+        time: rawTime || index,
+        pp: scorePpValue(score),
+        acc: accuracyPercentValue(score),
+        misses: Number(missCount(score) || 0),
+      };
+    });
+
+  if (!ordered.length) return "";
+
+  const width = 900;
+  const height = compact ? 176 : 228;
+  const left = 44;
+  const right = 18;
+  const top = 18;
+  const bottom = 36;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+  const minTime = Math.min(...ordered.map((point) => point.time));
+  const maxTime = Math.max(...ordered.map((point) => point.time));
+  const xFor = (point) => {
+    if (maxTime === minTime) return left + plotWidth / 2;
+    return left + ((point.time - minTime) / (maxTime - minTime)) * plotWidth;
+  };
+  const metricValue = (metric, point) => point[metric.key];
+  const metrics = [
+    {
+      key: "pp",
+      label: t("label.metricPp"),
+      color: "#ff66aa",
+      format: (value) => (value ? `${value.toFixed(2)}pp` : t("label.ppMissing")),
+    },
+    {
+      key: "acc",
+      label: t("label.metricAcc"),
+      color: "#91e36a",
+      format: (value) => `${value.toFixed(2)}%`,
+    },
+    {
+      key: "misses",
+      label: t("label.metricMisses"),
+      color: "#ffd166",
+      lowerBetter: true,
+      format: (value) => `${formatNumber(value)} ${t("label.miss")}`,
+    },
+  ].map((metric) => {
+    const values = ordered.map((point) => metricValue(metric, point));
+    return {
+      ...metric,
+      min: Math.min(...values),
+      max: Math.max(...values),
+    };
+  });
+  const yFor = (metric, point) => {
+    const value = metricValue(metric, point);
+    if (metric.max === metric.min) return top + plotHeight / 2;
+    let ratio = (value - metric.min) / (metric.max - metric.min);
+    if (metric.lowerBetter) ratio = 1 - ratio;
+    return top + (1 - ratio) * plotHeight;
+  };
+  const formatCoord = (value) => Number(value).toFixed(2);
+  const gridRows = [0, 0.25, 0.5, 0.75, 1]
+    .map((step) => {
+      const y = top + plotHeight * step;
+      return `<line class="chart-grid-line" x1="${left}" y1="${formatCoord(y)}" x2="${width - right}" y2="${formatCoord(y)}"></line>`;
+    })
+    .join("");
+  const series = metrics
+    .map((metric) => {
+      const points = ordered
+        .map((point) => `${formatCoord(xFor(point))},${formatCoord(yFor(metric, point))}`)
+        .join(" ");
+      const circles = ordered
+        .map((point) => {
+          const tooltip = [
+            formatDate(point.score.ended_at || point.score.created_at),
+            `${metric.label}: ${metric.format(metricValue(metric, point))}`,
+            `${t("label.metricPp")}: ${metrics[0].format(point.pp)}`,
+            `${t("label.metricAcc")}: ${metrics[1].format(point.acc)}`,
+            `${t("label.metricMisses")}: ${metrics[2].format(point.misses)}`,
+          ].join(" | ");
+          return `
+            <circle cx="${formatCoord(xFor(point))}" cy="${formatCoord(yFor(metric, point))}" r="${compact ? 3 : 3.8}" fill="${metric.color}">
+              <title>${escapeHtml(tooltip)}</title>
+            </circle>
+          `;
+        })
+        .join("");
+      return `
+        <g>
+          <polyline points="${points}" fill="none" stroke="${metric.color}" stroke-width="${compact ? 2.8 : 3.4}" stroke-linecap="round" stroke-linejoin="round"></polyline>
+          ${circles}
+        </g>
+      `;
+    })
+    .join("");
+  const tickIndexes = [...new Set(
+    ordered.length === 1
+      ? [0]
+      : compact
+        ? [0, ordered.length - 1]
+        : [0, Math.floor((ordered.length - 1) / 2), ordered.length - 1]
+  )];
+  const ticks = tickIndexes
+    .map((index) => {
+      const point = ordered[index];
+      return `
+        <g>
+          <line class="chart-tick" x1="${formatCoord(xFor(point))}" y1="${height - bottom}" x2="${formatCoord(xFor(point))}" y2="${height - bottom + 5}"></line>
+          <text class="chart-axis-text" x="${formatCoord(xFor(point))}" y="${height - 10}" text-anchor="middle">${escapeHtml(formatDateTick(point.score.ended_at || point.score.created_at))}</text>
+        </g>
+      `;
+    })
+    .join("");
+  const latest = ordered[ordered.length - 1];
+  const legend = metrics
+    .map((metric) => `
+      <span style="--chart-color: ${metric.color}">
+        <i></i>${escapeHtml(metric.label)} <strong>${escapeHtml(metric.format(metricValue(metric, latest)))}</strong>
+      </span>
+    `)
+    .join("");
+
+  return `
+    <div class="try-chart${compact ? " compact" : ""}">
+      <div class="try-chart-head">
+        <strong>${escapeHtml(t("label.historyChart"))}</strong>
+        <div class="try-chart-legend">${legend}</div>
+      </div>
+      <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(t("label.historyChart"))}">
+        <rect class="chart-bg" x="${left}" y="${top}" width="${plotWidth}" height="${plotHeight}" rx="8"></rect>
+        ${gridRows}
+        <line class="chart-axis" x1="${left}" y1="${height - bottom}" x2="${width - right}" y2="${height - bottom}"></line>
+        <text class="chart-axis-title" x="${left}" y="${height - 10}">${escapeHtml(t("label.timeAxis"))}</text>
+        ${ticks}
+        ${series}
+      </svg>
     </div>
   `;
 }
@@ -1023,6 +1218,8 @@ function renderImprovement(item, mode) {
   const scoreDelta = signedNumber(item.score_delta, ` ${t("label.score")}`);
   const comboDelta = signedNumber(item.combo_delta, "x");
   const linkText = scoreLinkLabel(score);
+  const detailKey = scoreDomKey(score);
+  const tries = mapTriesForScore(score);
 
   return `
     <article class="improvement-card">
@@ -1033,6 +1230,7 @@ function renderImprovement(item, mode) {
             ${escapeHtml(artist)} - ${escapeHtml(title)}
           </a>
           <span class="source-chip">${escapeHtml(linkText)}</span>
+          <button class="detail-button" type="button" data-score-key="${escapeHtml(detailKey)}">${escapeHtml(t("button.history"))}</button>
         </div>
         <div class="diff">[${escapeHtml(version)}]</div>
         <div class="mods">${renderMods(score)}</div>
@@ -1040,6 +1238,7 @@ function renderImprovement(item, mode) {
           ${scoreSnapshot(t("label.from"), previous)}
           ${scoreSnapshot(t("label.to"), score)}
         </div>
+        ${renderTryHistoryChart(tries, { compact: true })}
       </div>
       <div class="improvement-stats">
         <span>${escapeHtml(ppDelta)}</span>
@@ -1228,9 +1427,8 @@ function goToCalendarToday() {
 
   const { minMonth, maxMonth, todayMonth } = calendarMonthBounds(lastSearchData);
   currentCalendarMonth = clampMonthKey(todayMonth, minMonth, maxMonth);
-  const scoresByDay = filteredCalendarScoresByDay(lastSearchData);
   const today = todayDayKey();
-  currentCalendarDay = scoresByDay[today] ? today : firstScoreDayInMonth(scoresByDay, currentCalendarMonth) || `${currentCalendarMonth}-01`;
+  currentCalendarDay = dayToMonthKey(today) === currentCalendarMonth ? today : `${currentCalendarMonth}-01`;
   renderCalendar(lastSearchData);
 }
 
@@ -1240,9 +1438,8 @@ function renderMapDetails(scoreKey) {
   const selectedScore = findScoreByDomKey(scoreKey);
   if (!selectedScore) return;
 
-  const mapKey = mapDomKey(selectedScore);
-  const tries = allCalendarScores()
-    .filter((score) => mapDomKey(score) === mapKey)
+  const chronologicalTries = mapTriesForScore(selectedScore);
+  const tries = [...chronologicalTries]
     .sort((a, b) => {
       const timeA = Date.parse(a.ended_at || a.created_at || "") || 0;
       const timeB = Date.parse(b.ended_at || b.created_at || "") || 0;
@@ -1305,6 +1502,7 @@ function renderMapDetails(scoreKey) {
         <span><strong>${formatNumber(bestScore)}</strong>${escapeHtml(t("label.bestScore"))}</span>
         <span><strong>${latestTry ? formatDate(latestTry.ended_at || latestTry.created_at) : "-"}</strong>${escapeHtml(t("label.latestTry"))}</span>
       </div>
+      ${renderTryHistoryChart(chronologicalTries)}
       <div class="details-table-wrap">
         <table class="details-table">
           <thead>
@@ -1481,6 +1679,7 @@ function handleDetailsClick(event) {
 }
 
 results.addEventListener("click", handleDetailsClick);
+improvements.addEventListener("click", handleDetailsClick);
 calendar.addEventListener("click", (event) => {
   const filterButton = event.target.closest("button[data-calendar-filter]");
   if (filterButton && lastSearchData) {
