@@ -427,6 +427,52 @@ function buildImprovements(scores, scope = "lastTry", bestMode = "score") {
   });
 }
 
+function buildCalendar(scores, sort = "date") {
+  const days = new Map();
+
+  for (const score of scores) {
+    const date = berlinDateKey(score.ended_at || score.created_at);
+    if (!date) continue;
+
+    if (!days.has(date)) {
+      days.set(date, {
+        date,
+        count: 0,
+        best_pp: 0,
+        best_score: 0,
+        total_accuracy: 0,
+        total_misses: 0,
+        latest_time: 0,
+        scores: [],
+      });
+    }
+
+    const day = days.get(date);
+    const time = scoreTime(score);
+    day.count += 1;
+    day.best_pp = Math.max(day.best_pp, effectivePp(score));
+    day.best_score = Math.max(day.best_score, Number(score.score || 0));
+    day.total_accuracy += Number(score.accuracy || 0);
+    day.total_misses += missCount(score);
+    day.latest_time = Math.max(day.latest_time, time);
+    day.scores.push(score);
+  }
+
+  const sortedDays = [...days.values()]
+    .map((day) => {
+      day.average_accuracy = day.count > 0 ? day.total_accuracy / day.count : 0;
+      day.scores.sort((a, b) => compareScores(a, b, sort));
+      delete day.total_accuracy;
+      return day;
+    })
+    .sort((a, b) => b.latest_time - a.latest_time);
+
+  return {
+    days: sortedDays.map(({ scores, ...day }) => day),
+    scoresByDay: Object.fromEntries(sortedDays.map((day) => [day.date, day.scores])),
+  };
+}
+
 function inferClient(score) {
   if (score.client) return score.client;
   if (score.local_source?.startsWith("stable")) return "stable";
@@ -985,6 +1031,7 @@ async function handleSearch(req, res) {
   }
 
   const improvements = buildImprovements(filteredCandidates, improvementScope, bestMode).slice(0, 50);
+  const calendar = buildCalendar(filteredCandidates, sort);
 
   if (dateFilter === "today") {
     filteredCandidates = filteredCandidates.filter(isTodayScore);
@@ -1040,6 +1087,7 @@ async function handleSearch(req, res) {
       includeLoved,
       matchMode,
       selectedMods,
+      calendarDays: calendar.days.length,
       historyTotal: history.total,
       savedNow: history.savedNow,
       apiFetched: fetchedScores.length,
@@ -1059,6 +1107,49 @@ async function handleSearch(req, res) {
         "Die App speichert alle gefundenen Scores lokal in SQLite. osu!api v2 liefert trotzdem keine komplette alte Score-Historie.",
     },
     improvements,
+    calendar,
+  });
+}
+
+async function handleLiveScan(req, res) {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const username = (url.searchParams.get("username") || "").trim();
+  const mode = url.searchParams.get("mode") || "osu";
+
+  if (!username) {
+    return json(res, 400, { error: "Bitte gib einen osu!-Namen ein." });
+  }
+
+  if (!["osu", "taiko", "fruits", "mania"].includes(mode)) {
+    return json(res, 400, { error: "Ungueltiger Spielmodus." });
+  }
+
+  const storedUser = getStoredUserByName(username, mode);
+  const user =
+    storedUser?.user || {
+      id: `local:${mode}:${username.toLowerCase()}`,
+      username,
+      avatar_url: "",
+      country_code: "--",
+      statistics: {},
+    };
+
+  const localImport = await importLocalScores({
+    username: user.username,
+    userId: user.id,
+    mode,
+  });
+
+  const history = await upsertHistory(user, mode, localImport.scores);
+
+  return json(res, 200, {
+    savedNow: history.savedNow,
+    total: history.total,
+    localImported: localImport.scores.length,
+    totalLocalScores: localImport.totalLocalScores,
+    sources: localImport.sources,
+    warnings: localImport.warnings,
+    scannedAt: new Date().toISOString(),
   });
 }
 
@@ -1101,6 +1192,10 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === "/api/search") {
       return await handleSearch(req, res);
+    }
+
+    if (url.pathname === "/api/live-scan") {
+      return await handleLiveScan(req, res);
     }
 
     return await serveStatic(req, res);

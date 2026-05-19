@@ -22,6 +22,7 @@
                 <option value="en">English</option>
               </select>
             </label>
+            <div id="liveStatus" class="status-pill live-pill" data-i18n="status.liveIdle">Live bereit</div>
             <div id="apiStatus" class="status-pill" data-i18n="status.checking">API wird geprueft</div>
           </div>
         </header>
@@ -135,6 +136,7 @@
             <label data-help-key="help.toggle.includeHuis"><input id="includeHuis" type="checkbox" checked /> <span data-i18n="toggle.includeHuis">pp.huismetbenen</span></label>
             <label data-help-key="help.toggle.recalculatePp"><input id="recalculatePp" type="checkbox" checked /> <span data-i18n="toggle.recalculatePp">PP neu berechnen</span></label>
             <label data-help-key="help.toggle.bestPerMap"><input id="bestPerMap" type="checkbox" checked /> <span data-i18n="toggle.bestPerMap">beste pro Map</span></label>
+            <label data-help-key="help.toggle.liveScanner"><input id="liveScanner" type="checkbox" checked /> <span data-i18n="toggle.liveScanner">Live-Scanner</span></label>
             <label data-help-key="help.toggle.rankedOnly"><input id="rankedOnly" type="checkbox" checked /> <span data-i18n="toggle.rankedOnly">ranked/approved</span></label>
             <label data-help-key="help.toggle.includeLoved"><input id="includeLoved" type="checkbox" /> <span data-i18n="toggle.includeLoved">loved mitnehmen</span></label>
           </div>
@@ -179,13 +181,17 @@
 
         <section id="summary" class="summary hidden" aria-live="polite"></section>
         <nav class="view-tabs" data-i18n-aria-label="aria.view" aria-label="Ansicht">
-          <button type="button" class="active" data-view="scores">Scores</button>
-          <button type="button" data-view="improvements">Improvement</button>
+          <button type="button" class="active" data-view="scores" data-i18n="tab.scores">Scores</button>
+          <button type="button" data-view="improvements" data-i18n="tab.improvements">Improvement</button>
+          <button type="button" data-view="calendar" data-i18n="tab.calendar">Kalender</button>
         </nav>
         <section id="results" class="results" aria-live="polite"></section>
         <section id="improvements" class="results hidden" aria-live="polite"></section>
+        <section id="calendar" class="calendar-view hidden" aria-live="polite"></section>
       </section>
     </main>
+
+    <section id="detailsPanel" class="details-panel hidden" aria-live="polite"></section>
 
     <script src="/app.js" type="module"></script>
   </body>

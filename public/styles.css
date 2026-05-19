@@ -113,6 +113,11 @@ h1 {
   color: var(--yellow);
 }
 
+.live-pill {
+  min-width: 104px;
+  text-align: center;
+}
+
 .search-panel {
   display: grid;
   grid-template-columns: minmax(220px, 2fr) repeat(5, minmax(120px, 1fr));
@@ -509,6 +514,23 @@ select:focus {
   line-height: 1.5;
 }
 
+.detail-button {
+  min-height: 22px;
+  border: 1px solid rgba(104, 216, 255, 0.28);
+  border-radius: 5px;
+  background: rgba(104, 216, 255, 0.1);
+  color: #b9efff;
+  padding: 0 8px;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.detail-button:hover,
+.detail-button:focus-visible {
+  border-color: rgba(255, 102, 170, 0.5);
+  color: #ffd8ea;
+}
+
 .source-chip {
   display: inline-flex;
   align-items: center;
@@ -659,6 +681,193 @@ select:focus {
   font-size: 1.2rem;
 }
 
+.calendar-view {
+  margin-top: 14px;
+}
+
+.calendar-layout {
+  display: grid;
+  grid-template-columns: minmax(210px, 280px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.calendar-days {
+  display: grid;
+  gap: 8px;
+  max-height: 72vh;
+  overflow: auto;
+}
+
+.calendar-day-card {
+  display: grid;
+  gap: 5px;
+  min-height: 96px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--muted);
+  padding: 10px 11px;
+  text-align: left;
+}
+
+.calendar-day-card strong {
+  color: var(--text);
+}
+
+.calendar-day-card span {
+  color: var(--cyan);
+  font-weight: 850;
+}
+
+.calendar-day-card small {
+  color: var(--muted);
+}
+
+.calendar-day-card.active {
+  border-color: var(--pink);
+  background: rgba(255, 102, 170, 0.14);
+}
+
+.calendar-day-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(31, 37, 48, 0.86);
+  padding: 12px 14px;
+  color: var(--muted);
+}
+
+.calendar-day-head div {
+  display: grid;
+  gap: 3px;
+}
+
+.calendar-day-head strong {
+  color: var(--text);
+}
+
+.calendar-score-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.details-panel {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+}
+
+.details-panel.hidden {
+  display: none;
+}
+
+.details-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 5, 10, 0.72);
+}
+
+.details-card {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 14px;
+  width: min(1040px, 100%);
+  max-height: min(780px, 88vh);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+
+.details-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.details-head span,
+.details-head p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.details-head h2 {
+  margin: 3px 0 4px;
+  color: var(--text);
+  font-size: 1.25rem;
+  letter-spacing: 0;
+}
+
+.details-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.details-stats span {
+  display: grid;
+  gap: 3px;
+  border: 1px solid rgba(152, 170, 203, 0.18);
+  border-radius: 6px;
+  background: rgba(15, 19, 28, 0.42);
+  color: var(--muted);
+  padding: 9px 10px;
+  font-size: 0.82rem;
+}
+
+.details-stats strong {
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.details-table-wrap {
+  overflow: auto;
+  border: 1px solid rgba(152, 170, 203, 0.18);
+  border-radius: 6px;
+}
+
+.details-table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+}
+
+.details-table th,
+.details-table td {
+  border-bottom: 1px solid rgba(152, 170, 203, 0.13);
+  padding: 8px 10px;
+  color: var(--muted);
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.details-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #111620;
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.details-table td .mods {
+  margin: 0;
+}
+
 @media (max-width: 900px) {
   .app-shell {
     padding: 18px;
@@ -712,11 +921,25 @@ select:focus {
   }
 
   .improvement-card,
-  .improvement-flow {
+  .improvement-flow,
+  .calendar-layout,
+  .details-stats {
     grid-template-columns: 1fr;
   }
 
   .improvement-stats {
     justify-items: start;
+  }
+
+  .calendar-days {
+    max-height: none;
+  }
+
+  .details-panel {
+    padding: 10px;
+  }
+
+  .details-head {
+    flex-direction: column;
   }
 }

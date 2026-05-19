@@ -54,6 +54,9 @@ http://localhost:5173/callback
 - Optionally show only the best try for each map/difficulty
 - Display PP rank windows such as `1` to `100`
 - Improvement view for the latest try, the last hour, or today
+- Live scanner for newly saved local scores after a search
+- Calendar tab to review played days and all stored scores for a selected day
+- Map detail view with all stored tries on the same map difficulty
 
 ## Start
 
@@ -128,6 +131,9 @@ http://localhost:5173/callback
 - Optional nur den besten Try pro Map/Difficulty anzeigen
 - PP-Rangfenster wie `1` bis `100` anzeigen
 - Improvement-Ansicht für letzten Try, letzte Stunde oder heute
+- Live-Scanner für neu gespeicherte lokale Scores nach einer Suche
+- Kalender-Tab, um Spieltage und alle gespeicherten Scores eines Tages nachzuvollziehen
+- Map-Detailansicht mit allen gespeicherten Tries auf derselben Difficulty
 
 ## Starten
 

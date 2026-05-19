@@ -1,7 +1,10 @@
 const form = document.querySelector("#searchForm");
 const apiStatus = document.querySelector("#apiStatus");
+const liveStatus = document.querySelector("#liveStatus");
 const results = document.querySelector("#results");
 const improvements = document.querySelector("#improvements");
+const calendar = document.querySelector("#calendar");
+const detailsPanel = document.querySelector("#detailsPanel");
 const summary = document.querySelector("#summary");
 const submitButton = document.querySelector("#submitButton");
 const modButtons = document.querySelector("#modButtons");
@@ -14,6 +17,10 @@ const languageStorageKey = "osu-mod-score-finder-language";
 let currentLanguage = readStoredLanguage();
 let lastSearchData = null;
 let isLoading = false;
+let activeView = "scores";
+let currentCalendarDay = "";
+let liveTimer = null;
+let liveScanBusy = false;
 
 const modNames = {
   NM: "No Mod",
@@ -59,6 +66,9 @@ const translations = {
     "field.bestTry": "Bester Try",
     "field.improvement": "Improvement",
     "field.mods": "Mods",
+    "tab.scores": "Scores",
+    "tab.improvements": "Improvement",
+    "tab.calendar": "Kalender",
     "placeholder.username": "z. B. WhiteCat",
     "option.sort.date": "Datum",
     "option.match.contains": "enthaelt alle",
@@ -77,17 +87,27 @@ const translations = {
     "toggle.includeHuis": "pp.huismetbenen",
     "toggle.recalculatePp": "PP neu berechnen",
     "toggle.bestPerMap": "beste pro Map",
+    "toggle.liveScanner": "Live-Scanner",
     "toggle.rankedOnly": "ranked/approved",
     "toggle.includeLoved": "loved mitnehmen",
     "button.clear": "clear",
     "button.search": "Passes suchen",
     "button.loading": "Laedt Passes...",
+    "button.details": "Details",
+    "button.close": "Schliessen",
     "notice.label": "Hinweis:",
     "notice.text": "osu! gibt keine komplette alte Score-Historie aus. Diese lokale Beta speichert gefundene Recent-Passes und baut daraus ab jetzt eine History pro Spieler und Mod.",
     "status.checking": "API wird geprueft",
     "status.ready": "API bereit",
     "status.missing": ".env fehlt",
     "status.offline": "Server nicht erreichbar",
+    "status.liveIdle": "Live bereit",
+    "status.liveWaiting": "Live wartet",
+    "status.liveScanning": "Live scannt",
+    "status.liveUpdated": "{count} neue Scores",
+    "status.liveNoChanges": "Live aktuell",
+    "status.liveStopped": "Live aus",
+    "status.liveError": "Live Fehler",
     "aria.mods": "Mods auswaehlen",
     "aria.view": "Ansicht",
     "help.currentSelection": "Aktuelle Auswahl",
@@ -130,6 +150,7 @@ const translations = {
     "help.toggle.includeHuis": "Ergaenzt Top-Scores aus pp.huismetbenen, wenn verfuegbar.",
     "help.toggle.recalculatePp": "Berechnet PP mit lokalen .osu-Dateien und rosu-pp-js nach.",
     "help.toggle.bestPerMap": "Zeigt pro Map-Difficulty nur den besten Try nach dem Feld Bester Try.",
+    "help.toggle.liveScanner": "Prueft nach einer Suche automatisch deine lokalen osu!-Dateien und aktualisiert die Ansicht, wenn neue Scores gespeichert wurden.",
     "help.toggle.rankedOnly": "Zeigt nur ranked/approved Maps. Loved kann separat dazugeschaltet werden.",
     "help.toggle.includeLoved": "Nimmt Loved-Maps in den ranked/approved Filter mit auf.",
     "label.allMods": "alle Mods",
@@ -165,10 +186,22 @@ const translations = {
     "label.noPreviousTry": "kein alter gespeicherter Try",
     "label.from": "Von",
     "label.to": "Zu",
+    "label.calendarDays": "Spieltage",
+    "label.calendarScores": "Scores an diesem Tag",
+    "label.calendarBestPp": "Beste PP",
+    "label.calendarAverageAcc": "Durchschnitts-Acc",
+    "label.calendarMisses": "Misses",
+    "label.mapDetails": "Map-Details",
+    "label.tries": "Tries",
+    "label.bestPp": "Beste PP",
+    "label.bestScore": "Bester Score",
+    "label.latestTry": "Neuster Try",
     "empty.noPasses": "Keine gespeicherten Passes fuer {mods} auf {ranked}. Suche spaeter erneut, damit die lokale Datenbank weiter waechst, oder lockere den Filter.",
     "empty.noImprovements.lastTry": "Keine gespeicherten Vergleiche seit dem letzten Try fuer diese Filter.",
     "empty.noImprovements.lastHour": "Keine gespeicherten Vergleiche in der letzten Stunde fuer diese Filter.",
     "empty.noImprovements.today": "Keine gespeicherten Vergleiche heute fuer diese Filter.",
+    "empty.noCalendar": "Noch keine gespeicherten Spieltage fuer diese Filter.",
+    "empty.noMapDetails": "Fuer diese Difficulty wurden in der aktuellen Suche keine weiteren Tries gefunden.",
     "loading.search": "Passes werden geladen und in der lokalen Datenbank gespeichert.",
     "error.searchFailed": "Suche fehlgeschlagen.",
   },
@@ -190,6 +223,9 @@ const translations = {
     "field.bestTry": "Best try",
     "field.improvement": "Improvement",
     "field.mods": "Mods",
+    "tab.scores": "Scores",
+    "tab.improvements": "Improvement",
+    "tab.calendar": "Calendar",
     "placeholder.username": "e.g. WhiteCat",
     "option.sort.date": "Date",
     "option.match.contains": "contains all",
@@ -208,17 +244,27 @@ const translations = {
     "toggle.includeHuis": "pp.huismetbenen",
     "toggle.recalculatePp": "recalculate PP",
     "toggle.bestPerMap": "best per map",
+    "toggle.liveScanner": "Live scanner",
     "toggle.rankedOnly": "ranked/approved",
     "toggle.includeLoved": "include loved",
     "button.clear": "clear",
     "button.search": "Search passes",
     "button.loading": "Loading passes...",
+    "button.details": "Details",
+    "button.close": "Close",
     "notice.label": "Note:",
     "notice.text": "osu! does not expose a complete old score history. This local beta stores found recent passes and builds a local history per player and mod from now on.",
     "status.checking": "Checking API",
     "status.ready": "API ready",
     "status.missing": ".env missing",
     "status.offline": "Server unreachable",
+    "status.liveIdle": "Live ready",
+    "status.liveWaiting": "Live waiting",
+    "status.liveScanning": "Live scanning",
+    "status.liveUpdated": "{count} new scores",
+    "status.liveNoChanges": "Live current",
+    "status.liveStopped": "Live off",
+    "status.liveError": "Live error",
     "aria.mods": "Select mods",
     "aria.view": "View",
     "help.currentSelection": "Current selection",
@@ -261,6 +307,7 @@ const translations = {
     "help.toggle.includeHuis": "Adds top scores from pp.huismetbenen when available.",
     "help.toggle.recalculatePp": "Recalculates PP using local .osu files and rosu-pp-js.",
     "help.toggle.bestPerMap": "Shows only the best try per map difficulty according to the Best try field.",
+    "help.toggle.liveScanner": "After a search, automatically checks your local osu! files and refreshes the view when new scores are stored.",
     "help.toggle.rankedOnly": "Shows only ranked/approved maps. Loved maps can be added separately.",
     "help.toggle.includeLoved": "Includes loved maps in the ranked/approved filter.",
     "label.allMods": "all mods",
@@ -296,10 +343,22 @@ const translations = {
     "label.noPreviousTry": "no previous stored try",
     "label.from": "From",
     "label.to": "To",
+    "label.calendarDays": "Play days",
+    "label.calendarScores": "Scores on this day",
+    "label.calendarBestPp": "Best PP",
+    "label.calendarAverageAcc": "Average acc",
+    "label.calendarMisses": "Misses",
+    "label.mapDetails": "Map details",
+    "label.tries": "tries",
+    "label.bestPp": "Best PP",
+    "label.bestScore": "Best score",
+    "label.latestTry": "Latest try",
     "empty.noPasses": "No stored passes for {mods} on {ranked}. Search again later so the local database can grow, or loosen the filters.",
     "empty.noImprovements.lastTry": "No stored comparisons since the last try for these filters.",
     "empty.noImprovements.lastHour": "No stored comparisons in the last hour for these filters.",
     "empty.noImprovements.today": "No stored comparisons today for these filters.",
+    "empty.noCalendar": "No stored play days for these filters yet.",
+    "empty.noMapDetails": "No other tries for this difficulty were found in the current search.",
     "loading.search": "Loading passes and storing them in the local database.",
     "error.searchFailed": "Search failed.",
   },
@@ -368,11 +427,48 @@ function formatDate(value) {
   }).format(date);
 }
 
+function formatDayKey(value) {
+  if (!value) return "-";
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(locale(), {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  }).format(date);
+}
+
 function secondsToTime(totalSeconds) {
   if (!Number.isFinite(Number(totalSeconds))) return "-";
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = Math.trunc(totalSeconds % 60).toString().padStart(2, "0");
   return `${minutes}:${seconds}`;
+}
+
+function scoreDomKey(score) {
+  return String(score.storage_key || score.id || score.legacy_score_id || `${score.beatmap_id}-${score.ended_at || score.created_at}-${score.score}`);
+}
+
+function mapDomKey(score) {
+  const beatmap = score.beatmap || {};
+  const set = score.beatmapset || {};
+  return String(
+    beatmap.checksum ||
+      score.beatmap_id ||
+      beatmap.id ||
+      `${set.artist || ""}:${set.title || ""}:${beatmap.version || ""}`
+  );
+}
+
+function allCalendarScores() {
+  const scoresByDay = lastSearchData?.calendar?.scoresByDay || {};
+  return Object.values(scoresByDay).flat();
+}
+
+function findScoreByDomKey(key) {
+  return [...(lastSearchData?.scores || []), ...allCalendarScores()]
+    .find((score) => scoreDomKey(score) === key);
 }
 
 function coverUrl(score) {
@@ -583,6 +679,13 @@ function buildSearchParams() {
   return params;
 }
 
+function buildLiveScanParams() {
+  const params = new URLSearchParams();
+  params.set("username", document.querySelector("#username").value.trim());
+  params.set("mode", document.querySelector("#mode").value);
+  return params;
+}
+
 function emptyMessage(meta) {
   const modText = meta.selectedMods.length ? meta.selectedMods.join("+") : t("label.allMods");
   const rankedText = meta.rankedOnly ? t("label.rankedMaps") : t("label.allMapStatuses");
@@ -645,6 +748,7 @@ function renderScore(score, mode) {
   const ppLabel = ppSourceLabel(score);
   const ppTitle = score.pp_source ? ppLabel : t("label.ppNotStored");
   const ppRank = score.pp_rank ? `<span class="pp-rank-badge">#${formatNumber(score.pp_rank)}</span>` : "";
+  const detailKey = scoreDomKey(score);
 
   return `
     <article class="score-card">
@@ -674,6 +778,7 @@ function renderScore(score, mode) {
           <span>${missCount(score)} ${t("label.miss")}</span>
           <span>${formatNumber(score.score)} ${t("label.score")}</span>
           <a href="${escapeHtml(scoreLink)}" target="_blank" rel="noreferrer">${escapeHtml(scoreLinkText)}</a>
+          <button class="detail-button" type="button" data-score-key="${escapeHtml(detailKey)}">${escapeHtml(t("button.details"))}</button>
         </div>
       </div>
       <div class="score-side">
@@ -783,9 +888,174 @@ function renderImprovements(data) {
   setImprovementState(data.improvements.map((item) => renderImprovement(item, data.meta.mode)).join(""));
 }
 
+function renderCalendarDayScores(data, dayKey) {
+  const scores = data.calendar?.scoresByDay?.[dayKey] || [];
+  if (!scores.length) {
+    return `<div class="empty-state">${escapeHtml(t("empty.noCalendar"))}</div>`;
+  }
+
+  return `
+    <div class="calendar-day-head">
+      <div>
+        <span>${escapeHtml(t("label.calendarScores"))}</span>
+        <strong>${escapeHtml(formatDayKey(dayKey))}</strong>
+      </div>
+      <span>${formatNumber(scores.length)} ${escapeHtml(t("label.matches"))}</span>
+    </div>
+    <div class="calendar-score-list">
+      ${scores.map((score) => renderScore(score, data.meta.mode)).join("")}
+    </div>
+  `;
+}
+
+function renderCalendar(data) {
+  const days = data.calendar?.days || [];
+  if (!days.length) {
+    calendar.innerHTML = `<div class="empty-state">${escapeHtml(t("empty.noCalendar"))}</div>`;
+    return;
+  }
+
+  if (!currentCalendarDay || !days.some((day) => day.date === currentCalendarDay)) {
+    currentCalendarDay = days[0].date;
+  }
+
+  const dayButtons = days
+    .map((day) => {
+      const active = day.date === currentCalendarDay ? " active" : "";
+      return `
+        <button class="calendar-day-card${active}" type="button" data-calendar-day="${escapeHtml(day.date)}">
+          <strong>${escapeHtml(formatDayKey(day.date))}</strong>
+          <span>${formatNumber(day.count)} ${escapeHtml(t("label.matches"))}</span>
+          <small>${escapeHtml(t("label.calendarBestPp"))}: ${formatPp(day.best_pp)}</small>
+          <small>${escapeHtml(t("label.calendarAverageAcc"))}: ${formatAccuracy(day.average_accuracy)}</small>
+          <small>${escapeHtml(t("label.calendarMisses"))}: ${formatNumber(day.total_misses)}</small>
+        </button>
+      `;
+    })
+    .join("");
+
+  calendar.innerHTML = `
+    <div class="calendar-layout">
+      <aside class="calendar-days" aria-label="${escapeHtml(t("label.calendarDays"))}">
+        ${dayButtons}
+      </aside>
+      <div class="calendar-detail">
+        ${renderCalendarDayScores(data, currentCalendarDay)}
+      </div>
+    </div>
+  `;
+}
+
+function renderMapDetails(scoreKey) {
+  if (!lastSearchData) return;
+
+  const selectedScore = findScoreByDomKey(scoreKey);
+  if (!selectedScore) return;
+
+  const mapKey = mapDomKey(selectedScore);
+  const tries = allCalendarScores()
+    .filter((score) => mapDomKey(score) === mapKey)
+    .sort((a, b) => {
+      const bestMode = lastSearchData.meta.bestMode || "score";
+      const timeA = Date.parse(a.ended_at || a.created_at || "") || 0;
+      const timeB = Date.parse(b.ended_at || b.created_at || "") || 0;
+      const bestA =
+        bestMode === "pp"
+          ? Number(a.pp || 0)
+          : bestMode === "acc"
+            ? Number(a.accuracy || 0)
+            : bestMode === "date"
+              ? timeA
+              : Number(a.score || 0);
+      const bestB =
+        bestMode === "pp"
+          ? Number(b.pp || 0)
+          : bestMode === "acc"
+            ? Number(b.accuracy || 0)
+            : bestMode === "date"
+              ? timeB
+              : Number(b.score || 0);
+      if (bestA !== bestB) return bestB - bestA;
+      return timeB - timeA;
+    });
+
+  const beatmap = selectedScore.beatmap || {};
+  const set = selectedScore.beatmapset || {};
+  const artist = set.artist || beatmap.artist || t("label.unknownArtist");
+  const title = set.title || beatmap.title || t("label.unknownMap");
+  const version = beatmap.version || "Difficulty";
+  const bestPp = tries.reduce((best, score) => Math.max(best, Number(score.pp || 0)), 0);
+  const bestScore = tries.reduce((best, score) => Math.max(best, Number(score.score || 0)), 0);
+  const latestTry = tries.reduce((latest, score) => {
+    const nextTime = Date.parse(score.ended_at || score.created_at || "") || 0;
+    const latestTime = latest ? Date.parse(latest.ended_at || latest.created_at || "") || 0 : 0;
+    return nextTime > latestTime ? score : latest;
+  }, null);
+
+  const rows = tries.length
+    ? tries
+        .map((score, index) => `
+          <tr>
+            <td>#${formatNumber(index + 1)}</td>
+            <td>${formatDate(score.ended_at || score.created_at)}</td>
+            <td><span class="source-chip client-${escapeHtml(clientLabel(score))}">${escapeHtml(clientLabel(score))}</span></td>
+            <td>${renderMods(score)}</td>
+            <td>${escapeHtml(score.rank || "-")}</td>
+            <td>${formatPp(score.pp)}</td>
+            <td>${formatAccuracy(score.accuracy)}</td>
+            <td>${formatNumber(score.max_combo)}x</td>
+            <td>${formatNumber(missCount(score))}</td>
+            <td>${formatNumber(score.score)}</td>
+          </tr>
+        `)
+        .join("")
+    : `<tr><td colspan="10">${escapeHtml(t("empty.noMapDetails"))}</td></tr>`;
+
+  detailsPanel.classList.remove("hidden");
+  detailsPanel.innerHTML = `
+    <div class="details-backdrop" data-close-details="1"></div>
+    <article class="details-card">
+      <header class="details-head">
+        <div>
+          <span>${escapeHtml(t("label.mapDetails"))}</span>
+          <h2>${escapeHtml(artist)} - ${escapeHtml(title)}</h2>
+          <p>[${escapeHtml(version)}]</p>
+        </div>
+        <button class="ghost-button" type="button" data-close-details="1">${escapeHtml(t("button.close"))}</button>
+      </header>
+      <div class="details-stats">
+        <span><strong>${formatNumber(tries.length)}</strong>${escapeHtml(t("label.tries"))}</span>
+        <span><strong>${formatPp(bestPp)}</strong>${escapeHtml(t("label.bestPp"))}</span>
+        <span><strong>${formatNumber(bestScore)}</strong>${escapeHtml(t("label.bestScore"))}</span>
+        <span><strong>${latestTry ? formatDate(latestTry.ended_at || latestTry.created_at) : "-"}</strong>${escapeHtml(t("label.latestTry"))}</span>
+      </div>
+      <div class="details-table-wrap">
+        <table class="details-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>${escapeHtml(t("option.sort.date"))}</th>
+              <th>Client</th>
+              <th>Mods</th>
+              <th>Rank</th>
+              <th>PP</th>
+              <th>${escapeHtml(t("label.accuracy"))}</th>
+              <th>${escapeHtml(t("label.combo"))}</th>
+              <th>${escapeHtml(t("label.miss"))}</th>
+              <th>${escapeHtml(t("label.score"))}</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </article>
+  `;
+}
+
 function renderSearchData(data) {
   renderSummary(data);
   renderImprovements(data);
+  renderCalendar(data);
 
   if (!data.scores.length) {
     setResultsState(emptyMessage(data.meta));
@@ -797,11 +1067,13 @@ function renderSearchData(data) {
 
 async function runSearch(event) {
   event.preventDefault();
+  stopLiveScanner("status.liveWaiting");
   summary.classList.add("hidden");
   lastSearchData = null;
   setLoading(true);
   setResultsState(`<div class="loading-state">${escapeHtml(t("loading.search"))}</div>`);
   setImprovementState("");
+  calendar.innerHTML = "";
 
   try {
     const params = buildSearchParams();
@@ -814,11 +1086,78 @@ async function runSearch(event) {
 
     lastSearchData = data;
     renderSearchData(data);
+    startLiveScanner();
   } catch (error) {
     setResultsState(`<div class="error-state">${escapeHtml(error.message)}</div>`);
   } finally {
     setLoading(false);
   }
+}
+
+function setLiveStatus(key, values = {}, className = "") {
+  if (!liveStatus) return;
+  liveStatus.className = `status-pill live-pill ${className}`.trim();
+  liveStatus.textContent = t(key, values);
+}
+
+function stopLiveScanner(statusKey = "status.liveStopped") {
+  if (liveTimer) clearInterval(liveTimer);
+  liveTimer = null;
+  liveScanBusy = false;
+  setLiveStatus(statusKey);
+}
+
+async function refreshFromStoredSearch() {
+  const params = buildSearchParams();
+  params.set("useApiV2", "0");
+  params.set("includeHuis", "0");
+
+  const response = await fetch(`/api/search?${params.toString()}`);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || t("error.searchFailed"));
+
+  lastSearchData = data;
+  renderSearchData(data);
+}
+
+async function runLiveScan() {
+  if (liveScanBusy || !document.querySelector("#liveScanner")?.checked) return;
+  const username = document.querySelector("#username").value.trim();
+  if (!username) return;
+
+  liveScanBusy = true;
+  setLiveStatus("status.liveScanning");
+
+  try {
+    const params = buildLiveScanParams();
+    const response = await fetch(`/api/live-scan?${params.toString()}`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || t("status.liveError"));
+
+    if (data.savedNow > 0) {
+      setLiveStatus("status.liveUpdated", { count: formatNumber(data.savedNow) }, "ready");
+      await refreshFromStoredSearch();
+    } else {
+      setLiveStatus("status.liveNoChanges");
+    }
+  } catch {
+    setLiveStatus("status.liveError", {}, "missing");
+  } finally {
+    liveScanBusy = false;
+  }
+}
+
+function startLiveScanner() {
+  const enabled = document.querySelector("#liveScanner")?.checked;
+  const username = document.querySelector("#username").value.trim();
+  if (!enabled || !username || !lastSearchData) {
+    stopLiveScanner(enabled ? "status.liveIdle" : "status.liveStopped");
+    return;
+  }
+
+  if (liveTimer) clearInterval(liveTimer);
+  setLiveStatus("status.liveWaiting");
+  liveTimer = setInterval(runLiveScan, 30_000);
 }
 
 modButtons.addEventListener("click", (event) => {
@@ -853,15 +1192,45 @@ viewTabs.addEventListener("click", (event) => {
     tab.classList.toggle("active", tab === button);
   }
 
-  const view = button.dataset.view;
-  results.classList.toggle("hidden", view !== "scores");
-  improvements.classList.toggle("hidden", view !== "improvements");
+  activeView = button.dataset.view;
+  results.classList.toggle("hidden", activeView !== "scores");
+  improvements.classList.toggle("hidden", activeView !== "improvements");
+  calendar.classList.toggle("hidden", activeView !== "calendar");
+});
+
+function handleDetailsClick(event) {
+  const button = event.target.closest("button[data-score-key]");
+  if (!button) return;
+  renderMapDetails(button.dataset.scoreKey);
+}
+
+results.addEventListener("click", handleDetailsClick);
+calendar.addEventListener("click", (event) => {
+  const dayButton = event.target.closest("button[data-calendar-day]");
+  if (dayButton && lastSearchData) {
+    currentCalendarDay = dayButton.dataset.calendarDay;
+    renderCalendar(lastSearchData);
+    return;
+  }
+
+  handleDetailsClick(event);
+});
+
+detailsPanel.addEventListener("click", (event) => {
+  if (!event.target.closest("[data-close-details]")) return;
+  detailsPanel.classList.add("hidden");
+  detailsPanel.innerHTML = "";
 });
 
 languageSelect?.addEventListener("change", () => {
   storeLanguage(languageSelect.value);
   applyLanguage(languageSelect.value);
   checkStatus();
+});
+
+document.querySelector("#liveScanner")?.addEventListener("change", () => {
+  if (document.querySelector("#liveScanner").checked) startLiveScanner();
+  else stopLiveScanner();
 });
 
 form.addEventListener("submit", runSearch);
