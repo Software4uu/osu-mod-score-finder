@@ -421,6 +421,16 @@ select:focus {
   font-size: 1.15rem;
 }
 
+.user-card h2 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.user-card h2 a:hover {
+  color: var(--cyan);
+  text-decoration: underline;
+}
+
 .user-card p,
 .summary-stat {
   margin: 4px 0 0;

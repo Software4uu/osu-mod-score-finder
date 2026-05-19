@@ -872,16 +872,22 @@ function emptyMessage(meta) {
 function renderSummary(data) {
   const stats = data.user.statistics || {};
   const globalRank = stats.global_rank ? `#${formatNumber(stats.global_rank)}` : t("label.noRank");
+  const profileUrl = data.user.url && !String(data.user.id).startsWith("local:")
+    ? data.user.url
+    : "";
   const avatar = data.user.avatar_url
     ? `<img src="${escapeHtml(data.user.avatar_url)}" alt="" />`
     : '<div class="avatar-fallback"></div>';
+  const usernameHtml = profileUrl
+    ? `<a href="${escapeHtml(profileUrl)}" target="_blank" rel="noreferrer">${escapeHtml(data.user.username)}</a>`
+    : escapeHtml(data.user.username);
 
   summary.classList.remove("hidden");
   summary.innerHTML = `
     <div class="user-card">
       ${avatar}
       <div>
-        <h2>${escapeHtml(data.user.username)}</h2>
+        <h2>${usernameHtml}</h2>
         <p>${escapeHtml(data.user.country_code || "--")} - ${escapeHtml(globalRank)}</p>
       </div>
     </div>
@@ -1238,26 +1244,14 @@ function renderMapDetails(scoreKey) {
   const tries = allCalendarScores()
     .filter((score) => mapDomKey(score) === mapKey)
     .sort((a, b) => {
-      const bestMode = lastSearchData.meta.bestMode || "score";
       const timeA = Date.parse(a.ended_at || a.created_at || "") || 0;
       const timeB = Date.parse(b.ended_at || b.created_at || "") || 0;
-      const bestA =
-        bestMode === "pp"
-          ? Number(a.pp || 0)
-          : bestMode === "acc"
-            ? Number(a.accuracy || 0)
-            : bestMode === "date"
-              ? timeA
-              : Number(a.score || 0);
-      const bestB =
-        bestMode === "pp"
-          ? Number(b.pp || 0)
-          : bestMode === "acc"
-            ? Number(b.accuracy || 0)
-            : bestMode === "date"
-              ? timeB
-              : Number(b.score || 0);
-      if (bestA !== bestB) return bestB - bestA;
+      const ppDiff = scorePpValue(b) - scorePpValue(a);
+      if (ppDiff !== 0) return ppDiff;
+      const accDiff = Number(b.accuracy || 0) - Number(a.accuracy || 0);
+      if (accDiff !== 0) return accDiff;
+      const scoreDiff = Number(b.score || 0) - Number(a.score || 0);
+      if (scoreDiff !== 0) return scoreDiff;
       return timeB - timeA;
     });
 
@@ -1266,7 +1260,7 @@ function renderMapDetails(scoreKey) {
   const artist = set.artist || beatmap.artist || t("label.unknownArtist");
   const title = set.title || beatmap.title || t("label.unknownMap");
   const version = beatmap.version || "Difficulty";
-  const bestPp = tries.reduce((best, score) => Math.max(best, Number(score.pp || 0)), 0);
+  const bestPp = tries.reduce((best, score) => Math.max(best, scorePpValue(score)), 0);
   const bestScore = tries.reduce((best, score) => Math.max(best, Number(score.score || 0)), 0);
   const latestTry = tries.reduce((latest, score) => {
     const nextTime = Date.parse(score.ended_at || score.created_at || "") || 0;
@@ -1283,7 +1277,7 @@ function renderMapDetails(scoreKey) {
             <td><span class="source-chip client-${escapeHtml(clientLabel(score))}">${escapeHtml(clientLabel(score))}</span></td>
             <td>${renderMods(score)}</td>
             <td>${escapeHtml(score.rank || "-")}</td>
-            <td>${formatPp(score.pp)}</td>
+            <td>${formatPp(scorePpValue(score))}</td>
             <td>${formatAccuracy(score.accuracy)}</td>
             <td>${formatNumber(score.max_combo)}x</td>
             <td>${formatNumber(missCount(score))}</td>

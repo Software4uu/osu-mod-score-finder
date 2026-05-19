@@ -331,7 +331,7 @@ Add-Label "Port" 18 198 | Out-Null
 $portBox = Add-TextBox (Get-ConfigValue "PORT" "5173") 165 195 120
 
 $openAfter = New-Object System.Windows.Forms.CheckBox
-$openAfter.Text = "Nach dem Speichern Setup-Hilfe im Browser anzeigen"
+$openAfter.Text = "Nach dem Setup App starten und im Browser oeffnen"
 $openAfter.Location = New-Object System.Drawing.Point(165, 228)
 $openAfter.Size = New-Object System.Drawing.Size(360, 24)
 $openAfter.Checked = $true
@@ -452,8 +452,30 @@ $saveButton.Add_Click({
       )
       if ($answer -eq [System.Windows.Forms.DialogResult]::Yes) {
         $npmArgs = "install --no-audit --no-fund --prefer-online --cache `"$NpmCachePath`""
-        Run-CheckedProcess "npm" $npmArgs $Root "Projekt-Abhaengigkeiten"
+        $installError = $null
+        try {
+          Run-CheckedProcess "npm" $npmArgs $Root "Projekt-Abhaengigkeiten"
+        } catch {
+          $installError = $_.Exception.Message
+          Write-SetupLog "npm install meldete einen Fehler, Fallback ohne eigenen Cache wird versucht."
+          $status.Text = "npm install hatte einen Fehler. Fallback wird versucht..."
+          [System.Windows.Forms.Application]::DoEvents()
+          try {
+            Run-CheckedProcess "npm" "install --no-audit --no-fund" $Root "Projekt-Abhaengigkeiten Fallback"
+            $installError = $null
+          } catch {
+            $installError = "$installError`r`n`r`nFallback: $($_.Exception.Message)"
+          }
+        }
+
         Update-InstallState
+        if (-not (Test-DependenciesInstalled)) {
+          throw $installError
+        }
+        if ($installError) {
+          Write-SetupLog "npm meldete einen Fehler, aber die benoetigten Pakete sind vorhanden. Setup wird fortgesetzt."
+          $status.Text = "Abhaengigkeiten sind vorhanden. Setup wird fortgesetzt."
+        }
       }
     }
 
@@ -461,15 +483,19 @@ $saveButton.Add_Click({
     Write-SetupLog "Setup erfolgreich abgeschlossen."
 
     if ($openAfter.Checked) {
-      $helpPath = Join-Path $Root "README.html"
-      if (-not (Test-Path $helpPath)) {
-        $helpPath = Join-Path $Root "README.md"
+      $startPath = Join-Path $Root "start-beta.bat"
+      if (Test-Path $startPath) {
+        Start-Process -FilePath $startPath -WorkingDirectory $Root
+        Write-SetupLog "start-beta.bat wurde gestartet."
+      } else {
+        $port = if ($portBox.Text.Trim()) { $portBox.Text.Trim() } else { "5173" }
+        Start-Process -FilePath "http://127.0.0.1:$port/"
+        Write-SetupLog "Browser wurde geoeffnet."
       }
-      Start-Process -FilePath $helpPath
     }
 
     [System.Windows.Forms.MessageBox]::Show(
-      "Setup ist fertig. Dieses Fenster bleibt offen. Starte die App danach mit start-beta.bat oder schliesse das Setup.",
+      "Setup ist fertig. Dieses Fenster bleibt offen. Wenn der Browser nicht automatisch aufgeht, starte start-beta.bat.",
       "Fertig",
       [System.Windows.Forms.MessageBoxButtons]::OK,
       [System.Windows.Forms.MessageBoxIcon]::Information

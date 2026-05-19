@@ -23,7 +23,7 @@ if not "%SETUP_EXIT%"=="0" (
   echo Setup wurde erfolgreich beendet.
   echo Alles Notwendige wurde eingerichtet oder gespeichert.
   echo.
-  echo Waehle bzw. starte jetzt start-beta.bat, um das Tool zu oeffnen.
+  echo Wenn die App nicht automatisch geoeffnet wurde, starte jetzt start-beta.bat.
 )
 echo.
 pause

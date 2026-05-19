@@ -1,6 +1,13 @@
 @echo off
 setlocal
 cd /d "%~dp0"
+set "APP_PORT=5173"
+
+if exist "%~dp0.env" (
+  for /f "usebackq tokens=1,* delims==" %%A in ("%~dp0.env") do (
+    if /I "%%A"=="PORT" set "APP_PORT=%%B"
+  )
+)
 
 where powershell >nul 2>nul
 if errorlevel 1 (
@@ -47,6 +54,6 @@ if not exist "%~dp0node_modules\rosu-pp-js\package.json" (
   exit /b 1
 )
 
-start "" "http://127.0.0.1:5173/"
+start "" "http://127.0.0.1:%APP_PORT%/"
 node --no-warnings server.js
 pause
