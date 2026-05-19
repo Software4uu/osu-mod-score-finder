@@ -11,6 +11,34 @@ $NpmCachePath = Join-Path $Root ".npm-cache"
 $script:CurrentProcess = $null
 $script:CancelRequested = $false
 $script:SetupHadError = $false
+$script:SetupMutex = $null
+
+$createdSetupMutex = $false
+$script:SetupMutex = New-Object System.Threading.Mutex($true, "Local\OsuModScoreFinderBetaSetup", [ref]$createdSetupMutex)
+if (-not $createdSetupMutex) {
+  [System.Windows.Forms.MessageBox]::Show(
+    "Das Setup laeuft bereits. Bitte nutze das bereits geoeffnete Setup-Fenster.",
+    "Setup laeuft bereits",
+    [System.Windows.Forms.MessageBoxButtons]::OK,
+    [System.Windows.Forms.MessageBoxIcon]::Information
+  ) | Out-Null
+  exit 0
+}
+
+function Close-SetupMutex {
+  if (-not $script:SetupMutex) { return }
+  try {
+    $script:SetupMutex.ReleaseMutex()
+  } catch {
+    # The mutex may already be released during shutdown.
+  }
+  try {
+    $script:SetupMutex.Dispose()
+  } catch {
+    # Nothing to clean up if dispose fails during shutdown.
+  }
+  $script:SetupMutex = $null
+}
 
 function Write-SetupLog($message) {
   try {
@@ -82,7 +110,7 @@ function Stop-CurrentProcessTree {
   }
 }
 
-function Run-CheckedProcess($fileName, $arguments, $workingDirectory, $friendlyName) {
+function Run-CheckedProcess($fileName, $arguments, $workingDirectory, $friendlyName, $useLocalCache = $true) {
   $resolvedFile = Resolve-CommandPath $fileName
   if (-not $resolvedFile) {
     throw "$fileName wurde nicht gefunden."
@@ -106,7 +134,9 @@ function Run-CheckedProcess($fileName, $arguments, $workingDirectory, $friendlyN
   $processInfo.RedirectStandardOutput = $true
   $processInfo.RedirectStandardError = $true
   $processInfo.CreateNoWindow = $true
-  $processInfo.EnvironmentVariables["NPM_CONFIG_CACHE"] = $NpmCachePath
+  if ($useLocalCache) {
+    $processInfo.EnvironmentVariables["NPM_CONFIG_CACHE"] = $NpmCachePath
+  }
   $processInfo.EnvironmentVariables["NPM_CONFIG_UPDATE_NOTIFIER"] = "false"
 
   $lines = [System.Collections.ArrayList]::Synchronized((New-Object System.Collections.ArrayList))
@@ -461,7 +491,7 @@ $saveButton.Add_Click({
           $status.Text = "npm install hatte einen Fehler. Fallback wird versucht..."
           [System.Windows.Forms.Application]::DoEvents()
           try {
-            Run-CheckedProcess "npm" "install --no-audit --no-fund" $Root "Projekt-Abhaengigkeiten Fallback"
+            Run-CheckedProcess "npm" "install --no-audit --no-fund" $Root "Projekt-Abhaengigkeiten Fallback" $false
             $installError = $null
           } catch {
             $installError = "$installError`r`n`r`nFallback: $($_.Exception.Message)"
@@ -492,6 +522,8 @@ $saveButton.Add_Click({
         Start-Process -FilePath "http://127.0.0.1:$port/"
         Write-SetupLog "Browser wurde geoeffnet."
       }
+      $form.WindowState = [System.Windows.Forms.FormWindowState]::Normal
+      $form.Activate()
     }
 
     [System.Windows.Forms.MessageBox]::Show(
@@ -522,9 +554,11 @@ $saveButton.Add_Click({
 
 try {
   [void]$form.ShowDialog()
+  Close-SetupMutex
   if ($script:SetupHadError) { exit 1 }
   exit 0
 } catch {
+  Close-SetupMutex
   Write-SetupLog "Fataler Setup-Fehler: $($_.Exception.Message)"
   [System.Windows.Forms.MessageBox]::Show(
     "Das Setup ist unerwartet abgestuerzt:`r`n$($_.Exception.Message)`r`n`r`nBitte setup.log im Projektordner pruefen.",

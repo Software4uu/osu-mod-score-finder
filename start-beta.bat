@@ -8,6 +8,7 @@ if exist "%~dp0.env" (
     if /I "%%A"=="PORT" set "APP_PORT=%%B"
   )
 )
+set "APP_URL=http://127.0.0.1:%APP_PORT%/"
 
 where powershell >nul 2>nul
 if errorlevel 1 (
@@ -54,6 +55,37 @@ if not exist "%~dp0node_modules\rosu-pp-js\package.json" (
   exit /b 1
 )
 
-start "" "http://127.0.0.1:%APP_PORT%/"
+call :CheckAppStatus
+if "%APP_ALREADY_RUNNING%"=="1" (
+  echo osu! Mod Score Finder laeuft bereits auf %APP_URL%.
+  echo Es wird kein zweiter Server gestartet.
+  start "" "%APP_URL%"
+  ping -n 4 127.0.0.1 >nul
+  exit /b 0
+)
+
+if "%PORT_BLOCKED%"=="1" (
+  echo Port %APP_PORT% ist belegt, aber dort antwortet nicht osu! Mod Score Finder.
+  echo Bitte schliesse das andere Programm oder aendere PORT in der .env.
+  pause
+  exit /b 1
+)
+
+start "" "%APP_URL%"
 node --no-warnings server.js
-pause
+set "SERVER_EXIT=%ERRORLEVEL%"
+if not "%SERVER_EXIT%"=="0" (
+  echo.
+  echo Server wurde mit Fehlercode %SERVER_EXIT% beendet.
+  pause
+)
+exit /b %SERVER_EXIT%
+
+:CheckAppStatus
+set "APP_ALREADY_RUNNING=0"
+set "PORT_BLOCKED=0"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 '%APP_URL%api/status'; if ($r.Content -match 'hasCredentials') { exit 0 } else { exit 2 } } catch { try { $client = New-Object System.Net.Sockets.TcpClient; $client.Connect('127.0.0.1', [int]$env:APP_PORT); $client.Close(); exit 2 } catch { exit 1 } }"
+set "APP_STATUS=%ERRORLEVEL%"
+if "%APP_STATUS%"=="0" set "APP_ALREADY_RUNNING=1"
+if "%APP_STATUS%"=="2" set "PORT_BLOCKED=1"
+exit /b 0
