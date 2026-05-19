@@ -96,8 +96,7 @@ function Refresh-ProcessPath {
 }
 
 function Test-DependenciesInstalled {
-  return (Test-Path (Join-Path $Root "node_modules\realm\package.json")) -and
-    (Test-Path (Join-Path $Root "node_modules\rosu-pp-js\package.json"))
+  return Test-Path (Join-Path $Root "node_modules\rosu-pp-js\package.json")
 }
 
 function Stop-CurrentProcessTree {
@@ -491,7 +490,7 @@ $saveButton.Add_Click({
           $status.Text = "npm install hatte einen Fehler. Fallback wird versucht..."
           [System.Windows.Forms.Application]::DoEvents()
           try {
-            Run-CheckedProcess "npm" "install --no-audit --no-fund" $Root "Projekt-Abhaengigkeiten Fallback" $false
+            Run-CheckedProcess "npm" "install --no-audit --no-fund --omit=optional" $Root "Projekt-Abhaengigkeiten Fallback" $false
             $installError = $null
           } catch {
             $installError = "$installError`r`n`r`nFallback: $($_.Exception.Message)"
