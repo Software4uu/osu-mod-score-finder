@@ -744,14 +744,29 @@ select:focus {
   font-size: 0.78rem;
 }
 
-.try-chart svg {
-  display: block;
-  width: 100%;
-  height: 228px;
+.try-chart-plot {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
 }
 
-.try-chart.compact svg {
-  height: 176px;
+.try-chart-plot::-webkit-scrollbar {
+  height: 9px;
+}
+
+.try-chart-plot::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(152, 170, 203, 0.28);
+}
+
+.try-chart-plot svg {
+  display: block;
+  height: 272px;
+  max-width: none;
+}
+
+.try-chart.compact .try-chart-plot svg {
+  height: 222px;
 }
 
 .chart-bg {
@@ -772,8 +787,52 @@ select:focus {
 .chart-axis-text,
 .chart-axis-title {
   fill: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 750;
+}
+
+.chart-hit {
+  fill: transparent;
+  pointer-events: all;
+}
+
+.chart-hover-line,
+.chart-tooltip {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.chart-hover-line {
+  stroke: rgba(255, 255, 255, 0.42);
+  stroke-dasharray: 4 4;
+  stroke-width: 1.2;
+}
+
+.chart-tooltip rect {
+  fill: rgba(10, 13, 20, 0.96);
+  stroke: rgba(255, 102, 170, 0.42);
+  stroke-width: 1;
+}
+
+.chart-tooltip text {
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.chart-tooltip-title {
+  fill: var(--text);
+}
+
+.chart-tooltip-sub {
+  fill: var(--muted);
+}
+
+.chart-hover-zone:hover .chart-hover-line,
+.chart-hover-zone:hover .chart-tooltip,
+.chart-hover-zone:focus-within .chart-hover-line,
+.chart-hover-zone:focus-within .chart-tooltip {
+  opacity: 1;
 }
 
 .calendar-view {
@@ -1207,8 +1266,8 @@ select:focus {
     justify-content: flex-start;
   }
 
-  .try-chart svg,
-  .try-chart.compact svg {
-    height: 156px;
+  .try-chart-plot svg,
+  .try-chart.compact .try-chart-plot svg {
+    height: 190px;
   }
 }

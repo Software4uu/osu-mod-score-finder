@@ -1068,19 +1068,18 @@ function renderTryHistoryChart(tries, options = {}) {
 
   if (!ordered.length) return "";
 
-  const width = 900;
-  const height = compact ? 176 : 228;
+  const pointGap = compact ? 84 : 104;
+  const width = Math.max(900, 44 + 18 + Math.max(ordered.length - 1, 1) * pointGap);
+  const height = compact ? 222 : 272;
   const left = 44;
   const right = 18;
   const top = 18;
-  const bottom = 36;
+  const bottom = compact ? 72 : 78;
   const plotWidth = width - left - right;
   const plotHeight = height - top - bottom;
-  const minTime = Math.min(...ordered.map((point) => point.time));
-  const maxTime = Math.max(...ordered.map((point) => point.time));
   const xFor = (point) => {
-    if (maxTime === minTime) return left + plotWidth / 2;
-    return left + ((point.time - minTime) / (maxTime - minTime)) * plotWidth;
+    if (ordered.length === 1) return left + plotWidth / 2;
+    return left + (point.index / (ordered.length - 1)) * plotWidth;
   };
   const metricValue = (metric, point) => point[metric.key];
   const metrics = [
@@ -1154,20 +1153,38 @@ function renderTryHistoryChart(tries, options = {}) {
       `;
     })
     .join("");
-  const tickIndexes = [...new Set(
-    ordered.length === 1
-      ? [0]
-      : compact
-        ? [0, ordered.length - 1]
-        : [0, Math.floor((ordered.length - 1) / 2), ordered.length - 1]
-  )];
-  const ticks = tickIndexes
-    .map((index) => {
-      const point = ordered[index];
+  const ticks = ordered
+    .map((point) => {
+      const x = xFor(point);
+      const labelY = height - (compact ? 8 : 10);
       return `
         <g>
-          <line class="chart-tick" x1="${formatCoord(xFor(point))}" y1="${height - bottom}" x2="${formatCoord(xFor(point))}" y2="${height - bottom + 5}"></line>
-          <text class="chart-axis-text" x="${formatCoord(xFor(point))}" y="${height - 10}" text-anchor="middle">${escapeHtml(formatDateTick(point.score.ended_at || point.score.created_at))}</text>
+          <line class="chart-tick" x1="${formatCoord(x)}" y1="${height - bottom}" x2="${formatCoord(x)}" y2="${height - bottom + 5}"></line>
+          <text class="chart-axis-text" x="${formatCoord(x)}" y="${labelY}" text-anchor="end" transform="rotate(-38 ${formatCoord(x)} ${labelY})">${escapeHtml(formatDateTick(point.score.ended_at || point.score.created_at))}</text>
+        </g>
+      `;
+    })
+    .join("");
+  const hitWidth = Math.max(34, Math.min(pointGap, plotWidth / Math.max(ordered.length, 1)));
+  const hoverZones = ordered
+    .map((point) => {
+      const x = xFor(point);
+      const tooltipWidth = compact ? 188 : 214;
+      const tooltipHeight = 96;
+      const tooltipX = Math.min(Math.max(x - tooltipWidth / 2, left + 6), width - right - tooltipWidth - 6);
+      const tooltipY = top + 8;
+      return `
+        <g class="chart-hover-zone">
+          <rect class="chart-hit" x="${formatCoord(x - hitWidth / 2)}" y="${top - 8}" width="${formatCoord(hitWidth)}" height="${plotHeight + bottom + 8}"></rect>
+          <line class="chart-hover-line" x1="${formatCoord(x)}" y1="${top}" x2="${formatCoord(x)}" y2="${height - bottom}"></line>
+          <g class="chart-tooltip" transform="translate(${formatCoord(tooltipX)} ${formatCoord(tooltipY)})">
+            <rect width="${tooltipWidth}" height="${tooltipHeight}" rx="7"></rect>
+            <text class="chart-tooltip-title" x="10" y="18">${escapeHtml(formatDate(point.score.ended_at || point.score.created_at))}</text>
+            <text x="10" y="38" fill="${metrics[0].color}">${escapeHtml(`${metrics[0].label}: ${metrics[0].format(point.pp)}`)}</text>
+            <text x="10" y="55" fill="${metrics[1].color}">${escapeHtml(`${metrics[1].label}: ${metrics[1].format(point.acc)}`)}</text>
+            <text x="10" y="72" fill="${metrics[2].color}">${escapeHtml(`${metrics[2].label}: ${metrics[2].format(point.misses)}`)}</text>
+            <text class="chart-tooltip-sub" x="10" y="89">${escapeHtml(`${formatNumber(point.score.score)} ${t("label.score")} - ${formatNumber(point.score.max_combo)}x ${t("label.combo")}`)}</text>
+          </g>
         </g>
       `;
     })
@@ -1187,14 +1204,17 @@ function renderTryHistoryChart(tries, options = {}) {
         <strong>${escapeHtml(t("label.historyChart"))}</strong>
         <div class="try-chart-legend">${legend}</div>
       </div>
-      <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(t("label.historyChart"))}">
-        <rect class="chart-bg" x="${left}" y="${top}" width="${plotWidth}" height="${plotHeight}" rx="8"></rect>
-        ${gridRows}
-        <line class="chart-axis" x1="${left}" y1="${height - bottom}" x2="${width - right}" y2="${height - bottom}"></line>
-        <text class="chart-axis-title" x="${left}" y="${height - 10}">${escapeHtml(t("label.timeAxis"))}</text>
-        ${ticks}
-        ${series}
-      </svg>
+      <div class="try-chart-plot">
+        <svg viewBox="0 0 ${width} ${height}" style="width: ${width}px; min-width: 100%;" role="img" aria-label="${escapeHtml(t("label.historyChart"))}">
+          <rect class="chart-bg" x="${left}" y="${top}" width="${plotWidth}" height="${plotHeight}" rx="8"></rect>
+          ${gridRows}
+          <line class="chart-axis" x1="${left}" y1="${height - bottom}" x2="${width - right}" y2="${height - bottom}"></line>
+          <text class="chart-axis-title" x="${left}" y="${height - 5}">${escapeHtml(t("label.timeAxis"))}</text>
+          ${ticks}
+          ${series}
+          ${hoverZones}
+        </svg>
+      </div>
     </div>
   `;
 }
