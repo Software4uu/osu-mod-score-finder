@@ -55,7 +55,7 @@ http://localhost:5173/callback
 - Display PP rank windows such as `1` to `100`
 - Improvement view for the latest try, the last hour, or today
 - Live scanner for newly saved local scores after a search
-- Calendar tab to review played days and all stored scores for a selected day
+- Calendar tab with a month grid, played days, and all stored scores for a selected day
 - Map detail view with all stored tries on the same map difficulty
 
 ## Start
@@ -132,7 +132,7 @@ http://localhost:5173/callback
 - PP-Rangfenster wie `1` bis `100` anzeigen
 - Improvement-Ansicht für letzten Try, letzte Stunde oder heute
 - Live-Scanner für neu gespeicherte lokale Scores nach einer Suche
-- Kalender-Tab, um Spieltage und alle gespeicherten Scores eines Tages nachzuvollziehen
+- Kalender-Tab mit Monatsraster, gespielten Tagen und allen gespeicherten Scores eines Tages
 - Map-Detailansicht mit allen gespeicherten Tries auf derselben Difficulty
 
 ## Starten

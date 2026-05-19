@@ -7,8 +7,10 @@ Add-Type -AssemblyName System.Drawing
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $EnvPath = Join-Path $Root ".env"
 $SetupLogPath = Join-Path $Root "setup.log"
+$NpmCachePath = Join-Path $Root ".npm-cache"
 $script:CurrentProcess = $null
 $script:CancelRequested = $false
+$script:SetupHadError = $false
 
 function Write-SetupLog($message) {
   try {
@@ -103,6 +105,9 @@ function Run-CheckedProcess($fileName, $arguments, $workingDirectory, $friendlyN
   $processInfo.UseShellExecute = $false
   $processInfo.RedirectStandardOutput = $true
   $processInfo.RedirectStandardError = $true
+  $processInfo.CreateNoWindow = $true
+  $processInfo.EnvironmentVariables["NPM_CONFIG_CACHE"] = $NpmCachePath
+  $processInfo.EnvironmentVariables["NPM_CONFIG_UPDATE_NOTIFIER"] = "false"
 
   $lines = [System.Collections.ArrayList]::Synchronized((New-Object System.Collections.ArrayList))
   $outputHandler = [System.Diagnostics.DataReceivedEventHandler] {
@@ -436,6 +441,9 @@ $saveButton.Add_Click({
       if (-not (Test-CommandExists "npm")) {
         throw "npm wurde nicht gefunden. Installiere zuerst Node.js LTS und starte dieses Setup danach neu."
       }
+      if (-not (Test-Path $NpmCachePath)) {
+        New-Item -ItemType Directory -Path $NpmCachePath -Force | Out-Null
+      }
       $answer = [System.Windows.Forms.MessageBox]::Show(
         "Die Projekt-Abhaengigkeiten werden mit npm install geladen. Fortfahren?",
         "Abhaengigkeiten installieren",
@@ -443,7 +451,8 @@ $saveButton.Add_Click({
         [System.Windows.Forms.MessageBoxIcon]::Question
       )
       if ($answer -eq [System.Windows.Forms.DialogResult]::Yes) {
-        Run-CheckedProcess "npm" "install --no-audit --no-fund" $Root "Projekt-Abhaengigkeiten"
+        $npmArgs = "install --no-audit --no-fund --prefer-online --cache `"$NpmCachePath`""
+        Run-CheckedProcess "npm" $npmArgs $Root "Projekt-Abhaengigkeiten"
         Update-InstallState
       }
     }
@@ -466,6 +475,7 @@ $saveButton.Add_Click({
       [System.Windows.Forms.MessageBoxIcon]::Information
     ) | Out-Null
   } catch {
+    $script:SetupHadError = $true
     Write-SetupLog "Setup-Fehler: $($_.Exception.Message)"
     [System.Windows.Forms.MessageBox]::Show(
       $_.Exception.Message,
@@ -473,7 +483,9 @@ $saveButton.Add_Click({
       [System.Windows.Forms.MessageBoxButtons]::OK,
       [System.Windows.Forms.MessageBoxIcon]::Error
     ) | Out-Null
-    $status.Text = "Fehler: $($_.Exception.Message)"
+    $message = $_.Exception.Message
+    if ($message.Length -gt 180) { $message = $message.Substring(0, 180) + "..." }
+    $status.Text = "Fehler: $message"
   } finally {
     $script:CurrentProcess = $null
     $script:CancelRequested = $false
@@ -482,4 +494,17 @@ $saveButton.Add_Click({
   }
 })
 
-[void]$form.ShowDialog()
+try {
+  [void]$form.ShowDialog()
+  if ($script:SetupHadError) { exit 1 }
+  exit 0
+} catch {
+  Write-SetupLog "Fataler Setup-Fehler: $($_.Exception.Message)"
+  [System.Windows.Forms.MessageBox]::Show(
+    "Das Setup ist unerwartet abgestuerzt:`r`n$($_.Exception.Message)`r`n`r`nBitte setup.log im Projektordner pruefen.",
+    "Fataler Setup-Fehler",
+    [System.Windows.Forms.MessageBoxButtons]::OK,
+    [System.Windows.Forms.MessageBoxIcon]::Error
+  ) | Out-Null
+  exit 1
+}

@@ -19,6 +19,7 @@ let lastSearchData = null;
 let isLoading = false;
 let activeView = "scores";
 let currentCalendarDay = "";
+let currentCalendarMonth = "";
 let liveTimer = null;
 let liveScanBusy = false;
 
@@ -95,6 +96,8 @@ const translations = {
     "button.loading": "Laedt Passes...",
     "button.details": "Details",
     "button.close": "Schliessen",
+    "button.prevMonth": "Vorheriger Monat",
+    "button.nextMonth": "Naechster Monat",
     "notice.label": "Hinweis:",
     "notice.text": "osu! gibt keine komplette alte Score-Historie aus. Diese lokale Beta speichert gefundene Recent-Passes und baut daraus ab jetzt eine History pro Spieler und Mod.",
     "status.checking": "API wird geprueft",
@@ -191,6 +194,9 @@ const translations = {
     "label.calendarBestPp": "Beste PP",
     "label.calendarAverageAcc": "Durchschnitts-Acc",
     "label.calendarMisses": "Misses",
+    "label.calendarMonthScores": "Scores in diesem Monat",
+    "label.playedDay": "gespielt",
+    "label.noScoresDay": "keine Scores",
     "label.mapDetails": "Map-Details",
     "label.tries": "Tries",
     "label.bestPp": "Beste PP",
@@ -201,6 +207,7 @@ const translations = {
     "empty.noImprovements.lastHour": "Keine gespeicherten Vergleiche in der letzten Stunde fuer diese Filter.",
     "empty.noImprovements.today": "Keine gespeicherten Vergleiche heute fuer diese Filter.",
     "empty.noCalendar": "Noch keine gespeicherten Spieltage fuer diese Filter.",
+    "empty.noDayScores": "An diesem Tag sind fuer diese Filter keine Scores gespeichert.",
     "empty.noMapDetails": "Fuer diese Difficulty wurden in der aktuellen Suche keine weiteren Tries gefunden.",
     "loading.search": "Passes werden geladen und in der lokalen Datenbank gespeichert.",
     "error.searchFailed": "Suche fehlgeschlagen.",
@@ -252,6 +259,8 @@ const translations = {
     "button.loading": "Loading passes...",
     "button.details": "Details",
     "button.close": "Close",
+    "button.prevMonth": "Previous month",
+    "button.nextMonth": "Next month",
     "notice.label": "Note:",
     "notice.text": "osu! does not expose a complete old score history. This local beta stores found recent passes and builds a local history per player and mod from now on.",
     "status.checking": "Checking API",
@@ -348,6 +357,9 @@ const translations = {
     "label.calendarBestPp": "Best PP",
     "label.calendarAverageAcc": "Average acc",
     "label.calendarMisses": "Misses",
+    "label.calendarMonthScores": "Scores this month",
+    "label.playedDay": "played",
+    "label.noScoresDay": "no scores",
     "label.mapDetails": "Map details",
     "label.tries": "tries",
     "label.bestPp": "Best PP",
@@ -358,6 +370,7 @@ const translations = {
     "empty.noImprovements.lastHour": "No stored comparisons in the last hour for these filters.",
     "empty.noImprovements.today": "No stored comparisons today for these filters.",
     "empty.noCalendar": "No stored play days for these filters yet.",
+    "empty.noDayScores": "No scores are stored for these filters on this day.",
     "empty.noMapDetails": "No other tries for this difficulty were found in the current search.",
     "loading.search": "Loading passes and storing them in the local database.",
     "error.searchFailed": "Search failed.",
@@ -437,6 +450,42 @@ function formatDayKey(value) {
     month: "short",
     day: "2-digit",
   }).format(date);
+}
+
+function formatMonthKey(value) {
+  if (!value) return "-";
+  const date = new Date(`${value}-15T12:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(locale(), {
+    year: "numeric",
+    month: "long",
+  }).format(date);
+}
+
+function dateToDayKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function dayToMonthKey(dayKey) {
+  return String(dayKey || "").slice(0, 7);
+}
+
+function addMonths(monthKey, offset) {
+  const [year, month] = String(monthKey).split("-").map(Number);
+  const date = new Date(year || new Date().getFullYear(), (month || 1) - 1 + offset, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function weekdayLabels() {
+  const base = new Date(2026, 0, 5);
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(base);
+    date.setDate(base.getDate() + index);
+    return new Intl.DateTimeFormat(locale(), { weekday: "short" }).format(date);
+  });
 }
 
 function secondsToTime(totalSeconds) {
@@ -891,7 +940,16 @@ function renderImprovements(data) {
 function renderCalendarDayScores(data, dayKey) {
   const scores = data.calendar?.scoresByDay?.[dayKey] || [];
   if (!scores.length) {
-    return `<div class="empty-state">${escapeHtml(t("empty.noCalendar"))}</div>`;
+    return `
+      <div class="calendar-day-head">
+        <div>
+          <span>${escapeHtml(t("label.calendarScores"))}</span>
+          <strong>${escapeHtml(formatDayKey(dayKey))}</strong>
+        </div>
+        <span>0 ${escapeHtml(t("label.matches"))}</span>
+      </div>
+      <div class="empty-state">${escapeHtml(t("empty.noDayScores"))}</div>
+    `;
   }
 
   return `
@@ -919,31 +977,85 @@ function renderCalendar(data) {
     currentCalendarDay = days[0].date;
   }
 
-  const dayButtons = days
-    .map((day) => {
-      const active = day.date === currentCalendarDay ? " active" : "";
-      return `
-        <button class="calendar-day-card${active}" type="button" data-calendar-day="${escapeHtml(day.date)}">
-          <strong>${escapeHtml(formatDayKey(day.date))}</strong>
-          <span>${formatNumber(day.count)} ${escapeHtml(t("label.matches"))}</span>
-          <small>${escapeHtml(t("label.calendarBestPp"))}: ${formatPp(day.best_pp)}</small>
-          <small>${escapeHtml(t("label.calendarAverageAcc"))}: ${formatAccuracy(day.average_accuracy)}</small>
-          <small>${escapeHtml(t("label.calendarMisses"))}: ${formatNumber(day.total_misses)}</small>
-        </button>
-      `;
-    })
+  if (!currentCalendarMonth || !days.some((day) => day.date.startsWith(currentCalendarMonth))) {
+    currentCalendarMonth = dayToMonthKey(currentCalendarDay || days[0].date);
+  }
+
+  const [year, month] = currentCalendarMonth.split("-").map(Number);
+  const firstOfMonth = new Date(year, month - 1, 1);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const leadingEmptyCells = (firstOfMonth.getDay() + 6) % 7;
+  const monthDays = Array.from({ length: daysInMonth }, (_, index) => {
+    const dayNumber = index + 1;
+    const date = new Date(year, month - 1, dayNumber);
+    const key = dateToDayKey(date);
+    const day = days.find((candidate) => candidate.date === key);
+    const hasScores = Boolean(day);
+    const active = key === currentCalendarDay ? " selected" : "";
+    const stateClass = hasScores ? " has-scores" : " no-scores";
+    const label = hasScores ? t("label.playedDay") : t("label.noScoresDay");
+
+    return `
+      <button class="calendar-cell${stateClass}${active}" type="button" data-calendar-day="${escapeHtml(key)}" aria-label="${escapeHtml(`${formatDayKey(key)} - ${label}`)}">
+        <span class="calendar-date-number">${dayNumber}</span>
+        ${
+          hasScores
+            ? `<strong>${formatNumber(day.count)}</strong><small>${escapeHtml(t("label.matches"))}</small>`
+            : `<small>${escapeHtml(t("label.noScoresDay"))}</small>`
+        }
+      </button>
+    `;
+  });
+
+  const playedInMonth = days.filter((day) => day.date.startsWith(currentCalendarMonth));
+  const monthScoreCount = playedInMonth.reduce((total, day) => total + day.count, 0);
+  const bestMonthPp = playedInMonth.reduce((best, day) => Math.max(best, Number(day.best_pp || 0)), 0);
+  const weekdayHeader = weekdayLabels()
+    .map((label) => `<span class="calendar-weekday">${escapeHtml(label)}</span>`)
     .join("");
+  const leadingCells = Array.from({ length: leadingEmptyCells }, () => '<span class="calendar-pad"></span>').join("");
 
   calendar.innerHTML = `
-    <div class="calendar-layout">
-      <aside class="calendar-days" aria-label="${escapeHtml(t("label.calendarDays"))}">
-        ${dayButtons}
-      </aside>
-      <div class="calendar-detail">
-        ${renderCalendarDayScores(data, currentCalendarDay)}
+    <div class="calendar-month-panel">
+      <div class="calendar-month-head">
+        <button class="ghost-button" type="button" data-calendar-month="-1" aria-label="${escapeHtml(t("button.prevMonth"))}">&lt;</button>
+        <div>
+          <strong>${escapeHtml(formatMonthKey(currentCalendarMonth))}</strong>
+          <span>${formatNumber(monthScoreCount)} ${escapeHtml(t("label.calendarMonthScores"))} - ${formatPp(bestMonthPp)}</span>
+        </div>
+        <button class="ghost-button" type="button" data-calendar-month="1" aria-label="${escapeHtml(t("button.nextMonth"))}">&gt;</button>
+      </div>
+      <div class="calendar-grid">
+        ${weekdayHeader}
+        ${leadingCells}
+        ${monthDays.join("")}
+      </div>
+      <div class="calendar-legend">
+        <span><i class="legend-played"></i>${escapeHtml(t("label.playedDay"))}</span>
+        <span><i class="legend-empty"></i>${escapeHtml(t("label.noScoresDay"))}</span>
       </div>
     </div>
+    <div class="calendar-detail">
+      ${renderCalendarDayScores(data, currentCalendarDay)}
+    </div>
   `;
+}
+
+function selectCalendarDay(dayKey) {
+  currentCalendarDay = dayKey;
+  currentCalendarMonth = dayToMonthKey(dayKey);
+  if (lastSearchData) renderCalendar(lastSearchData);
+}
+
+function moveCalendarMonth(offset) {
+  currentCalendarMonth = addMonths(currentCalendarMonth || dayToMonthKey(currentCalendarDay), offset);
+  const scoresByDay = lastSearchData?.calendar?.scoresByDay || {};
+  const firstPlayedDay = Object.keys(scoresByDay)
+    .filter((dayKey) => dayKey.startsWith(currentCalendarMonth))
+    .sort()[0];
+
+  currentCalendarDay = firstPlayedDay || `${currentCalendarMonth}-01`;
+  if (lastSearchData) renderCalendar(lastSearchData);
 }
 
 function renderMapDetails(scoreKey) {
@@ -1206,10 +1318,15 @@ function handleDetailsClick(event) {
 
 results.addEventListener("click", handleDetailsClick);
 calendar.addEventListener("click", (event) => {
+  const monthButton = event.target.closest("button[data-calendar-month]");
+  if (monthButton) {
+    moveCalendarMonth(Number(monthButton.dataset.calendarMonth || 0));
+    return;
+  }
+
   const dayButton = event.target.closest("button[data-calendar-day]");
   if (dayButton && lastSearchData) {
-    currentCalendarDay = dayButton.dataset.calendarDay;
-    renderCalendar(lastSearchData);
+    selectCalendarDay(dayButton.dataset.calendarDay);
     return;
   }
 
