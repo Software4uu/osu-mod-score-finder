@@ -8,6 +8,7 @@ $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $EnvPath = Join-Path $Root ".env"
 $SetupLogPath = Join-Path $Root "setup.log"
 $NpmCachePath = Join-Path $Root ".npm-cache"
+$StartAfterSetupPath = Join-Path $Root ".setup-start-app"
 $script:CurrentProcess = $null
 $script:CancelRequested = $false
 $script:SetupHadError = $false
@@ -47,6 +48,14 @@ function Write-SetupLog($message) {
   } catch {
     # Logging must never break setup.
   }
+}
+
+try {
+  if (Test-Path $StartAfterSetupPath) {
+    Remove-Item -LiteralPath $StartAfterSetupPath -Force
+  }
+} catch {
+  # The start flag is optional; stale cleanup must not block setup.
 }
 
 function Read-DotEnv {
@@ -360,7 +369,7 @@ Add-Label "Port" 18 198 | Out-Null
 $portBox = Add-TextBox (Get-ConfigValue "PORT" "5173") 165 195 120
 
 $openAfter = New-Object System.Windows.Forms.CheckBox
-$openAfter.Text = "Nach dem Setup App starten und im Browser oeffnen"
+$openAfter.Text = "Nach dem Setup App in diesem CMD-Fenster starten"
 $openAfter.Location = New-Object System.Drawing.Point(165, 228)
 $openAfter.Size = New-Object System.Drawing.Size(360, 24)
 $openAfter.Checked = $true
@@ -512,21 +521,12 @@ $saveButton.Add_Click({
     Write-SetupLog "Setup erfolgreich abgeschlossen."
 
     if ($openAfter.Checked) {
-      $startPath = Join-Path $Root "start-beta.bat"
-      if (Test-Path $startPath) {
-        Start-Process -FilePath $startPath -WorkingDirectory $Root
-        Write-SetupLog "start-beta.bat wurde gestartet."
-      } else {
-        $port = if ($portBox.Text.Trim()) { $portBox.Text.Trim() } else { "5173" }
-        Start-Process -FilePath "http://127.0.0.1:$port/"
-        Write-SetupLog "Browser wurde geoeffnet."
-      }
-      $form.WindowState = [System.Windows.Forms.FormWindowState]::Normal
-      $form.Activate()
+      Set-Content -LiteralPath $StartAfterSetupPath -Value "1" -Encoding ASCII
+      Write-SetupLog "App-Start nach Setup wurde fuer setup-beta.bat vorgemerkt."
     }
 
     [System.Windows.Forms.MessageBox]::Show(
-      "Setup ist fertig. Dieses Fenster bleibt offen. Wenn der Browser nicht automatisch aufgeht, starte start-beta.bat.",
+      "Setup ist fertig. Dieses Fenster bleibt offen. Das CMD-Fenster startet danach die App, wenn der Haken aktiv ist.",
       "Fertig",
       [System.Windows.Forms.MessageBoxButtons]::OK,
       [System.Windows.Forms.MessageBoxIcon]::Information
