@@ -1119,13 +1119,15 @@ function renderTryHistoryChart(tries, options = {}) {
   };
   const formatCoord = (value) => Number(value).toFixed(2);
   const bestPpPoint = ordered.reduce((best, point) => (point.pp > best.pp ? point : best), ordered[0]);
-  const bestPpY = yFor(metrics[0], bestPpPoint);
-  const bestPpLabelY = Math.max(top + 14, bestPpY - 8);
+  const bestPpX = xFor(bestPpPoint);
+  const bestPpLabelOnLeft = bestPpX > width - right - 126;
+  const bestPpLabelX = bestPpLabelOnLeft ? bestPpX - 8 : bestPpX + 8;
+  const bestPpLabelAnchor = bestPpLabelOnLeft ? "end" : "start";
   const bestPpLine = bestPpPoint.pp > 0
     ? `
       <g class="chart-best-reference">
-        <line class="chart-best-line" x1="${left}" y1="${formatCoord(bestPpY)}" x2="${width - right}" y2="${formatCoord(bestPpY)}"></line>
-        <text class="chart-best-label" x="${width - right - 8}" y="${formatCoord(bestPpLabelY)}" text-anchor="end">#1 ${escapeHtml(metrics[0].format(bestPpPoint.pp))}</text>
+        <line class="chart-best-line" x1="${formatCoord(bestPpX)}" y1="${top}" x2="${formatCoord(bestPpX)}" y2="${height - bottom}"></line>
+        <text class="chart-best-label" x="${formatCoord(bestPpLabelX)}" y="${top + 16}" text-anchor="${bestPpLabelAnchor}">#1 ${escapeHtml(metrics[0].format(bestPpPoint.pp))}</text>
       </g>
     `
     : "";

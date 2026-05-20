@@ -780,8 +780,9 @@ select:focus {
 
 .chart-best-line {
   stroke: #48b7ff;
-  stroke-width: 2.6;
+  stroke-width: 2.2;
   stroke-linecap: round;
+  stroke-dasharray: 6 5;
   filter: drop-shadow(0 0 5px rgba(72, 183, 255, 0.52));
 }
 
