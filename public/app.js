@@ -408,9 +408,9 @@ const translations = {
 function readStoredLanguage() {
   try {
     const stored = localStorage.getItem(languageStorageKey);
-    return stored === "en" || stored === "de" ? stored : "de";
+    return stored === "en" || stored === "de" ? stored : "en";
   } catch {
-    return "de";
+    return "en";
   }
 }
 

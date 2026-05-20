@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -19,7 +19,7 @@
               <span data-i18n="field.language">Sprache</span>
               <select id="languageSelect" name="language">
                 <option value="de">Deutsch</option>
-                <option value="en">English</option>
+                <option value="en" selected>English</option>
               </select>
             </label>
             <div id="liveStatus" class="status-pill live-pill" data-i18n="status.liveIdle">Live bereit</div>
@@ -60,7 +60,7 @@
             <span><span data-i18n="field.sort">Sortierung</span> <span class="help-icon" data-help-key="help.sort">?</span></span>
             <select id="sort" name="sort">
               <option value="date" data-i18n="option.sort.date" data-help-key="help.sort.date">Datum</option>
-              <option value="pp" data-help-key="help.sort.pp">PP</option>
+              <option value="pp" data-help-key="help.sort.pp" selected>PP</option>
               <option value="acc" data-help-key="help.sort.acc">Accuracy</option>
               <option value="score" data-help-key="help.sort.score">Score</option>
             </select>
@@ -92,7 +92,7 @@
             <span><span data-i18n="field.rankNumber">Rangnummer</span> <span class="help-icon" data-help-key="help.rankNumber">?</span></span>
             <select id="rankMode" name="rankMode">
               <option value="none" data-i18n="option.rank.none" data-help-key="help.rank.none">aus</option>
-              <option value="pp" data-i18n="option.rank.pp" data-help-key="help.rank.pp">PP-Rang</option>
+              <option value="pp" data-i18n="option.rank.pp" data-help-key="help.rank.pp" selected>PP-Rang</option>
             </select>
           </label>
 
@@ -115,7 +115,7 @@
             <span><span data-i18n="field.bestTry">Bester Try</span> <span class="help-icon" data-help-key="help.bestTry">?</span></span>
             <select id="bestMode" name="bestMode">
               <option value="score" data-help-key="help.best.score">Score</option>
-              <option value="pp" data-help-key="help.best.pp">PP</option>
+              <option value="pp" data-help-key="help.best.pp" selected>PP</option>
               <option value="acc" data-help-key="help.best.acc">Accuracy</option>
               <option value="date" data-i18n="option.best.date" data-help-key="help.best.date">neuster</option>
             </select>
