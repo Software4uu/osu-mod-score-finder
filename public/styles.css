@@ -679,16 +679,18 @@ select:focus {
 
 .improvement-stats {
   display: grid;
+  align-content: center;
   justify-items: end;
-  gap: 4px;
-  min-width: 130px;
+  gap: 10px;
+  min-width: 150px;
   color: var(--green);
+  font-size: 1rem;
   font-weight: 900;
 }
 
 .improvement-stats span:first-child {
   color: var(--pink);
-  font-size: 1.2rem;
+  font-size: 1.35rem;
 }
 
 .try-chart {
@@ -761,12 +763,12 @@ select:focus {
 
 .try-chart-plot svg {
   display: block;
-  height: 336px;
+  height: 350px;
   max-width: none;
 }
 
 .try-chart.compact .try-chart-plot svg {
-  height: 252px;
+  height: 300px;
 }
 
 .chart-bg {

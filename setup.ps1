@@ -41,6 +41,7 @@ $SetupTexts = @{
     "label.stableDir" = "osu! stable Ordner"
     "label.lazerDir" = "osu!lazer Ordner"
     "label.port" = "Port"
+    "link.osuApi" = "osu! API-Einstellungen"
     "button.choose" = "Auswaehlen"
     "button.cancel" = "Abbrechen"
     "button.save" = "Speichern"
@@ -110,6 +111,7 @@ $SetupTexts = @{
     "label.stableDir" = "osu! stable folder"
     "label.lazerDir" = "osu!lazer folder"
     "label.port" = "Port"
+    "link.osuApi" = "osu! API settings"
     "button.choose" = "Choose"
     "button.cancel" = "Cancel"
     "button.save" = "Save"
@@ -414,6 +416,19 @@ function Pick-Folder($textBox, $description) {
   }
 }
 
+function Open-ExternalLink($url) {
+  try {
+    Start-Process $url
+  } catch {
+    [System.Windows.Forms.MessageBox]::Show(
+      $url,
+      (T "link.osuApi"),
+      [System.Windows.Forms.MessageBoxButtons]::OK,
+      [System.Windows.Forms.MessageBoxIcon]::Information
+    ) | Out-Null
+  }
+}
+
 $config = Read-DotEnv
 $nodeInstalled = Test-CommandExists "node"
 $npmInstalled = Test-CommandExists "npm"
@@ -531,6 +546,14 @@ function Add-TextBox($text, $x, $y, $width, $password = $false) {
   $settings.Controls.Add($box)
   return $box
 }
+
+$osuApiLink = New-Object System.Windows.Forms.LinkLabel
+$osuApiLink.Text = T "link.osuApi"
+$osuApiLink.Location = New-Object System.Drawing.Point(500, 12)
+$osuApiLink.Size = New-Object System.Drawing.Size(180, 20)
+$osuApiLink.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
+$osuApiLink.Add_Click({ Open-ExternalLink "https://osu.ppy.sh/home/account/edit" })
+$settings.Controls.Add($osuApiLink)
 
 $clientIdLabel = Add-Label (T "label.clientId") 18 34
 $clientIdBox = Add-TextBox (Get-ConfigValue "OSU_CLIENT_ID" "") 165 31 490
@@ -650,6 +673,7 @@ function Apply-SetupLanguage {
   $stableLabel.Text = T "label.stableDir"
   $lazerLabel.Text = T "label.lazerDir"
   $portLabel.Text = T "label.port"
+  $osuApiLink.Text = T "link.osuApi"
   $stableButton.Text = T "button.choose"
   $lazerButton.Text = T "button.choose"
   $openAfter.Text = T "checkbox.startAfter"

@@ -181,6 +181,7 @@ const translations = {
     "label.openMap": "Map oeffnen",
     "label.openScore": "Score oeffnen",
     "label.ppSourceCalculated": "PP berechnet",
+    "label.ppSourceMatched": "PP uebernommen",
     "label.ppSourceHuis": "PP huis",
     "label.ppSourceApi": "PP aus API",
     "label.ppSourceCache": "PP Cache",
@@ -357,6 +358,7 @@ const translations = {
     "label.openMap": "Open map",
     "label.openScore": "Open score",
     "label.ppSourceCalculated": "PP calculated",
+    "label.ppSourceMatched": "PP matched",
     "label.ppSourceHuis": "PP huis",
     "label.ppSourceApi": "PP from API",
     "label.ppSourceCache": "PP cache",
@@ -591,6 +593,50 @@ function scorePpValue(score) {
   return Number.isFinite(value) ? value : 0;
 }
 
+function scoreAttemptMinute(score) {
+  const time = Date.parse(score?.ended_at || score?.created_at || "") || 0;
+  return time ? Math.floor(time / 60000) : "";
+}
+
+function scoreAttemptPpKey(score) {
+  return [
+    mapDomKey(score),
+    scoreAttemptMinute(score),
+    accuracyPercentValue(score).toFixed(4),
+    Number(score?.max_combo || 0),
+    Number(missCount(score) || 0),
+  ].join("|");
+}
+
+function enrichScoresWithMatchedPp(scores) {
+  const ppByAttempt = new Map();
+
+  for (const score of scores) {
+    const pp = scorePpValue(score);
+    const key = scoreAttemptPpKey(score);
+    if (pp > 0 && key && !ppByAttempt.has(key)) {
+      ppByAttempt.set(key, pp);
+    }
+  }
+
+  return scores.map((score) => {
+    if (scorePpValue(score) > 0) return score;
+    const pp = ppByAttempt.get(scoreAttemptPpKey(score));
+    if (!pp) return score;
+    return {
+      ...score,
+      calculated_pp: pp,
+      pp_source: score.pp_source || "matched-local",
+    };
+  });
+}
+
+function enrichScoreFromMatches(score, matchedScores) {
+  if (!score || scorePpValue(score) > 0) return score;
+  const key = scoreAttemptPpKey(score);
+  return matchedScores.find((candidate) => scoreAttemptPpKey(candidate) === key && scorePpValue(candidate) > 0) || score;
+}
+
 function accuracyPercentValue(score) {
   const value = Number(score.accuracy || 0);
   if (!Number.isFinite(value)) return 0;
@@ -753,9 +799,11 @@ function storageLabel(score) {
 
 function ppSourceLabel(score) {
   if (score.pp_source === "rosu-current") return t("label.ppSourceCalculated");
+  if (score.pp_source === "matched-local") return t("label.ppSourceMatched");
   if (score.pp_source === "huismetbenen-live") return t("label.ppSourceHuis");
   if (score.pp_source === "osu-api") return t("label.ppSourceApi");
   if (score.pp_source === "cache") return t("label.ppSourceCache");
+  if (score.calculated_pp) return t("label.ppSourceCalculated");
   if (score.pp) return t("label.ppSourceOnline");
   if (score.local_source && !score.legacy_score_id) return t("label.noOnlineId");
   if (score.local_source) return t("label.apiWithoutPp");
@@ -966,7 +1014,7 @@ function renderScore(score, mode) {
   const client = clientLabel(score);
   const sourceLabel = storageLabel(score);
   const ppLabel = ppSourceLabel(score);
-  const ppTitle = score.pp_source ? ppLabel : t("label.ppNotStored");
+  const ppTitle = scorePpValue(score) > 0 ? ppLabel : t("label.ppNotStored");
   const ppRank = score.pp_rank ? `<span class="pp-rank-badge">#${formatNumber(score.pp_rank)}</span>` : "";
   const detailKey = scoreDomKey(score);
 
@@ -1002,7 +1050,7 @@ function renderScore(score, mode) {
         </div>
       </div>
       <div class="score-side">
-        <div class="pp" title="${escapeHtml(ppTitle)}">${formatPp(score.pp)}</div>
+        <div class="pp" title="${escapeHtml(ppTitle)}">${formatPp(scorePpValue(score))}</div>
         <div class="acc">${formatAccuracy(score.accuracy)}</div>
         <div class="small">${t("label.accuracy")}</div>
       </div>
@@ -1068,13 +1116,13 @@ function renderTryHistoryChart(tries, options = {}) {
 
   if (!ordered.length) return "";
 
-  const pointGap = compact ? 92 : 118;
-  const width = Math.max(900, 44 + 18 + Math.max(ordered.length - 1, 1) * pointGap);
-  const height = compact ? 252 : 336;
-  const left = 44;
-  const right = 18;
+  const pointGap = compact ? 108 : 118;
+  const width = Math.max(900, 68 + 40 + Math.max(ordered.length - 1, 1) * pointGap);
+  const height = compact ? 300 : 350;
+  const left = 68;
+  const right = 40;
   const top = 18;
-  const bottom = compact ? 96 : 122;
+  const bottom = compact ? 112 : 126;
   const plotWidth = width - left - right;
   const plotHeight = height - top - bottom;
   const xFor = (point) => {
@@ -1170,10 +1218,11 @@ function renderTryHistoryChart(tries, options = {}) {
     .map((point) => {
       const x = xFor(point);
       const labelY = height - (compact ? 28 : 34);
+      const anchor = point.index === 0 ? "start" : point.index === ordered.length - 1 ? "end" : "end";
       return `
         <g>
           <line class="chart-tick" x1="${formatCoord(x)}" y1="${height - bottom}" x2="${formatCoord(x)}" y2="${height - bottom + 5}"></line>
-          <text class="chart-axis-text" x="${formatCoord(x)}" y="${labelY}" text-anchor="end" transform="rotate(-38 ${formatCoord(x)} ${labelY})">${escapeHtml(formatDateTick(point.score.ended_at || point.score.created_at))}</text>
+          <text class="chart-axis-text" x="${formatCoord(x)}" y="${labelY}" text-anchor="${anchor}" transform="rotate(-38 ${formatCoord(x)} ${labelY})">${escapeHtml(formatDateTick(point.score.ended_at || point.score.created_at))}</text>
         </g>
       `;
     })
@@ -1223,7 +1272,7 @@ function renderTryHistoryChart(tries, options = {}) {
           ${gridRows}
           ${bestPpLine}
           <line class="chart-axis" x1="${left}" y1="${height - bottom}" x2="${width - right}" y2="${height - bottom}"></line>
-          <text class="chart-axis-title" x="${left}" y="${height - 8}">${escapeHtml(t("label.timeAxis"))}</text>
+          <text class="chart-axis-title" x="${left}" y="${height - bottom + 22}">${escapeHtml(t("label.timeAxis"))}</text>
           ${ticks}
           ${series}
           ${hoverZones}
@@ -1234,15 +1283,17 @@ function renderTryHistoryChart(tries, options = {}) {
 }
 
 function renderImprovement(item, mode) {
-  const score = item.score;
-  const previous = item.previous;
+  const matchedTries = enrichScoresWithMatchedPp(mapTriesForScore(item.score));
+  const score = enrichScoreFromMatches(item.score, matchedTries);
+  const previous = enrichScoreFromMatches(item.previous, matchedTries);
   const beatmap = score.beatmap || {};
   const set = score.beatmapset || {};
   const artist = set.artist || beatmap.artist || t("label.unknownArtist");
   const title = set.title || beatmap.title || t("label.unknownMap");
   const version = beatmap.version || "Difficulty";
   const accDelta = signedAccuracy(item.acc_delta);
-  const ppDelta = signedPp(item.pp_delta);
+  const matchedPpDelta = previous ? scorePpValue(score) - scorePpValue(previous) : item.pp_delta;
+  const ppDelta = signedPp(matchedPpDelta);
   const missDelta =
     item.miss_delta === null
       ? t("label.new")
@@ -1253,7 +1304,7 @@ function renderImprovement(item, mode) {
   const comboDelta = signedNumber(item.combo_delta, "x");
   const linkText = scoreLinkLabel(score);
   const detailKey = scoreDomKey(score);
-  const tries = mapTriesForScore(score);
+  const tries = matchedTries;
 
   return `
     <article class="improvement-card">
@@ -1472,7 +1523,7 @@ function renderMapDetails(scoreKey) {
   const selectedScore = findScoreByDomKey(scoreKey);
   if (!selectedScore) return;
 
-  const chronologicalTries = mapTriesForScore(selectedScore);
+  const chronologicalTries = enrichScoresWithMatchedPp(mapTriesForScore(selectedScore));
   const tries = [...chronologicalTries]
     .sort((a, b) => {
       const timeA = Date.parse(a.ended_at || a.created_at || "") || 0;
