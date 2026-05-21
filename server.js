@@ -17,6 +17,7 @@ const publicDir = path.join(__dirname, "public");
 const dataDir = path.join(__dirname, "data");
 const historyPath = path.join(dataDir, "scores-history.json");
 const ppCachePath = path.join(dataDir, "score-pp-cache.json");
+const rpCachePath = path.join(dataDir, "rp-cache.json");
 const osuApiBase = "https://osu.ppy.sh/api/v2";
 const tokenUrl = "https://osu.ppy.sh/oauth/token";
 const huisApiBase = "https://api.pp.huismetbenen.nl";
@@ -498,6 +499,23 @@ async function savePpCache(cache) {
   await writeFile(ppCachePath, JSON.stringify(cache, null, 2), "utf8");
 }
 
+async function loadRpCache() {
+  try {
+    const raw = await readFile(rpCachePath, "utf8");
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") return parsed;
+  } catch {
+    // First run: no RP cache exists yet.
+  }
+
+  return {};
+}
+
+async function saveRpCache(cache) {
+  await mkdir(dataDir, { recursive: true });
+  await writeFile(rpCachePath, JSON.stringify(cache, null, 2), "utf8");
+}
+
 function ppCacheKey(mode, score) {
   const scoreId =
     score.legacy_score_id && score.legacy_score_id !== "0"
@@ -634,6 +652,43 @@ async function osuFetch(pathname, params = {}, retry = true) {
   if (response.status === 401 && retry) {
     await getAccessToken(true);
     return osuFetch(pathname, params, false);
+  }
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const error = new Error(payload.error || payload.message || `osu! API Fehler ${response.status}`);
+    error.status = response.status;
+    error.details = payload;
+    throw error;
+  }
+
+  return payload;
+}
+
+async function osuPost(pathname, body = {}, params = {}, retry = true) {
+  const url = new URL(`${osuApiBase}${pathname}`);
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== "") {
+      url.searchParams.set(key, String(value));
+    }
+  }
+
+  const token = await getAccessToken();
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: "application/json",
+      "content-type": "application/json",
+      "x-api-version": "20220705",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (response.status === 401 && retry) {
+    await getAccessToken(true);
+    return osuPost(pathname, body, params, false);
   }
 
   const payload = await response.json().catch(() => ({}));
@@ -916,6 +971,471 @@ function dedupeScores(scores) {
   return [...deduped.values()];
 }
 
+function numeric(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function accuracyPercent(score) {
+  const value = numeric(score?.accuracy, 0);
+  return value > 1 ? value : value * 100;
+}
+
+function rpModAcronyms(score) {
+  const mods = normalizeMods(score?.normalized_mods || score?.mods || []);
+  return mods
+    .map((mod) => mod.acronym)
+    .filter((mod) => mod && mod !== "NM")
+    .sort();
+}
+
+function rpModsKeyFromAcronyms(mods) {
+  return mods.length ? mods.join("") : "NM";
+}
+
+function rpModsKey(score) {
+  return rpModsKeyFromAcronyms(rpModAcronyms(score));
+}
+
+function sameRpMods(left, right) {
+  return rpModsKey(left) === rpModsKey(right);
+}
+
+function beatmapIdForRp(score) {
+  const id = score?.beatmap_id || score?.beatmap?.id;
+  const parsed = Number(id);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function scoreIdentitySet(score) {
+  return new Set(
+    [score?.id, score?.legacy_score_id, score?.best_id]
+      .filter((value) => value !== null && value !== undefined && value !== "")
+      .map((value) => String(value))
+  );
+}
+
+function hasReplayCandidate(score) {
+  if (score?.has_replay) return true;
+  const source = String(score?.local_source || "");
+  return source.includes("replay");
+}
+
+function replayStatus(score) {
+  if (score?.has_replay) {
+    return {
+      state: "online-replay",
+      exactAvailable: false,
+      note: "Online replay exists, but replay-frame decoding is not part of this beta yet.",
+    };
+  }
+
+  if (String(score?.local_source || "").includes("replay")) {
+    return {
+      state: "local-replay",
+      exactAvailable: false,
+      note: "Local .osr file is known, but replay-frame decoding is not part of this beta yet.",
+    };
+  }
+
+  return {
+    state: "no-replay",
+    exactAvailable: false,
+    note: "No replay data is attached to this stored score.",
+  };
+}
+
+function cacheEntryFresh(entry, maxAgeMs) {
+  if (!entry || !entry.fetched_at) return false;
+  const fetchedAt = Date.parse(entry.fetched_at);
+  return Number.isFinite(fetchedAt) && Date.now() - fetchedAt < maxAgeMs;
+}
+
+async function cachedRpValue(cache, key, maxAgeMs, loader) {
+  if (cacheEntryFresh(cache[key], maxAgeMs)) return cache[key].value;
+
+  const value = await loader();
+  cache[key] = {
+    fetched_at: new Date().toISOString(),
+    value,
+  };
+  return value;
+}
+
+async function getRpBeatmap(beatmapId, cache) {
+  return cachedRpValue(
+    cache,
+    `beatmap:${beatmapId}`,
+    1000 * 60 * 60 * 24 * 7,
+    () => osuFetch(`/beatmaps/${beatmapId}`)
+  );
+}
+
+async function getRpAttributes(beatmapId, mode, mods, cache) {
+  const key = `attributes:${beatmapId}:${mode}:${rpModsKeyFromAcronyms(mods)}`;
+  return cachedRpValue(cache, key, 1000 * 60 * 60 * 24 * 30, async () => {
+    const payload = await osuPost(`/beatmaps/${beatmapId}/attributes`, {
+      ruleset: mode,
+      mods,
+    });
+    return payload.attributes || payload;
+  });
+}
+
+async function getRpLeaderboard(beatmapId, mode, mods, cache) {
+  const key = `leaderboard:${beatmapId}:${mode}:${rpModsKeyFromAcronyms(mods)}`;
+  return cachedRpValue(cache, key, 1000 * 60 * 60 * 6, async () => {
+    const params = {
+      mode,
+      legacy_only: 0,
+      type: "global",
+    };
+
+    if (mods.length) params.mods = mods.join("");
+
+    try {
+      const payload = await osuFetch(`/beatmaps/${beatmapId}/scores`, params);
+      return Array.isArray(payload.scores) ? payload.scores : [];
+    } catch (error) {
+      if (!mods.length) throw error;
+      const fallback = await osuFetch(`/beatmaps/${beatmapId}/scores`, {
+        mode,
+        legacy_only: 0,
+        type: "global",
+      });
+      return Array.isArray(fallback.scores) ? fallback.scores : [];
+    }
+  });
+}
+
+function failHistogramStats(beatmap) {
+  const values = beatmap?.failtimes?.fail || beatmap?.failtimes?.exit || [];
+  const numbers = values.map((value) => numeric(value, 0));
+  const max = Math.max(...numbers, 0);
+
+  if (!numbers.length || max <= 0) {
+    return {
+      available: false,
+      max: 0,
+      averageWeight: 0.35,
+      source: "fallback",
+    };
+  }
+
+  const averageWeight = numbers.reduce((total, value) => total + value / max, 0) / numbers.length;
+  return {
+    available: true,
+    max,
+    averageWeight: Math.max(0.05, Math.min(1, averageWeight)),
+    source: "osu-failtimes",
+  };
+}
+
+function rpSuccessRate(beatmap) {
+  const passcount = numeric(beatmap?.passcount, 0);
+  const playcount = numeric(beatmap?.playcount, 0);
+  if (passcount > 0 && playcount > 0) {
+    return {
+      value: Math.max(0.01, Math.min(1, passcount / playcount)),
+      source: "passcount/playcount",
+    };
+  }
+
+  return {
+    value: 0.5,
+    source: "neutral-fallback",
+  };
+}
+
+function standardisedRpScore(score, maxCombo) {
+  const playerCombo = numeric(score?.max_combo, 0);
+  const comboCap = numeric(maxCombo, 0);
+  const acc = accuracyPercent(score);
+  if (playerCombo <= 0 || comboCap <= 0 || acc <= 0) return null;
+
+  const comboRatio = Math.max(0, Math.min(1, playerCombo / comboCap));
+  return comboRatio * 70000 + Math.max(0, Math.min(100, acc)) / 100 * 30000;
+}
+
+function estimatedBreakCount(score, maxCombo) {
+  const misses = missCount(score);
+  const combo = numeric(score?.max_combo, 0);
+  const comboCap = numeric(maxCombo, 0);
+  const likelySliderBreak = misses === 0 && comboCap > 0 && combo > 0 && combo / comboCap < 0.985 ? 1 : 0;
+  return {
+    misses,
+    estimatedSliderBreaks: likelySliderBreak,
+    total: misses + likelySliderBreak,
+  };
+}
+
+function findLeaderboardPosition(score, leaderboard) {
+  const identities = scoreIdentitySet(score);
+  if (!identities.size) return null;
+
+  const index = leaderboard.findIndex((entry) => {
+    for (const value of scoreIdentitySet(entry)) {
+      if (identities.has(value)) return true;
+    }
+    return false;
+  });
+
+  return index >= 0 ? index + 1 : null;
+}
+
+function compactRpLeaderboard(leaderboard, score, maxCombo) {
+  const exactMods = leaderboard.filter((entry) => sameRpMods(entry, score));
+  const source = exactMods.length ? "exact-mod-leaderboard" : "unfiltered-leaderboard";
+  const scores = exactMods.length ? exactMods : leaderboard;
+  const scored = scores
+    .map((entry) => ({
+      score: entry,
+      sRp: standardisedRpScore(entry, maxCombo),
+    }))
+    .filter((entry) => entry.sRp !== null);
+
+  return {
+    source,
+    scores,
+    scored,
+  };
+}
+
+async function calculateRpForScore(score, mode, cache) {
+  const beatmapId = beatmapIdForRp(score);
+  const mods = rpModAcronyms(score);
+  const warnings = [];
+  let beatmap = score.beatmap || {};
+  let attributes = null;
+  let leaderboard = [];
+
+  if (beatmapId) {
+    try {
+      beatmap = { ...beatmap, ...(await getRpBeatmap(beatmapId, cache)) };
+    } catch (error) {
+      warnings.push(`beatmap-api:${error.message}`);
+    }
+
+    try {
+      attributes = await getRpAttributes(beatmapId, mode, mods, cache);
+    } catch (error) {
+      warnings.push(`attributes-api:${error.message}`);
+    }
+
+    try {
+      leaderboard = await getRpLeaderboard(beatmapId, mode, mods, cache);
+    } catch (error) {
+      warnings.push(`leaderboard-api:${error.message}`);
+    }
+  } else {
+    warnings.push("missing-beatmap-id");
+  }
+
+  const maxCombo = numeric(attributes?.max_combo, 0) || numeric(beatmap.max_combo, 0);
+  const starRating =
+    numeric(attributes?.star_rating, 0) ||
+    numeric(beatmap.difficulty_rating, 0) ||
+    numeric(score.beatmap?.difficulty_rating, 0);
+  const sRpPlayer = standardisedRpScore(score, maxCombo);
+  const histogram = failHistogramStats(beatmap);
+  const success = rpSuccessRate(beatmap);
+  const leaderboardInfo = compactRpLeaderboard(leaderboard, score, maxCombo);
+  const top50 = leaderboardInfo.scored.slice(0, 50);
+  const leaderboardPosition = findLeaderboardPosition(score, leaderboardInfo.scores);
+
+  let avg50 = null;
+  let anchorSource = "player-fallback";
+  if (top50.length >= 50) {
+    avg50 = top50.reduce((total, entry) => total + entry.sRp, 0) / top50.length;
+    anchorSource = "top50-average";
+  } else if (top50.length > 0) {
+    avg50 = top50[0].sRp * 0.75;
+    anchorSource = "top1-x-0.75";
+  } else if (sRpPlayer) {
+    avg50 = sRpPlayer / 0.9;
+  }
+
+  const mapFactor = starRating > 0 ? starRating * (1 + (1 - success.value)) : 1.01;
+  const logMapFactor = Math.log10(Math.max(1.01, mapFactor));
+  const breaks = estimatedBreakCount(score, maxCombo);
+  let rpPrePenalty = 0;
+  let penalty = 0;
+  let rpFinal = 0;
+  let system = "estimate";
+
+  if (top50.length >= 50 && leaderboardPosition !== null && leaderboardPosition <= 50) {
+    rpFinal = 95 + ((50 - leaderboardPosition) / 49) * 5;
+    rpPrePenalty = rpFinal;
+    system = "top50-direct";
+  } else if (sRpPlayer && avg50 && avg50 > 0) {
+    rpPrePenalty = (sRpPlayer / avg50) * 95 * logMapFactor;
+    const penaltyWeight = rpPrePenalty / 15;
+    penalty = breaks.total * penaltyWeight * histogram.averageWeight;
+    rpFinal = rpPrePenalty - penalty;
+    system = anchorSource === "top50-average" || anchorSource === "top1-x-0.75" ? "api-anchored-estimate" : "local-estimate";
+  }
+
+  rpFinal = Math.min(100, Math.max(0, rpFinal));
+
+  let confidence = 92;
+  if (!beatmapId) confidence -= 25;
+  if (!sRpPlayer || !maxCombo) confidence -= 25;
+  if (anchorSource === "top1-x-0.75") confidence -= 8;
+  if (anchorSource === "player-fallback") confidence -= 22;
+  if (!histogram.available) confidence -= 12;
+  if (success.source !== "passcount/playcount") confidence -= 8;
+  if (!hasReplayCandidate(score)) confidence -= 8;
+  if (warnings.length) confidence -= Math.min(20, warnings.length * 6);
+  confidence = Math.max(0, Math.min(100, Math.round(confidence)));
+
+  const replay = replayStatus(score);
+  return {
+    score,
+    rp: {
+      value: Number(rpFinal.toFixed(2)),
+      confidence,
+      confidenceLabel: confidence >= 80 ? "high" : confidence >= 60 ? "medium" : "low",
+      system,
+      standardisedScore: sRpPlayer ? Number(sRpPlayer.toFixed(2)) : null,
+      maxCombo: maxCombo || null,
+      starRating: starRating || null,
+      mapFactor: Number(mapFactor.toFixed(4)),
+      successRate: Number(success.value.toFixed(4)),
+      successSource: success.source,
+      leaderboard: {
+        source: leaderboardInfo.source,
+        anchorSource,
+        count: leaderboardInfo.scored.length,
+        avg50: avg50 ? Number(avg50.toFixed(2)) : null,
+        position: leaderboardPosition,
+      },
+      penalty: {
+        prePenalty: Number(rpPrePenalty.toFixed(2)),
+        value: Number(penalty.toFixed(2)),
+        histogramSource: histogram.source,
+        histogramAvailable: histogram.available,
+        breaks,
+      },
+      replay,
+      warnings,
+    },
+  };
+}
+
+async function handleRp(req, res) {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const username = (url.searchParams.get("username") || "").trim();
+  const mode = "osu";
+  const limit = clampNumber(url.searchParams.get("limit"), 25, 1, 40);
+
+  if (!username) {
+    return json(res, 400, { error: "Bitte gib einen osu!-Namen ein." });
+  }
+
+  const storedUser = getStoredUserByName(username, mode);
+  let user = storedUser?.user || null;
+  let fetchedScores = [];
+  let apiWarning = null;
+
+  try {
+    user = await getUserByName(username, mode);
+    fetchedScores = await getUserScores(user.id, {
+      mode,
+      type: "recent",
+      pages: 2,
+      includeLazer: true,
+      passesOnly: true,
+    });
+  } catch (error) {
+    if (!user) throw error;
+    apiWarning = `osu!api v2 nicht erreichbar, gespeicherte Daten werden genutzt: ${error.message}`;
+  }
+
+  if (!user) {
+    user = {
+      id: `local:${mode}:${username.toLowerCase()}`,
+      username,
+      avatar_url: "",
+      country_code: "--",
+      statistics: {},
+    };
+  }
+
+  const localImport = await importLocalScores({
+    username: user.username,
+    userId: user.id,
+    mode,
+  });
+
+  const history = await upsertHistory(user, mode, [
+    ...fetchedScores,
+    ...localImport.scores,
+  ]);
+
+  const candidates = bestScorePerBeatmap(
+    history.scores
+      .filter(isPassed)
+      .filter((score) => isRankedBeatmap(score, false))
+      .sort((a, b) => effectivePp(b) - effectivePp(a) || compareScores(a, b, "score")),
+    "pp"
+  )
+    .sort((a, b) => effectivePp(b) - effectivePp(a) || compareScores(a, b, "score"))
+    .slice(0, limit);
+
+  const ppHydration = await hydrateVisiblePp(candidates, mode);
+  const calculatedHydration = await hydrateCalculatedPp(candidates, mode, {
+    force: true,
+    max: limit,
+  });
+
+  if (ppHydration.filled > 0 || calculatedHydration.filled > 0) {
+    updateStoredScores(user, mode, candidates);
+  }
+
+  const cache = await loadRpCache();
+  const rpScores = [];
+  for (const score of candidates) {
+    rpScores.push(await calculateRpForScore(score, mode, cache));
+  }
+  await saveRpCache(cache);
+
+  rpScores.sort((a, b) => b.rp.value - a.rp.value || effectivePp(b.score) - effectivePp(a.score));
+
+  return json(res, 200, {
+    user: {
+      id: user.id,
+      username: user.username,
+      avatar_url: user.avatar_url,
+      country_code: user.country_code,
+      url: `https://osu.ppy.sh/users/${user.id}/${mode}`,
+      statistics: user.statistics || {},
+    },
+    scores: rpScores,
+    meta: {
+      mode,
+      returned: rpScores.length,
+      limit,
+      historyTotal: history.total,
+      savedNow: history.savedNow,
+      apiFetched: fetchedScores.length,
+      localImported: localImport.scores.length,
+      localImportSources: localImport.sources,
+      localImportWarnings: localImport.warnings,
+      apiWarning,
+      ppFetched: ppHydration.fetched,
+      ppFilled: ppHydration.filled,
+      ppCalculated: calculatedHydration.filled,
+      systems: {
+        estimate: "Uses stored score data, map difficulty, pass/play ratio, and an estimated miss penalty.",
+        apiAnchored: "Adds osu!api beatmap data, leaderboard anchors, failtimes, and modded difficulty attributes when available.",
+        replayExact: "Prepared as a status layer. Exact replay-frame decoding is intentionally not claimed until a decoder is added.",
+      },
+      note:
+        "RP is a beta estimate. Exact spike penalties require decoded replay frames; public osu! data does not expose miss timestamps directly.",
+    },
+  });
+}
+
 async function handleSearch(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const username = (url.searchParams.get("username") || "").trim();
@@ -1192,6 +1712,10 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === "/api/search") {
       return await handleSearch(req, res);
+    }
+
+    if (url.pathname === "/api/rp") {
+      return await handleRp(req, res);
     }
 
     if (url.pathname === "/api/live-scan") {
