@@ -24,6 +24,8 @@ let currentCalendarDay = "";
 let currentCalendarMonth = "";
 let calendarPpMin = "";
 let calendarPpMax = "";
+let rpSystemFilter = "all";
+let rpDisplayLimit = "50";
 let liveTimer = null;
 let liveScanBusy = false;
 
@@ -70,6 +72,8 @@ const translations = {
     "field.limit": "Anzeige-Limit",
     "field.bestTry": "Bester Try",
     "field.improvement": "Improvement",
+    "field.rpSystemFilter": "RP-System",
+    "field.rpLimit": "RP-Limit",
     "field.mods": "Mods",
     "tab.scores": "Scores",
     "tab.improvements": "Improvement",
@@ -88,6 +92,11 @@ const translations = {
     "option.improvement.lastTry": "letzter Try",
     "option.improvement.lastHour": "letzte Stunde",
     "option.improvement.today": "heute",
+    "option.rpFilter.all": "alle RP-Systeme",
+    "option.rpFilter.local": "nur lokale Estimates",
+    "option.rpFilter.api": "nur API-gestuetzt",
+    "option.rpFilter.top50": "nur echte Top 50",
+    "option.rpFilter.replay": "nur Replay-Kandidaten",
     "toggle.includeLazer": "stable + lazer",
     "toggle.useApiV2": "osu!api v2",
     "toggle.includeHuis": "pp.huismetbenen",
@@ -109,6 +118,7 @@ const translations = {
     "button.today": "Heute",
     "button.apply": "Anwenden",
     "button.reset": "Zuruecksetzen",
+    "button.refresh": "Aktualisieren",
     "notice.label": "Hinweis:",
     "notice.text": "osu! gibt keine komplette alte Score-Historie aus. Diese lokale Beta speichert gefundene Recent-Passes und baut daraus ab jetzt eine History pro Spieler und Mod.",
     "status.checking": "API wird geprueft",
@@ -224,18 +234,21 @@ const translations = {
     "label.bestScore": "Bester Score",
     "label.latestTry": "Neuster Try",
     "label.rpTitle": "Relative Performance",
-    "label.rpIntro": "RP vergleicht deine Leistung relativ zur Map, zum Leaderboard und zu den bekannten Fehlerdaten. Der normale Filterbereich ist in dieser Ansicht eingeklappt; RP nutzt bewusst feste Regeln.",
+    "label.rpIntro": "RP vergleicht deine Leistung relativ zur Map, zum Leaderboard und zu den bekannten Fehlerdaten. Die Werte sind Beta-Estimates und echte 95-100 RP sind nur fuer bestaetigte Top-50-Map-Raenge reserviert.",
     "label.rpValue": "RP",
     "label.rpConfidence": "Confidence",
     "label.rpSystem": "System",
     "label.rpStandard": "S_rp",
-    "label.rpAnchor": "Leaderboard-Anker",
+    "label.rpAnchor": "Referenz-Quelle",
+    "label.rpReference": "RP-Referenz",
+    "label.rpMapRank": "Map-Rang",
     "label.rpPenalty": "Spike-Strafe",
     "label.rpReplay": "Replay-Status",
     "label.rpMapFactor": "Map-Faktor",
     "label.rpSuccess": "Erfolgsrate",
-    "label.rpTop50": "Top-50 Schnitt",
-    "label.rpTop1Fallback": "Platz 1 x 0.75",
+    "label.rpReferenceTop50": "echter Top-50-Schnitt",
+    "label.rpReferenceVisible": "sichtbarer API-Schnitt",
+    "label.rpReferenceRank1": "Platz-1-Referenz x 0.95",
     "label.rpPlayerFallback": "Spieler-Fallback",
     "label.rpPenaltyEstimated": "geschaetzt",
     "label.rpReplayOnline": "Online-Replay vorhanden",
@@ -245,14 +258,15 @@ const translations = {
     "label.rpMedium": "mittel",
     "label.rpLow": "niedrig",
     "label.rpSystemEstimate": "Estimate",
-    "label.rpSystemApi": "API-Anker",
+    "label.rpSystemApi": "API-gestuetzt",
+    "label.rpSystemApiLimited": "API-limitiert",
     "label.rpSystemTop50": "Top-50 direkt",
     "label.rpSystemLocal": "Lokal-Estimate",
     "label.rpSystemsTitle": "RP-Systeme in dieser Beta",
     "label.rpSystemA": "Estimate: nutzt lokale Score-Daten, Combo, Accuracy, Map-Schwierigkeit und eine vorsichtige Miss-Strafe.",
-    "label.rpSystemB": "API-Anker: nutzt osu!api-Mapdaten, Leaderboard-Anker, Failtimes und modifizierte Difficulty-Attribute, wenn erreichbar.",
+    "label.rpSystemB": "API-gestuetzt: nutzt osu!api-Mapdaten, sichtbare Leaderboard-Referenzen, Failtimes und modifizierte Difficulty-Attribute, wenn erreichbar.",
     "label.rpSystemC": "Replay Exact: vorbereitet als Status. Exakte Spike-Strafen werden erst berechnet, wenn Replayframes dekodiert werden.",
-    "label.rpLimited": "RP berechnet maximal die staerksten gespeicherten Kandidaten, damit die osu!api nicht ueberlastet wird.",
+    "label.rpLimited": "RP berechnet die staerksten gespeicherten Kandidaten. Lokale Scores bleiben die Basis; die API liefert nur Zusatzkontext wie Mapdaten, Rang und Referenzwerte.",
     "empty.noPasses": "Keine gespeicherten Passes fuer {mods} auf {ranked}. Suche spaeter erneut, damit die lokale Datenbank weiter waechst, oder lockere den Filter.",
     "empty.noImprovements.lastTry": "Keine gespeicherten Vergleiche seit dem letzten Try fuer diese Filter.",
     "empty.noImprovements.lastHour": "Keine gespeicherten Vergleiche in der letzten Stunde fuer diese Filter.",
@@ -283,6 +297,8 @@ const translations = {
     "field.limit": "Display limit",
     "field.bestTry": "Best try",
     "field.improvement": "Improvement",
+    "field.rpSystemFilter": "RP system",
+    "field.rpLimit": "RP limit",
     "field.mods": "Mods",
     "tab.scores": "Scores",
     "tab.improvements": "Improvement",
@@ -301,6 +317,11 @@ const translations = {
     "option.improvement.lastTry": "last try",
     "option.improvement.lastHour": "last hour",
     "option.improvement.today": "today",
+    "option.rpFilter.all": "all RP systems",
+    "option.rpFilter.local": "local estimates only",
+    "option.rpFilter.api": "API-assisted only",
+    "option.rpFilter.top50": "real top 50 only",
+    "option.rpFilter.replay": "replay candidates only",
     "toggle.includeLazer": "stable + lazer",
     "toggle.useApiV2": "osu!api v2",
     "toggle.includeHuis": "pp.huismetbenen",
@@ -322,6 +343,7 @@ const translations = {
     "button.today": "Today",
     "button.apply": "Apply",
     "button.reset": "Reset",
+    "button.refresh": "Refresh",
     "notice.label": "Note:",
     "notice.text": "osu! does not expose a complete old score history. This local beta stores found recent passes and builds a local history per player and mod from now on.",
     "status.checking": "Checking API",
@@ -437,18 +459,21 @@ const translations = {
     "label.bestScore": "Best score",
     "label.latestTry": "Latest try",
     "label.rpTitle": "Relative Performance",
-    "label.rpIntro": "RP compares your play relative to the map, leaderboard, and known fail data. The normal filter panel is collapsed in this view; RP intentionally uses fixed rules.",
+    "label.rpIntro": "RP compares your play relative to the map, leaderboard, and known fail data. Values are beta estimates, and real 95-100 RP is reserved for confirmed top-50 map ranks.",
     "label.rpValue": "RP",
     "label.rpConfidence": "Confidence",
     "label.rpSystem": "System",
     "label.rpStandard": "S_rp",
-    "label.rpAnchor": "Leaderboard anchor",
+    "label.rpAnchor": "Reference source",
+    "label.rpReference": "RP reference",
+    "label.rpMapRank": "Map rank",
     "label.rpPenalty": "Spike penalty",
     "label.rpReplay": "Replay status",
     "label.rpMapFactor": "Map factor",
     "label.rpSuccess": "Success rate",
-    "label.rpTop50": "Top-50 average",
-    "label.rpTop1Fallback": "Rank 1 x 0.75",
+    "label.rpReferenceTop50": "real top-50 average",
+    "label.rpReferenceVisible": "visible API average",
+    "label.rpReferenceRank1": "rank-1 reference x 0.95",
     "label.rpPlayerFallback": "Player fallback",
     "label.rpPenaltyEstimated": "estimated",
     "label.rpReplayOnline": "online replay available",
@@ -458,14 +483,15 @@ const translations = {
     "label.rpMedium": "medium",
     "label.rpLow": "low",
     "label.rpSystemEstimate": "Estimate",
-    "label.rpSystemApi": "API anchor",
+    "label.rpSystemApi": "API-assisted",
+    "label.rpSystemApiLimited": "API-limited",
     "label.rpSystemTop50": "Top-50 direct",
     "label.rpSystemLocal": "Local estimate",
     "label.rpSystemsTitle": "RP systems in this beta",
     "label.rpSystemA": "Estimate: uses local score data, combo, accuracy, map difficulty, and a conservative miss penalty.",
-    "label.rpSystemB": "API anchor: uses osu!api map data, leaderboard anchors, failtimes, and modded difficulty attributes when reachable.",
+    "label.rpSystemB": "API-assisted: uses osu!api map data, visible leaderboard references, failtimes, and modded difficulty attributes when reachable.",
     "label.rpSystemC": "Replay Exact: prepared as a status layer. Exact spike penalties are calculated only after replay-frame decoding is added.",
-    "label.rpLimited": "RP calculates only the strongest stored candidates so the osu!api is not overloaded.",
+    "label.rpLimited": "RP calculates the strongest stored candidates. Local scores stay the base; the API only adds context like map data, rank, and reference values.",
     "empty.noPasses": "No stored passes for {mods} on {ranked}. Search again later so the local database can grow, or loosen the filters.",
     "empty.noImprovements.lastTry": "No stored comparisons since the last try for these filters.",
     "empty.noImprovements.lastHour": "No stored comparisons in the last hour for these filters.",
@@ -980,7 +1006,7 @@ function applyLanguage(language, { rerender = true } = {}) {
   if (rerender && lastSearchData && activeView !== "rp") renderSearchData(lastSearchData);
   if (rerender && lastRpData && activeView === "rp") renderRpData(lastRpData);
   if (rerender && !lastRpData && activeView === "rp") {
-    rpPanel.innerHTML = `<div class="empty-state">${escapeHtml(t("empty.noRp"))}</div>`;
+    rpPanel.innerHTML = `${renderRpSystemsIntro({ meta: {} })}<div class="empty-state">${escapeHtml(t("empty.noRp"))}</div>`;
   }
 }
 
@@ -1143,6 +1169,7 @@ function renderScore(score, mode) {
 function rpSystemLabel(system) {
   if (system === "top50-direct") return t("label.rpSystemTop50");
   if (system === "api-anchored-estimate") return t("label.rpSystemApi");
+  if (system === "api-limited-estimate") return t("label.rpSystemApiLimited");
   if (system === "local-estimate") return t("label.rpSystemLocal");
   return t("label.rpSystemEstimate");
 }
@@ -1154,8 +1181,9 @@ function rpConfidenceLabel(label) {
 }
 
 function rpAnchorLabel(anchorSource) {
-  if (anchorSource === "top50-average") return t("label.rpTop50");
-  if (anchorSource === "top1-x-0.75") return t("label.rpTop1Fallback");
+  if (anchorSource === "top50-average") return t("label.rpReferenceTop50");
+  if (anchorSource === "visible-average") return t("label.rpReferenceVisible");
+  if (anchorSource === "rank1-reference") return t("label.rpReferenceRank1");
   return t("label.rpPlayerFallback");
 }
 
@@ -1163,6 +1191,15 @@ function rpReplayLabel(state) {
   if (state === "online-replay") return t("label.rpReplayOnline");
   if (state === "local-replay") return t("label.rpReplayLocal");
   return t("label.rpReplayMissing");
+}
+
+function rpItemMatchesFilter(item) {
+  const rp = item?.rp || {};
+  if (rpSystemFilter === "local") return rp.system === "local-estimate";
+  if (rpSystemFilter === "api") return ["api-anchored-estimate", "api-limited-estimate"].includes(rp.system);
+  if (rpSystemFilter === "top50") return rp.system === "top50-direct";
+  if (rpSystemFilter === "replay") return rp.replay?.state && rp.replay.state !== "no-replay";
+  return true;
 }
 
 function renderRpSummary(data) {
@@ -1215,6 +1252,25 @@ function renderRpSystemsIntro(data) {
         <article><strong>B</strong><span>${escapeHtml(t("label.rpSystemB"))}</span></article>
         <article><strong>C</strong><span>${escapeHtml(t("label.rpSystemC"))}</span></article>
       </div>
+      <div class="rp-controls">
+        <label>
+          <span>${escapeHtml(t("field.rpSystemFilter"))}</span>
+          <select data-rp-system-filter>
+            <option value="all"${rpSystemFilter === "all" ? " selected" : ""}>${escapeHtml(t("option.rpFilter.all"))}</option>
+            <option value="local"${rpSystemFilter === "local" ? " selected" : ""}>${escapeHtml(t("option.rpFilter.local"))}</option>
+            <option value="api"${rpSystemFilter === "api" ? " selected" : ""}>${escapeHtml(t("option.rpFilter.api"))}</option>
+            <option value="top50"${rpSystemFilter === "top50" ? " selected" : ""}>${escapeHtml(t("option.rpFilter.top50"))}</option>
+            <option value="replay"${rpSystemFilter === "replay" ? " selected" : ""}>${escapeHtml(t("option.rpFilter.replay"))}</option>
+          </select>
+        </label>
+        <label>
+          <span>${escapeHtml(t("field.rpLimit"))}</span>
+          <select data-rp-limit>
+            ${["25", "50", "100"].map((value) => `<option value="${value}"${rpDisplayLimit === value ? " selected" : ""}>${value}</option>`).join("")}
+          </select>
+        </label>
+        <button class="ghost-button" type="button" data-rp-refresh="1">${escapeHtml(t("button.refresh"))}</button>
+      </div>
     </section>
   `;
 }
@@ -1236,6 +1292,8 @@ function renderRpItem(item, mode) {
   const penalty = rp.penalty || {};
   const replay = rp.replay || {};
   const confidenceClass = `confidence-${escapeHtml(rp.confidenceLabel || "low")}`;
+  const referenceValue = anchor.reference ?? anchor.avg50;
+  const mapRank = anchor.position ? `#${formatNumber(anchor.position)}` : "-";
 
   return `
     <article class="rp-card">
@@ -1262,7 +1320,8 @@ function renderRpItem(item, mode) {
           <span><small>${escapeHtml(t("label.rpSystem"))}</small><strong>${escapeHtml(rpSystemLabel(rp.system))}</strong></span>
           <span><small>${escapeHtml(t("label.rpStandard"))}</small><strong>${formatNumber(rp.standardisedScore)}</strong></span>
           <span><small>${escapeHtml(t("label.rpAnchor"))}</small><strong>${escapeHtml(rpAnchorLabel(anchor.anchorSource))}</strong></span>
-          <span><small>${escapeHtml(t("label.rpTop50"))}</small><strong>${formatNumber(anchor.avg50)}</strong></span>
+          <span><small>${escapeHtml(t("label.rpReference"))}</small><strong>${formatNumber(referenceValue)}</strong></span>
+          <span><small>${escapeHtml(t("label.rpMapRank"))}</small><strong>${escapeHtml(mapRank)}</strong></span>
           <span><small>${escapeHtml(t("label.rpMapFactor"))}</small><strong>${formatNumber(rp.mapFactor)}</strong></span>
           <span><small>${escapeHtml(t("label.rpSuccess"))}</small><strong>${rp.successRate ? `${(rp.successRate * 100).toFixed(1)}%` : "-"}</strong></span>
           <span><small>${escapeHtml(t("label.rpPenalty"))}</small><strong>-${formatNumber(penalty.value || 0)} ${escapeHtml(t("label.rpValue"))}</strong></span>
@@ -1282,7 +1341,8 @@ function renderRpItem(item, mode) {
 
 function renderRpData(data) {
   renderRpSummary(data);
-  if (!data.scores?.length) {
+  const filteredScores = (data.scores || []).filter(rpItemMatchesFilter);
+  if (!filteredScores.length) {
     rpPanel.innerHTML = `
       ${renderRpSystemsIntro(data)}
       <div class="empty-state">${escapeHtml(t("empty.noRp"))}</div>
@@ -1293,7 +1353,7 @@ function renderRpData(data) {
   rpPanel.innerHTML = `
     ${renderRpSystemsIntro(data)}
     <div class="rp-list">
-      ${data.scores.map((item) => renderRpItem(item, data.meta.mode)).join("")}
+      ${filteredScores.map((item) => renderRpItem(item, data.meta.mode)).join("")}
     </div>
   `;
 }
@@ -1894,7 +1954,7 @@ async function runSearch(event) {
 }
 
 async function runRpSearch(event) {
-  event.preventDefault();
+  event?.preventDefault();
   stopLiveScanner("status.liveStopped");
   summary.classList.add("hidden");
   lastRpData = null;
@@ -1904,7 +1964,7 @@ async function runRpSearch(event) {
   try {
     const params = new URLSearchParams();
     params.set("username", document.querySelector("#username").value.trim());
-    params.set("limit", "25");
+    params.set("limit", rpDisplayLimit);
 
     const response = await fetch(`/api/rp?${params.toString()}`);
     const data = await response.json();
@@ -2026,7 +2086,7 @@ function setActiveView(nextView) {
   setLoading(isLoading);
 
   if (activeView === "rp" && !lastRpData && !rpPanel.innerHTML.trim()) {
-    rpPanel.innerHTML = `<div class="empty-state">${escapeHtml(t("empty.noRp"))}</div>`;
+    rpPanel.innerHTML = `${renderRpSystemsIntro({ meta: {} })}<div class="empty-state">${escapeHtml(t("empty.noRp"))}</div>`;
   }
 }
 
@@ -2077,6 +2137,26 @@ calendar.addEventListener("click", (event) => {
   }
 
   handleDetailsClick(event);
+});
+
+rpPanel.addEventListener("change", (event) => {
+  const systemSelect = event.target.closest("[data-rp-system-filter]");
+  if (systemSelect) {
+    rpSystemFilter = systemSelect.value;
+    if (lastRpData) renderRpData(lastRpData);
+    return;
+  }
+
+  const limitSelect = event.target.closest("[data-rp-limit]");
+  if (limitSelect) {
+    rpDisplayLimit = limitSelect.value;
+  }
+});
+
+rpPanel.addEventListener("click", (event) => {
+  const refreshButton = event.target.closest("[data-rp-refresh]");
+  if (!refreshButton) return;
+  runRpSearch();
 });
 
 detailsPanel.addEventListener("click", (event) => {

@@ -1249,6 +1249,29 @@ select:focus {
   color: var(--cyan);
 }
 
+.rp-controls {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(170px, 240px)) auto;
+  gap: 8px;
+  align-items: end;
+  border: 1px solid rgba(152, 170, 203, 0.18);
+  border-radius: 6px;
+  background: rgba(15, 19, 28, 0.36);
+  padding: 10px;
+}
+
+.rp-controls label {
+  display: grid;
+  gap: 5px;
+}
+
+.rp-controls span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
 .rp-list {
   display: grid;
   gap: 10px;
@@ -1372,6 +1395,10 @@ select:focus {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .rp-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .calendar-filter {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1450,6 +1477,10 @@ select:focus {
   }
 
   .rp-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .rp-controls {
     grid-template-columns: 1fr;
   }
 

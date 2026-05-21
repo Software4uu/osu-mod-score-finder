@@ -1108,6 +1108,31 @@ async function getRpLeaderboard(beatmapId, mode, mods, cache) {
   });
 }
 
+async function getRpUserBeatmapScore(beatmapId, userId, mode, mods, cache) {
+  const numericUserId = Number(userId);
+  if (!beatmapId || !Number.isFinite(numericUserId) || numericUserId <= 0) return null;
+
+  const key = `user-beatmap:${beatmapId}:${numericUserId}:${mode}:${rpModsKeyFromAcronyms(mods)}`;
+  return cachedRpValue(cache, key, 1000 * 60 * 60 * 6, async () => {
+    const params = {
+      mode,
+      legacy_only: 0,
+    };
+
+    if (mods.length) params.mods = mods.join("");
+
+    try {
+      return await osuFetch(`/beatmaps/${beatmapId}/scores/users/${numericUserId}`, params);
+    } catch (error) {
+      if (!mods.length) throw error;
+      return osuFetch(`/beatmaps/${beatmapId}/scores/users/${numericUserId}`, {
+        mode,
+        legacy_only: 0,
+      });
+    }
+  });
+}
+
 function failHistogramStats(beatmap) {
   const values = beatmap?.failtimes?.fail || beatmap?.failtimes?.exit || [];
   const numbers = values.map((value) => numeric(value, 0));
@@ -1185,7 +1210,7 @@ function findLeaderboardPosition(score, leaderboard) {
 
 function compactRpLeaderboard(leaderboard, score, maxCombo) {
   const exactMods = leaderboard.filter((entry) => sameRpMods(entry, score));
-  const source = exactMods.length ? "exact-mod-leaderboard" : "unfiltered-leaderboard";
+  const source = exactMods.length ? "matching-mod-leaderboard" : "global-leaderboard";
   const scores = exactMods.length ? exactMods : leaderboard;
   const scored = scores
     .map((entry) => ({
@@ -1201,13 +1226,14 @@ function compactRpLeaderboard(leaderboard, score, maxCombo) {
   };
 }
 
-async function calculateRpForScore(score, mode, cache) {
+async function calculateRpForScore(score, mode, cache, user) {
   const beatmapId = beatmapIdForRp(score);
   const mods = rpModAcronyms(score);
   const warnings = [];
   let beatmap = score.beatmap || {};
   let attributes = null;
   let leaderboard = [];
+  let userBeatmapScore = null;
 
   if (beatmapId) {
     try {
@@ -1227,6 +1253,12 @@ async function calculateRpForScore(score, mode, cache) {
     } catch (error) {
       warnings.push(`leaderboard-api:${error.message}`);
     }
+
+    try {
+      userBeatmapScore = await getRpUserBeatmapScore(beatmapId, user?.id, mode, mods, cache);
+    } catch (error) {
+      warnings.push(`user-rank-api:${error.message}`);
+    }
   } else {
     warnings.push("missing-beatmap-id");
   }
@@ -1241,18 +1273,23 @@ async function calculateRpForScore(score, mode, cache) {
   const success = rpSuccessRate(beatmap);
   const leaderboardInfo = compactRpLeaderboard(leaderboard, score, maxCombo);
   const top50 = leaderboardInfo.scored.slice(0, 50);
-  const leaderboardPosition = findLeaderboardPosition(score, leaderboardInfo.scores);
+  const apiPosition = numeric(userBeatmapScore?.position, 0) || null;
+  const leaderboardPosition = apiPosition || findLeaderboardPosition(score, leaderboardInfo.scores);
+  const leaderboardPositionSource = apiPosition ? "user-beatmap-score-api" : leaderboardPosition ? "visible-leaderboard" : "unknown";
 
-  let avg50 = null;
+  let referenceScore = null;
   let anchorSource = "player-fallback";
   if (top50.length >= 50) {
-    avg50 = top50.reduce((total, entry) => total + entry.sRp, 0) / top50.length;
+    referenceScore = top50.reduce((total, entry) => total + entry.sRp, 0) / top50.length;
     anchorSource = "top50-average";
+  } else if (top50.length >= 10) {
+    referenceScore = top50.reduce((total, entry) => total + entry.sRp, 0) / top50.length;
+    anchorSource = "visible-average";
   } else if (top50.length > 0) {
-    avg50 = top50[0].sRp * 0.75;
-    anchorSource = "top1-x-0.75";
+    referenceScore = top50[0].sRp * 0.95;
+    anchorSource = "rank1-reference";
   } else if (sRpPlayer) {
-    avg50 = sRpPlayer / 0.9;
+    referenceScore = sRpPlayer / 0.95;
   }
 
   const mapFactor = starRating > 0 ? starRating * (1 + (1 - success.value)) : 1.01;
@@ -1263,16 +1300,39 @@ async function calculateRpForScore(score, mode, cache) {
   let rpFinal = 0;
   let system = "estimate";
 
-  if (top50.length >= 50 && leaderboardPosition !== null && leaderboardPosition <= 50) {
+  if (anchorSource === "top50-average" && leaderboardPosition !== null && leaderboardPosition <= 50) {
     rpFinal = 95 + ((50 - leaderboardPosition) / 49) * 5;
     rpPrePenalty = rpFinal;
     system = "top50-direct";
-  } else if (sRpPlayer && avg50 && avg50 > 0) {
-    rpPrePenalty = (sRpPlayer / avg50) * 95 * logMapFactor;
+  } else if (sRpPlayer && referenceScore && referenceScore > 0) {
+    rpPrePenalty = (sRpPlayer / referenceScore) * 95 * logMapFactor;
     const penaltyWeight = rpPrePenalty / 15;
     penalty = breaks.total * penaltyWeight * histogram.averageWeight;
-    rpFinal = rpPrePenalty - penalty;
-    system = anchorSource === "top50-average" || anchorSource === "top1-x-0.75" ? "api-anchored-estimate" : "local-estimate";
+    const rawEstimate = rpPrePenalty - penalty;
+    const estimateCap =
+      anchorSource === "top50-average"
+        ? 94.99
+        : anchorSource === "visible-average"
+          ? 92.5
+          : anchorSource === "rank1-reference"
+            ? 89.99
+            : 84.99;
+    const rankFactor =
+      leaderboardPosition && leaderboardPosition > 50
+        ? Math.max(0.45, 1 - Math.log10(leaderboardPosition / 50) * 0.22)
+        : leaderboardPosition
+          ? 1
+          : anchorSource === "player-fallback"
+            ? 0.85
+            : 0.92;
+
+    rpFinal = Math.min(rawEstimate, estimateCap) * rankFactor;
+    system =
+      anchorSource === "player-fallback"
+        ? "local-estimate"
+        : anchorSource === "top50-average"
+          ? "api-anchored-estimate"
+          : "api-limited-estimate";
   }
 
   rpFinal = Math.min(100, Math.max(0, rpFinal));
@@ -1280,8 +1340,10 @@ async function calculateRpForScore(score, mode, cache) {
   let confidence = 92;
   if (!beatmapId) confidence -= 25;
   if (!sRpPlayer || !maxCombo) confidence -= 25;
-  if (anchorSource === "top1-x-0.75") confidence -= 8;
+  if (anchorSource === "visible-average") confidence -= 8;
+  if (anchorSource === "rank1-reference") confidence -= 14;
   if (anchorSource === "player-fallback") confidence -= 22;
+  if (!leaderboardPosition) confidence -= 8;
   if (!histogram.available) confidence -= 12;
   if (success.source !== "passcount/playcount") confidence -= 8;
   if (!hasReplayCandidate(score)) confidence -= 8;
@@ -1306,8 +1368,10 @@ async function calculateRpForScore(score, mode, cache) {
         source: leaderboardInfo.source,
         anchorSource,
         count: leaderboardInfo.scored.length,
-        avg50: avg50 ? Number(avg50.toFixed(2)) : null,
+        reference: referenceScore ? Number(referenceScore.toFixed(2)) : null,
+        avg50: referenceScore ? Number(referenceScore.toFixed(2)) : null,
         position: leaderboardPosition,
+        positionSource: leaderboardPositionSource,
       },
       penalty: {
         prePenalty: Number(rpPrePenalty.toFixed(2)),
@@ -1326,7 +1390,7 @@ async function handleRp(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const username = (url.searchParams.get("username") || "").trim();
   const mode = "osu";
-  const limit = clampNumber(url.searchParams.get("limit"), 25, 1, 40);
+  const limit = clampNumber(url.searchParams.get("limit"), 50, 1, 100);
 
   if (!username) {
     return json(res, 400, { error: "Bitte gib einen osu!-Namen ein." });
@@ -1395,7 +1459,7 @@ async function handleRp(req, res) {
   const cache = await loadRpCache();
   const rpScores = [];
   for (const score of candidates) {
-    rpScores.push(await calculateRpForScore(score, mode, cache));
+    rpScores.push(await calculateRpForScore(score, mode, cache, user));
   }
   await saveRpCache(cache);
 
@@ -1427,7 +1491,7 @@ async function handleRp(req, res) {
       ppCalculated: calculatedHydration.filled,
       systems: {
         estimate: "Uses stored score data, map difficulty, pass/play ratio, and an estimated miss penalty.",
-        apiAnchored: "Adds osu!api beatmap data, leaderboard anchors, failtimes, and modded difficulty attributes when available.",
+        apiAnchored: "Adds osu!api beatmap data, visible leaderboard references, map rank, failtimes, and modded difficulty attributes when available.",
         replayExact: "Prepared as a status layer. Exact replay-frame decoding is intentionally not claimed until a decoder is added.",
       },
       note:

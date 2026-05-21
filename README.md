@@ -167,7 +167,7 @@ Used for:
 - recent scores
 - individual score PP hydration
 - beatmap metadata
-- beatmap scores / leaderboard anchors
+- beatmap scores / leaderboard references
 - beatmap difficulty attributes
 - passcount / playcount
 - failtimes when available
@@ -277,20 +277,34 @@ How strong was this pass relative to the map, the leaderboard, and the known pre
 
 The RP tab intentionally collapses the normal filter panel. Only the player field and RP button stay visible. This is deliberate: RP uses fixed rules in this beta so the results are easier to compare.
 
-## RP System A: Estimate
+The RP tab has its own small controls:
 
-Estimate is the baseline RP system.
+- `RP system`: filters the result list by local estimates, API-assisted estimates, confirmed top-50 scores, or replay candidates.
+- `RP limit`: controls how many of the strongest stored candidate scores are calculated.
 
-It uses data already stored locally:
+## RP System Types
+
+The UI can show several RP system labels. They do not mean that the score itself came only from that source.
+
+`Local estimate` means the score came from the local database and the app could not add enough online context. It still calculates `S_rp`, map difficulty, and a conservative miss penalty when possible.
+
+`API-assisted` means the score is still a stored/local candidate, but osu!api supplied useful context such as beatmap data, max combo, pass/play ratio, failtimes, leaderboard samples, or the player's map rank.
+
+`API-limited` means osu!api supplied some context, but not enough to call it a full top-50 reference. This happens on maps or mod combinations where the visible API sample is small.
+
+`Top-50 direct` is the only system that can award the fixed `95` to `100 RP` range. It requires a confirmed map rank inside a full top-50 reference.
+
+`Replay candidates` are scores where an online or local replay exists. They are important for a future replay-exact RP engine, but replay-frame decoding is not fully implemented yet.
+
+## RP Step 1: Stable/Lazer Neutral Score
+
+The first step is a stable/lazer-independent internal score called `S_rp`.
+
+It uses:
 
 - player combo
 - map max combo when known
 - accuracy
-- miss count
-- star rating when known
-- pass/play ratio when known
-
-The first step is a stable/lazer-independent internal score called `S_rp`.
 
 ```text
 S_rp = (player_combo / map_max_combo * 70000)
@@ -306,39 +320,44 @@ Why this exists:
 
 A perfect full-combo SS reaches `100000` internal points.
 
-If important map data is missing, the RP result can still be shown, but confidence becomes lower.
+If max combo is missing, the RP result can still be shown only with lower confidence or may be skipped for that score.
 
-## RP System B: API Anchor
+## RP Step 2: Reference S_rp
 
-API Anchor adds public online context from osu!api.
+RP needs a reference point for the map. The app calls this `RP reference` in the UI.
 
-The app tries to fetch:
+This reference is not always a real top-50 average. The UI therefore shows the reference source separately.
 
-- beatmap metadata
-- `max_combo`
-- `passcount`
-- `playcount`
-- `failtimes`
-- modded difficulty attributes
-- beatmap leaderboard scores
+Reference rules:
 
-The leaderboard anchor is calculated from matching leaderboard scores when possible.
+- `real top-50 average`: at least 50 usable leaderboard scores are available for the relevant map/mod context.
+- `visible API average`: between 10 and 49 usable leaderboard scores are available, so the app averages only the visible usable sample.
+- `rank-1 reference x 0.95`: fewer than 10 usable scores are available, so the app uses rank 1 as a cautious reference point.
+- `player fallback`: no useful leaderboard context is available, so the player's own score is used only as a weak fallback.
 
 If at least 50 usable scores are available:
 
 ```text
-S_rp_avg50 = average S_rp of the top 50 leaderboard scores
+reference_s_rp = average S_rp of the top 50 usable leaderboard scores
 ```
 
-If fewer than 50 usable scores are available:
+If 10 to 49 usable scores are available:
 
 ```text
-S_rp_avg50 = S_rp of rank 1 * 0.75
+reference_s_rp = average S_rp of the visible usable scores
 ```
 
-If no usable leaderboard data is available, RP falls back to local estimate mode and confidence drops.
+If 1 to 9 usable scores are available:
 
-The map factor is:
+```text
+reference_s_rp = S_rp of rank 1 * 0.95
+```
+
+The old `rank 1 * 0.75` fallback was removed because it could make non-top-50 scores look like perfect `100 RP` scores.
+
+## RP Step 3: Map Factor
+
+The map factor describes how much the map context should matter before the final RP value is capped.
 
 ```text
 M_map = star_rating * (1 + (1 - success_rate))
@@ -352,11 +371,23 @@ success_rate = passcount / playcount
 
 This means:
 
-- harder maps increase RP
-- maps with lower pass rate increase RP
-- easy maps are protected internally so the logarithmic formula cannot become unstable
+- higher star rating increases the factor
+- lower pass rate increases the factor
+- the factor is smoothed with `log10(M_map)` so it cannot explode forever
 
-If the score is inside a full top 50 leaderboard:
+The map factor is not a final score. It is only one multiplier inside the RP estimate.
+
+## RP Step 4: Top-50 Gate
+
+The `95` to `100 RP` range is reserved.
+
+A score can only enter that range when:
+
+- the app has a full usable top-50 reference
+- the player's map rank is known
+- the player's rank is `50` or better
+
+Then:
 
 ```text
 RP = 95 + ((50 - rank) / 49) * 5
@@ -366,15 +397,17 @@ Rank 50 receives `95 RP`.
 
 Rank 1 receives `100 RP`.
 
-For non-top-50 scores:
+Every non-top-50 estimate is capped below `95 RP`. If the app knows the player's map rank and the rank is worse than 50, the estimate is additionally dampened by rank. This prevents a rank `#283` score from becoming `100 RP` only because the visible reference sample was incomplete.
+
+## RP Step 5: Estimate Formula
 
 ```text
-RP_pre = (S_rp_player / S_rp_avg50) * 95 * log10(M_map)
+RP_pre = (S_rp_player / reference_s_rp) * 95 * log10(M_map)
 ```
 
-After that, the estimated spike penalty is subtracted.
+After that, the estimated spike penalty is subtracted and the non-top-50 cap is applied.
 
-## RP System C: Replay Exact Status
+## RP Step 6: Replay Exact Status
 
 Replay Exact is not fully implemented yet. The beta does not fake exact replay-based RP.
 
@@ -402,7 +435,7 @@ That requires replay-frame decoding. `.osr` replay data contains timing, cursor 
 
 Until then, Replay Exact is a status layer, not a final calculation layer.
 
-## Current Spike Penalty
+## RP Step 7: Current Spike Penalty
 
 The current beta uses an estimated spike penalty.
 
@@ -418,6 +451,8 @@ Important limitation:
 
 `failtimes` are not a complete global miss histogram for every mod combination. They are only the public rough fail/exit timing signal that osu! exposes for beatmaps.
 
+Because exact online miss timestamps and slider-break timestamps are not publicly exposed as ready-made data, exact spike penalties require replay decoding.
+
 ## RP Confidence
 
 Every RP score has a confidence value.
@@ -427,7 +462,7 @@ High confidence usually means:
 - beatmap ID exists
 - max combo is known
 - beatmap data was loaded
-- leaderboard anchor exists
+- RP reference exists
 - failtimes or map pressure data exist
 - replay data exists or the score has strong supporting data
 
@@ -435,7 +470,7 @@ Lower confidence usually means:
 
 - missing beatmap ID
 - missing max combo
-- no leaderboard anchor
+- no RP reference
 - no failtimes
 - no replay
 - fallback values were needed
@@ -460,7 +495,7 @@ Estimated:
 - RP spike penalty before replay decoding exists
 - slider-break detection without replay analysis
 - map pressure when only `failtimes` are available
-- leaderboard anchor when fewer than 50 scores are available
+- RP reference when only a limited leaderboard sample is available
 
 Not available as a public ready-made source:
 
@@ -679,7 +714,7 @@ Genutzt fuer:
 - Recent Scores
 - einzelne Score-PP-Ergaenzung
 - Beatmap-Metadaten
-- Beatmap-Scores / Leaderboard-Anker
+- Beatmap-Scores / Leaderboard-Referenzen
 - Beatmap-Difficulty-Attribute
 - passcount / playcount
 - failtimes, wenn verfuegbar
@@ -789,20 +824,34 @@ Wie stark war dieser Pass relativ zur Map, zum Leaderboard und zu den bekannten 
 
 Der RP-Tab klappt den normalen Filterbereich bewusst ein. Nur Spielerfeld und RP-Button bleiben sichtbar. Das ist Absicht: RP nutzt in dieser Beta feste Regeln, damit die Ergebnisse leichter vergleichbar sind.
 
-## RP System A: Estimate
+Der RP-Tab hat eigene kleine Steuerungen:
 
-Estimate ist das Basis-RP-System.
+- `RP-System`: filtert die Ergebnisliste nach lokalen Estimates, API-gestuetzten Estimates, bestaetigten Top-50-Scores oder Replay-Kandidaten.
+- `RP-Limit`: bestimmt, wie viele der staerksten gespeicherten Kandidaten berechnet werden.
 
-Es nutzt lokal gespeicherte Daten:
+## RP-Systemarten
+
+Die UI kann mehrere RP-Systemlabels anzeigen. Diese Labels bedeuten nicht, dass der Score selbst nur aus dieser Quelle kommt.
+
+`Lokal-Estimate` bedeutet: Der Score kommt aus der lokalen Datenbank und die App konnte nicht genug Online-Kontext ergaenzen. `S_rp`, Map-Schwierigkeit und eine vorsichtige Miss-Strafe werden trotzdem berechnet, wenn genug Daten vorhanden sind.
+
+`API-gestuetzt` bedeutet: Der Score bleibt ein gespeicherter/lokaler Kandidat, aber die osu!api konnte hilfreichen Kontext liefern, zum Beispiel Beatmap-Daten, Max-Combo, pass/play-Verhaeltnis, failtimes, Leaderboard-Stichproben oder den Map-Rang des Spielers.
+
+`API-limitiert` bedeutet: Die osu!api konnte etwas Kontext liefern, aber nicht genug fuer eine volle Top-50-Referenz. Das passiert bei Maps oder Mod-Kombinationen, bei denen die sichtbare API-Stichprobe klein ist.
+
+`Top-50 direkt` ist das einzige System, das den festen Bereich von `95` bis `100 RP` vergeben darf. Dafuer muss ein bestaetigter Map-Rang innerhalb einer vollen Top-50-Referenz vorhanden sein.
+
+`Replay-Kandidaten` sind Scores, bei denen ein Online- oder lokales Replay existiert. Sie sind wichtig fuer eine spaetere replay-exakte RP-Engine, aber Replayframe-Decoding ist noch nicht voll implementiert.
+
+## RP Schritt 1: Stable/Lazer Neutraler Score
+
+Der erste Schritt ist ein stable/lazer-unabhaengiger interner Score namens `S_rp`.
+
+Er nutzt:
 
 - Spieler-Combo
 - Map-Max-Combo, wenn bekannt
 - Accuracy
-- Miss-Anzahl
-- Star Rating, wenn bekannt
-- pass/play-Verhaeltnis, wenn bekannt
-
-Der erste Schritt ist ein stable/lazer-unabhaengiger interner Score namens `S_rp`.
 
 ```text
 S_rp = (player_combo / map_max_combo * 70000)
@@ -818,39 +867,44 @@ Warum das existiert:
 
 Ein perfekter Full-Combo-SS erreicht `100000` interne Punkte.
 
-Wenn wichtige Map-Daten fehlen, kann RP trotzdem angezeigt werden, aber die Confidence sinkt.
+Wenn die Max-Combo fehlt, kann RP nur mit niedrigerer Confidence angezeigt werden oder der Score wird fuer RP uebersprungen.
 
-## RP System B: API-Anker
+## RP Schritt 2: Referenz-S_rp
 
-API-Anker fuegt oeffentlichen Online-Kontext aus der osu!api hinzu.
+RP braucht einen Vergleichspunkt fuer die Map. Die App nennt diesen Wert in der UI `RP-Referenz`.
 
-Die App versucht zu laden:
+Diese Referenz ist nicht immer ein echter Top-50-Schnitt. Darum zeigt die UI die Referenz-Quelle getrennt an.
 
-- Beatmap-Metadaten
-- `max_combo`
-- `passcount`
-- `playcount`
-- `failtimes`
-- modifizierte Difficulty-Attribute
-- Beatmap-Leaderboard-Scores
+Referenz-Regeln:
 
-Der Leaderboard-Anker wird, wenn moeglich, aus passenden Leaderboard-Scores berechnet.
+- `echter Top-50-Schnitt`: mindestens 50 nutzbare Leaderboard-Scores sind fuer den relevanten Map-/Mod-Kontext verfuegbar.
+- `sichtbarer API-Schnitt`: zwischen 10 und 49 nutzbare Leaderboard-Scores sind verfuegbar, also mittelt die App nur die sichtbare nutzbare Stichprobe.
+- `Platz-1-Referenz x 0.95`: weniger als 10 nutzbare Scores sind verfuegbar, also nutzt die App Platz 1 als vorsichtigen Referenzpunkt.
+- `Spieler-Fallback`: kein sinnvoller Leaderboard-Kontext ist verfuegbar, also wird der eigene Score nur als schwacher Fallback genutzt.
 
 Wenn mindestens 50 nutzbare Scores verfuegbar sind:
 
 ```text
-S_rp_avg50 = durchschnittlicher S_rp der Top 50 Leaderboard-Scores
+reference_s_rp = durchschnittlicher S_rp der Top 50 nutzbaren Leaderboard-Scores
 ```
 
-Wenn weniger als 50 nutzbare Scores verfuegbar sind:
+Wenn 10 bis 49 nutzbare Scores verfuegbar sind:
 
 ```text
-S_rp_avg50 = S_rp von Platz 1 * 0.75
+reference_s_rp = durchschnittlicher S_rp der sichtbaren nutzbaren Scores
 ```
 
-Wenn keine nutzbaren Leaderboard-Daten verfuegbar sind, faellt RP auf den lokalen Estimate zurueck und die Confidence sinkt.
+Wenn 1 bis 9 nutzbare Scores verfuegbar sind:
 
-Der Map-Faktor ist:
+```text
+reference_s_rp = S_rp von Platz 1 * 0.95
+```
+
+Der alte `Platz 1 * 0.75`-Fallback wurde entfernt, weil dadurch Scores ausserhalb der Top 50 kuenstlich wie perfekte `100 RP` Scores aussehen konnten.
+
+## RP Schritt 3: Map-Faktor
+
+Der Map-Faktor beschreibt, wie stark der Map-Kontext vor der finalen Deckelung in die RP-Schaetzung einfliesst.
 
 ```text
 M_map = star_rating * (1 + (1 - success_rate))
@@ -864,11 +918,23 @@ success_rate = passcount / playcount
 
 Das bedeutet:
 
-- schwerere Maps erhoehen RP
-- Maps mit niedriger Passrate erhoehen RP
-- leichte Maps werden intern geschuetzt, damit die logarithmische Formel nicht instabil wird
+- hoeheres Star Rating erhoeht den Faktor
+- niedrigere Passrate erhoeht den Faktor
+- der Faktor wird mit `log10(M_map)` geglaettet, damit er nicht endlos explodiert
 
-Wenn der Score in einem vollen Top-50-Leaderboard liegt:
+Der Map-Faktor ist kein finales Ergebnis. Er ist nur ein Multiplikator innerhalb der RP-Schaetzung.
+
+## RP Schritt 4: Top-50-Grenze
+
+Der Bereich von `95` bis `100 RP` ist reserviert.
+
+Ein Score darf nur dann in diesen Bereich, wenn:
+
+- die App eine volle nutzbare Top-50-Referenz hat
+- der Map-Rang des Spielers bekannt ist
+- der Rang `50` oder besser ist
+
+Dann gilt:
 
 ```text
 RP = 95 + ((50 - rank) / 49) * 5
@@ -878,15 +944,17 @@ Platz 50 bekommt `95 RP`.
 
 Platz 1 bekommt `100 RP`.
 
-Fuer Scores ausserhalb der Top 50:
+Jeder Estimate ausserhalb der Top 50 wird unter `95 RP` gedeckelt. Wenn die App den Map-Rang kennt und dieser schlechter als 50 ist, wird der Estimate zusaetzlich ueber den Rang gedaempft. Dadurch kann ein Rang `#283` Score nicht mehr nur wegen einer unvollstaendigen Referenz-Stichprobe auf `100 RP` springen.
+
+## RP Schritt 5: Estimate-Formel
 
 ```text
-RP_pre = (S_rp_player / S_rp_avg50) * 95 * log10(M_map)
+RP_pre = (S_rp_player / reference_s_rp) * 95 * log10(M_map)
 ```
 
-Danach wird die geschaetzte Spike-Strafe abgezogen.
+Danach wird die geschaetzte Spike-Strafe abgezogen und die Nicht-Top-50-Deckelung angewendet.
 
-## RP System C: Replay Exact Status
+## RP Schritt 6: Replay Exact Status
 
 Replay Exact ist noch nicht voll implementiert. Die Beta tut nicht so, als koennte sie schon exakte Replay-basierte RP berechnen.
 
@@ -914,7 +982,7 @@ Dafuer braucht man Replayframe-Decoding. `.osr` Replaydaten enthalten Timing, Cu
 
 Bis dahin ist Replay Exact eine Status-Ebene, keine fertige Berechnungsebene.
 
-## Aktuelle Spike-Strafe
+## RP Schritt 7: Aktuelle Spike-Strafe
 
 Die aktuelle Beta nutzt eine geschaetzte Spike-Strafe.
 
@@ -930,6 +998,8 @@ Wichtige Einschraenkung:
 
 `failtimes` sind kein vollstaendiges globales Miss-Histogramm fuer jede Mod-Kombination. Sie sind nur das oeffentliche grobe Fail-/Exit-Timing-Signal, das osu! fuer Beatmaps bereitstellt.
 
+Weil exakte Online-Miss-Zeitpunkte und Sliderbreak-Zeitpunkte nicht als fertige oeffentliche Datenquelle verfuegbar sind, brauchen exakte Spike-Strafen Replay-Decoding.
+
 ## RP Confidence
 
 Jeder RP-Score hat einen Confidence-Wert.
@@ -939,7 +1009,7 @@ Hohe Confidence bedeutet meistens:
 - Beatmap-ID existiert
 - Max Combo ist bekannt
 - Beatmap-Daten wurden geladen
-- Leaderboard-Anker existiert
+- RP-Referenz existiert
 - failtimes oder Map-Druckdaten existieren
 - Replay-Daten existieren oder der Score hat starke Zusatzdaten
 
@@ -947,7 +1017,7 @@ Niedrigere Confidence bedeutet meistens:
 
 - Beatmap-ID fehlt
 - Max Combo fehlt
-- kein Leaderboard-Anker
+- keine RP-Referenz
 - keine failtimes
 - kein Replay
 - Fallback-Werte wurden gebraucht
@@ -972,7 +1042,7 @@ Geschaetzt:
 - RP-Spike-Strafe, solange Replay-Decoding fehlt
 - Sliderbreak-Erkennung ohne Replayanalyse
 - Map-Druck, wenn nur `failtimes` verfuegbar sind
-- Leaderboard-Anker, wenn weniger als 50 Scores verfuegbar sind
+- RP-Referenz, wenn nur eine begrenzte Leaderboard-Stichprobe verfuegbar ist
 
 Nicht als fertige oeffentliche Quelle verfuegbar:
 
