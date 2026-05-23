@@ -1178,190 +1178,6 @@ select:focus {
   margin: 0;
 }
 
-.search-panel.rp-compact {
-  grid-template-columns: minmax(220px, 1fr) auto;
-}
-
-.search-panel.rp-compact > :not(.field-wide):not(.primary-button) {
-  display: none;
-}
-
-.search-panel.rp-compact .primary-button {
-  grid-column: auto;
-  min-width: 180px;
-}
-
-.rp-view {
-  display: grid;
-  gap: 12px;
-  margin-top: 14px;
-}
-
-.rp-intro {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr);
-  gap: 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(31, 37, 48, 0.86);
-  padding: 15px;
-}
-
-.rp-intro h2 {
-  margin: 0 0 8px;
-  font-size: 1.3rem;
-}
-
-.rp-intro p {
-  margin: 7px 0 0;
-  color: var(--muted);
-  line-height: 1.45;
-}
-
-.rp-warning {
-  color: var(--yellow) !important;
-}
-
-.rp-system-grid {
-  display: grid;
-  gap: 8px;
-}
-
-.rp-system-grid article {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
-  border: 1px solid rgba(152, 170, 203, 0.18);
-  border-radius: 6px;
-  background: rgba(15, 19, 28, 0.42);
-  padding: 10px;
-  color: var(--muted);
-}
-
-.rp-system-grid strong {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  background: rgba(104, 216, 255, 0.14);
-  color: var(--cyan);
-}
-
-.rp-controls {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: repeat(2, minmax(170px, 240px)) auto;
-  gap: 8px;
-  align-items: end;
-  border: 1px solid rgba(152, 170, 203, 0.18);
-  border-radius: 6px;
-  background: rgba(15, 19, 28, 0.36);
-  padding: 10px;
-}
-
-.rp-controls label {
-  display: grid;
-  gap: 5px;
-}
-
-.rp-controls span {
-  color: var(--muted);
-  font-size: 0.82rem;
-  font-weight: 850;
-}
-
-.rp-list {
-  display: grid;
-  gap: 10px;
-}
-
-.rp-card {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr) minmax(170px, auto);
-  gap: 14px;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
-}
-
-.rp-main {
-  min-width: 0;
-  padding: 12px 0;
-}
-
-.rp-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(130px, 1fr));
-  gap: 7px;
-  margin-top: 11px;
-}
-
-.rp-metrics span {
-  display: grid;
-  gap: 3px;
-  border: 1px solid rgba(152, 170, 203, 0.16);
-  border-radius: 6px;
-  background: rgba(15, 19, 28, 0.38);
-  padding: 7px 8px;
-}
-
-.rp-metrics small {
-  color: var(--subtle);
-  font-size: 0.72rem;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.rp-metrics strong {
-  color: var(--text);
-  font-size: 0.88rem;
-}
-
-.rp-side {
-  display: grid;
-  align-content: center;
-  justify-items: end;
-  gap: 7px;
-  min-width: 170px;
-  padding: 12px 14px;
-  background: rgba(15, 19, 28, 0.58);
-}
-
-.rp-value {
-  color: var(--cyan);
-  font-size: 2rem;
-  font-weight: 950;
-  line-height: 1;
-}
-
-.confidence-chip {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 5px 8px;
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 850;
-  text-align: right;
-}
-
-.confidence-high {
-  border-color: rgba(145, 227, 106, 0.4);
-  color: var(--green);
-}
-
-.confidence-medium {
-  border-color: rgba(255, 209, 102, 0.45);
-  color: var(--yellow);
-}
-
-.confidence-low {
-  border-color: rgba(255, 107, 107, 0.45);
-  color: #ffb4b4;
-}
-
 @media (max-width: 900px) {
   .app-shell {
     padding: 18px;
@@ -1378,24 +1194,6 @@ select:focus {
   }
 
   .search-panel {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .search-panel.rp-compact,
-  .rp-intro,
-  .rp-card {
-    grid-template-columns: 1fr;
-  }
-
-  .search-panel.rp-compact .primary-button {
-    grid-column: 1 / -1;
-  }
-
-  .rp-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .rp-controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1440,15 +1238,6 @@ select:focus {
     min-width: 0;
   }
 
-  .rp-card {
-    grid-template-columns: 80px minmax(0, 1fr);
-  }
-
-  .rp-side {
-    grid-column: 1 / -1;
-    justify-items: start;
-  }
-
   .improvement-card,
   .improvement-flow,
   .details-stats {
@@ -1473,14 +1262,6 @@ select:focus {
   }
 
   .calendar-filter {
-    grid-template-columns: 1fr;
-  }
-
-  .rp-metrics {
-    grid-template-columns: 1fr;
-  }
-
-  .rp-controls {
     grid-template-columns: 1fr;
   }
 

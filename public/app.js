@@ -4,7 +4,6 @@ const liveStatus = document.querySelector("#liveStatus");
 const results = document.querySelector("#results");
 const improvements = document.querySelector("#improvements");
 const calendar = document.querySelector("#calendar");
-const rpPanel = document.querySelector("#rp");
 const detailsPanel = document.querySelector("#detailsPanel");
 const summary = document.querySelector("#summary");
 const submitButton = document.querySelector("#submitButton");
@@ -17,15 +16,12 @@ const selectedMods = new Set();
 const languageStorageKey = "osu-mod-score-finder-language";
 let currentLanguage = readStoredLanguage();
 let lastSearchData = null;
-let lastRpData = null;
 let isLoading = false;
 let activeView = "scores";
 let currentCalendarDay = "";
 let currentCalendarMonth = "";
 let calendarPpMin = "";
 let calendarPpMax = "";
-let rpSystemFilter = "all";
-let rpDisplayLimit = "50";
 let liveTimer = null;
 let liveScanBusy = false;
 
@@ -72,13 +68,10 @@ const translations = {
     "field.limit": "Anzeige-Limit",
     "field.bestTry": "Bester Try",
     "field.improvement": "Improvement",
-    "field.rpSystemFilter": "RP-System",
-    "field.rpLimit": "RP-Limit",
     "field.mods": "Mods",
     "tab.scores": "Scores",
     "tab.improvements": "Improvement",
     "tab.calendar": "Kalender",
-    "tab.rp": "RP",
     "placeholder.username": "z. B. WhiteCat",
     "option.sort.date": "Datum",
     "option.match.contains": "enthaelt alle",
@@ -92,11 +85,6 @@ const translations = {
     "option.improvement.lastTry": "letzter Try",
     "option.improvement.lastHour": "letzte Stunde",
     "option.improvement.today": "heute",
-    "option.rpFilter.all": "alle RP-Systeme",
-    "option.rpFilter.local": "nur lokale Estimates",
-    "option.rpFilter.api": "nur API-gestuetzt",
-    "option.rpFilter.top50": "nur echte Top 50",
-    "option.rpFilter.replay": "nur Replay-Kandidaten",
     "toggle.includeLazer": "stable + lazer",
     "toggle.useApiV2": "osu!api v2",
     "toggle.includeHuis": "pp.huismetbenen",
@@ -107,9 +95,7 @@ const translations = {
     "toggle.includeLoved": "loved mitnehmen",
     "button.clear": "clear",
     "button.search": "Passes suchen",
-    "button.rpSearch": "RP berechnen",
     "button.loading": "Laedt Passes...",
-    "button.rpLoading": "RP wird berechnet...",
     "button.details": "Details",
     "button.history": "Verlauf",
     "button.close": "Schliessen",
@@ -118,7 +104,6 @@ const translations = {
     "button.today": "Heute",
     "button.apply": "Anwenden",
     "button.reset": "Zuruecksetzen",
-    "button.refresh": "Aktualisieren",
     "notice.label": "Hinweis:",
     "notice.text": "osu! gibt keine komplette alte Score-Historie aus. Diese lokale Beta speichert gefundene Recent-Passes und baut daraus ab jetzt eine History pro Spieler und Mod.",
     "status.checking": "API wird geprueft",
@@ -233,40 +218,6 @@ const translations = {
     "label.bestPp": "Beste PP",
     "label.bestScore": "Bester Score",
     "label.latestTry": "Neuster Try",
-    "label.rpTitle": "Relative Performance",
-    "label.rpIntro": "RP vergleicht deine Leistung relativ zur Map, zum Leaderboard und zu den bekannten Fehlerdaten. Die Werte sind Beta-Estimates und echte 95-100 RP sind nur fuer bestaetigte Top-50-Map-Raenge reserviert.",
-    "label.rpValue": "RP",
-    "label.rpConfidence": "Confidence",
-    "label.rpSystem": "System",
-    "label.rpStandard": "S_rp",
-    "label.rpAnchor": "Referenz-Quelle",
-    "label.rpReference": "RP-Referenz",
-    "label.rpMapRank": "Map-Rang",
-    "label.rpPenalty": "Spike-Strafe",
-    "label.rpReplay": "Replay-Status",
-    "label.rpMapFactor": "Map-Faktor",
-    "label.rpSuccess": "Erfolgsrate",
-    "label.rpReferenceTop50": "echter Top-50-Schnitt",
-    "label.rpReferenceVisible": "sichtbarer API-Schnitt",
-    "label.rpReferenceRank1": "Platz-1-Referenz x 0.95",
-    "label.rpPlayerFallback": "Spieler-Fallback",
-    "label.rpPenaltyEstimated": "geschaetzt",
-    "label.rpReplayOnline": "Online-Replay vorhanden",
-    "label.rpReplayLocal": "Lokales Replay vorhanden",
-    "label.rpReplayMissing": "kein Replay",
-    "label.rpHigh": "hoch",
-    "label.rpMedium": "mittel",
-    "label.rpLow": "niedrig",
-    "label.rpSystemEstimate": "Estimate",
-    "label.rpSystemApi": "API-gestuetzt",
-    "label.rpSystemApiLimited": "API-limitiert",
-    "label.rpSystemTop50": "Top-50 direkt",
-    "label.rpSystemLocal": "Lokal-Estimate",
-    "label.rpSystemsTitle": "RP-Systeme in dieser Beta",
-    "label.rpSystemA": "Estimate: nutzt lokale Score-Daten, Combo, Accuracy, Map-Schwierigkeit und eine vorsichtige Miss-Strafe.",
-    "label.rpSystemB": "API-gestuetzt: nutzt osu!api-Mapdaten, sichtbare Leaderboard-Referenzen, Failtimes und modifizierte Difficulty-Attribute, wenn erreichbar.",
-    "label.rpSystemC": "Replay Exact: vorbereitet als Status. Exakte Spike-Strafen werden erst berechnet, wenn Replayframes dekodiert werden.",
-    "label.rpLimited": "RP berechnet die staerksten gespeicherten Kandidaten. Lokale Scores bleiben die Basis; die API liefert nur Zusatzkontext wie Mapdaten, Rang und Referenzwerte.",
     "empty.noPasses": "Keine gespeicherten Passes fuer {mods} auf {ranked}. Suche spaeter erneut, damit die lokale Datenbank weiter waechst, oder lockere den Filter.",
     "empty.noImprovements.lastTry": "Keine gespeicherten Vergleiche seit dem letzten Try fuer diese Filter.",
     "empty.noImprovements.lastHour": "Keine gespeicherten Vergleiche in der letzten Stunde fuer diese Filter.",
@@ -274,11 +225,8 @@ const translations = {
     "empty.noCalendar": "Noch keine gespeicherten Spieltage fuer diese Filter.",
     "empty.noDayScores": "An diesem Tag sind fuer diese Filter keine Scores gespeichert.",
     "empty.noMapDetails": "Fuer diese Difficulty wurden in der aktuellen Suche keine weiteren Tries gefunden.",
-    "empty.noRp": "Noch keine RP-Daten. Gib einen Spielernamen ein und berechne RP.",
     "loading.search": "Passes werden geladen und in der lokalen Datenbank gespeichert.",
-    "loading.rp": "RP-Daten werden aus lokaler Datenbank und osu!api aufgebaut.",
     "error.searchFailed": "Suche fehlgeschlagen.",
-    "error.rpFailed": "RP-Berechnung fehlgeschlagen.",
   },
   en: {
     "app.eyebrow": "Local Beta",
@@ -297,13 +245,10 @@ const translations = {
     "field.limit": "Display limit",
     "field.bestTry": "Best try",
     "field.improvement": "Improvement",
-    "field.rpSystemFilter": "RP system",
-    "field.rpLimit": "RP limit",
     "field.mods": "Mods",
     "tab.scores": "Scores",
     "tab.improvements": "Improvement",
     "tab.calendar": "Calendar",
-    "tab.rp": "RP",
     "placeholder.username": "e.g. WhiteCat",
     "option.sort.date": "Date",
     "option.match.contains": "contains all",
@@ -317,11 +262,6 @@ const translations = {
     "option.improvement.lastTry": "last try",
     "option.improvement.lastHour": "last hour",
     "option.improvement.today": "today",
-    "option.rpFilter.all": "all RP systems",
-    "option.rpFilter.local": "local estimates only",
-    "option.rpFilter.api": "API-assisted only",
-    "option.rpFilter.top50": "real top 50 only",
-    "option.rpFilter.replay": "replay candidates only",
     "toggle.includeLazer": "stable + lazer",
     "toggle.useApiV2": "osu!api v2",
     "toggle.includeHuis": "pp.huismetbenen",
@@ -332,9 +272,7 @@ const translations = {
     "toggle.includeLoved": "include loved",
     "button.clear": "clear",
     "button.search": "Search passes",
-    "button.rpSearch": "Calculate RP",
     "button.loading": "Loading passes...",
-    "button.rpLoading": "Calculating RP...",
     "button.details": "Details",
     "button.history": "History",
     "button.close": "Close",
@@ -343,7 +281,6 @@ const translations = {
     "button.today": "Today",
     "button.apply": "Apply",
     "button.reset": "Reset",
-    "button.refresh": "Refresh",
     "notice.label": "Note:",
     "notice.text": "osu! does not expose a complete old score history. This local beta stores found recent passes and builds a local history per player and mod from now on.",
     "status.checking": "Checking API",
@@ -458,40 +395,6 @@ const translations = {
     "label.bestPp": "Best PP",
     "label.bestScore": "Best score",
     "label.latestTry": "Latest try",
-    "label.rpTitle": "Relative Performance",
-    "label.rpIntro": "RP compares your play relative to the map, leaderboard, and known fail data. Values are beta estimates, and real 95-100 RP is reserved for confirmed top-50 map ranks.",
-    "label.rpValue": "RP",
-    "label.rpConfidence": "Confidence",
-    "label.rpSystem": "System",
-    "label.rpStandard": "S_rp",
-    "label.rpAnchor": "Reference source",
-    "label.rpReference": "RP reference",
-    "label.rpMapRank": "Map rank",
-    "label.rpPenalty": "Spike penalty",
-    "label.rpReplay": "Replay status",
-    "label.rpMapFactor": "Map factor",
-    "label.rpSuccess": "Success rate",
-    "label.rpReferenceTop50": "real top-50 average",
-    "label.rpReferenceVisible": "visible API average",
-    "label.rpReferenceRank1": "rank-1 reference x 0.95",
-    "label.rpPlayerFallback": "Player fallback",
-    "label.rpPenaltyEstimated": "estimated",
-    "label.rpReplayOnline": "online replay available",
-    "label.rpReplayLocal": "local replay available",
-    "label.rpReplayMissing": "no replay",
-    "label.rpHigh": "high",
-    "label.rpMedium": "medium",
-    "label.rpLow": "low",
-    "label.rpSystemEstimate": "Estimate",
-    "label.rpSystemApi": "API-assisted",
-    "label.rpSystemApiLimited": "API-limited",
-    "label.rpSystemTop50": "Top-50 direct",
-    "label.rpSystemLocal": "Local estimate",
-    "label.rpSystemsTitle": "RP systems in this beta",
-    "label.rpSystemA": "Estimate: uses local score data, combo, accuracy, map difficulty, and a conservative miss penalty.",
-    "label.rpSystemB": "API-assisted: uses osu!api map data, visible leaderboard references, failtimes, and modded difficulty attributes when reachable.",
-    "label.rpSystemC": "Replay Exact: prepared as a status layer. Exact spike penalties are calculated only after replay-frame decoding is added.",
-    "label.rpLimited": "RP calculates the strongest stored candidates. Local scores stay the base; the API only adds context like map data, rank, and reference values.",
     "empty.noPasses": "No stored passes for {mods} on {ranked}. Search again later so the local database can grow, or loosen the filters.",
     "empty.noImprovements.lastTry": "No stored comparisons since the last try for these filters.",
     "empty.noImprovements.lastHour": "No stored comparisons in the last hour for these filters.",
@@ -499,11 +402,8 @@ const translations = {
     "empty.noCalendar": "No stored play days for these filters yet.",
     "empty.noDayScores": "No scores are stored for these filters on this day.",
     "empty.noMapDetails": "No other tries for this difficulty were found in the current search.",
-    "empty.noRp": "No RP data yet. Enter a player name and calculate RP.",
     "loading.search": "Loading passes and storing them in the local database.",
-    "loading.rp": "Building RP data from the local database and osu!api.",
     "error.searchFailed": "Search failed.",
-    "error.rpFailed": "RP calculation failed.",
   },
 };
 
@@ -913,11 +813,7 @@ function ppSourceLabel(score) {
 function setLoading(nextLoading) {
   isLoading = nextLoading;
   submitButton.disabled = nextLoading;
-  if (activeView === "rp") {
-    submitButton.textContent = nextLoading ? t("button.rpLoading") : t("button.rpSearch");
-  } else {
-    submitButton.textContent = nextLoading ? t("button.loading") : t("button.search");
-  }
+  submitButton.textContent = nextLoading ? t("button.loading") : t("button.search");
 }
 
 function setResultsState(html) {
@@ -1003,11 +899,7 @@ function applyLanguage(language, { rerender = true } = {}) {
 
   refreshHelp();
   setLoading(isLoading);
-  if (rerender && lastSearchData && activeView !== "rp") renderSearchData(lastSearchData);
-  if (rerender && lastRpData && activeView === "rp") renderRpData(lastRpData);
-  if (rerender && !lastRpData && activeView === "rp") {
-    rpPanel.innerHTML = `${renderRpSystemsIntro({ meta: {} })}<div class="empty-state">${escapeHtml(t("empty.noRp"))}</div>`;
-  }
+  if (rerender && lastSearchData) renderSearchData(lastSearchData);
 }
 
 async function checkStatus() {
@@ -1163,198 +1055,6 @@ function renderScore(score, mode) {
         <div class="small">${t("label.accuracy")}</div>
       </div>
     </article>
-  `;
-}
-
-function rpSystemLabel(system) {
-  if (system === "top50-direct") return t("label.rpSystemTop50");
-  if (system === "api-anchored-estimate") return t("label.rpSystemApi");
-  if (system === "api-limited-estimate") return t("label.rpSystemApiLimited");
-  if (system === "local-estimate") return t("label.rpSystemLocal");
-  return t("label.rpSystemEstimate");
-}
-
-function rpConfidenceLabel(label) {
-  if (label === "high") return t("label.rpHigh");
-  if (label === "medium") return t("label.rpMedium");
-  return t("label.rpLow");
-}
-
-function rpAnchorLabel(anchorSource) {
-  if (anchorSource === "top50-average") return t("label.rpReferenceTop50");
-  if (anchorSource === "visible-average") return t("label.rpReferenceVisible");
-  if (anchorSource === "rank1-reference") return t("label.rpReferenceRank1");
-  return t("label.rpPlayerFallback");
-}
-
-function rpReplayLabel(state) {
-  if (state === "online-replay") return t("label.rpReplayOnline");
-  if (state === "local-replay") return t("label.rpReplayLocal");
-  return t("label.rpReplayMissing");
-}
-
-function rpItemMatchesFilter(item) {
-  const rp = item?.rp || {};
-  if (rpSystemFilter === "local") return rp.system === "local-estimate";
-  if (rpSystemFilter === "api") return ["api-anchored-estimate", "api-limited-estimate"].includes(rp.system);
-  if (rpSystemFilter === "top50") return rp.system === "top50-direct";
-  if (rpSystemFilter === "replay") return rp.replay?.state && rp.replay.state !== "no-replay";
-  return true;
-}
-
-function renderRpSummary(data) {
-  const stats = data.user.statistics || {};
-  const globalRank = stats.global_rank ? `#${formatNumber(stats.global_rank)}` : t("label.noRank");
-  const profileUrl = data.user.url && !String(data.user.id).startsWith("local:")
-    ? data.user.url
-    : "";
-  const avatar = data.user.avatar_url
-    ? `<img src="${escapeHtml(data.user.avatar_url)}" alt="" />`
-    : '<div class="avatar-fallback"></div>';
-  const usernameHtml = profileUrl
-    ? `<a href="${escapeHtml(profileUrl)}" target="_blank" rel="noreferrer">${escapeHtml(data.user.username)}</a>`
-    : escapeHtml(data.user.username);
-
-  summary.classList.remove("hidden");
-  summary.innerHTML = `
-    <div class="user-card">
-      ${avatar}
-      <div>
-        <h2>${usernameHtml}</h2>
-        <p>${escapeHtml(data.user.country_code || "--")} - ${escapeHtml(globalRank)}</p>
-      </div>
-    </div>
-    <div class="summary-stat">
-      ${formatNumber(data.meta.returned)} ${escapeHtml(t("label.rpValue"))} ${currentLanguage === "de" ? "aus" : "from"} ${formatNumber(data.meta.historyTotal || 0)} ${escapeHtml(t("label.savedPasses"))} -
-      ${formatNumber(data.meta.apiFetched || 0)} API -
-      ${formatNumber(data.meta.localImported || 0)} ${escapeHtml(t("label.local"))} -
-      ${formatNumber(data.meta.ppCalculated || 0)} ${escapeHtml(t("label.ppCalculated"))}
-    </div>
-  `;
-}
-
-function renderRpSystemsIntro(data) {
-  const warning = data.meta?.apiWarning
-    ? `<p class="rp-warning">${escapeHtml(data.meta.apiWarning)}</p>`
-    : "";
-
-  return `
-    <section class="rp-intro">
-      <div>
-        <p class="eyebrow">${escapeHtml(t("label.rpTitle"))}</p>
-        <h2>${escapeHtml(t("label.rpSystemsTitle"))}</h2>
-        <p>${escapeHtml(t("label.rpIntro"))}</p>
-        <p>${escapeHtml(t("label.rpLimited"))}</p>
-        ${warning}
-      </div>
-      <div class="rp-system-grid">
-        <article><strong>A</strong><span>${escapeHtml(t("label.rpSystemA"))}</span></article>
-        <article><strong>B</strong><span>${escapeHtml(t("label.rpSystemB"))}</span></article>
-        <article><strong>C</strong><span>${escapeHtml(t("label.rpSystemC"))}</span></article>
-      </div>
-      <div class="rp-controls">
-        <label>
-          <span>${escapeHtml(t("field.rpSystemFilter"))}</span>
-          <select data-rp-system-filter>
-            <option value="all"${rpSystemFilter === "all" ? " selected" : ""}>${escapeHtml(t("option.rpFilter.all"))}</option>
-            <option value="local"${rpSystemFilter === "local" ? " selected" : ""}>${escapeHtml(t("option.rpFilter.local"))}</option>
-            <option value="api"${rpSystemFilter === "api" ? " selected" : ""}>${escapeHtml(t("option.rpFilter.api"))}</option>
-            <option value="top50"${rpSystemFilter === "top50" ? " selected" : ""}>${escapeHtml(t("option.rpFilter.top50"))}</option>
-            <option value="replay"${rpSystemFilter === "replay" ? " selected" : ""}>${escapeHtml(t("option.rpFilter.replay"))}</option>
-          </select>
-        </label>
-        <label>
-          <span>${escapeHtml(t("field.rpLimit"))}</span>
-          <select data-rp-limit>
-            ${["25", "50", "100"].map((value) => `<option value="${value}"${rpDisplayLimit === value ? " selected" : ""}>${value}</option>`).join("")}
-          </select>
-        </label>
-        <button class="ghost-button" type="button" data-rp-refresh="1">${escapeHtml(t("button.refresh"))}</button>
-      </div>
-    </section>
-  `;
-}
-
-function renderRpItem(item, mode) {
-  const score = item.score || {};
-  const rp = item.rp || {};
-  const beatmap = score.beatmap || {};
-  const set = score.beatmapset || {};
-  const artist = set.artist || beatmap.artist || t("label.unknownArtist");
-  const title = set.title || beatmap.title || t("label.unknownMap");
-  const version = beatmap.version || "Difficulty";
-  const cover = coverUrl(score);
-  const coverHtml = cover
-    ? `<img class="cover" src="${escapeHtml(cover)}" alt="" loading="lazy" />`
-    : '<div class="cover cover-fallback"></div>';
-  const mapLink = beatmapUrl(score);
-  const anchor = rp.leaderboard || {};
-  const penalty = rp.penalty || {};
-  const replay = rp.replay || {};
-  const confidenceClass = `confidence-${escapeHtml(rp.confidenceLabel || "low")}`;
-  const referenceValue = anchor.reference ?? anchor.avg50;
-  const mapRank = anchor.position ? `#${formatNumber(anchor.position)}` : "-";
-
-  return `
-    <article class="rp-card">
-      ${coverHtml}
-      <div class="rp-main">
-        <div class="map-title">
-          <span class="rank-badge">${escapeHtml(score.rank || "")}</span>
-          <a href="${escapeHtml(mapLink)}" target="_blank" rel="noreferrer">
-            ${escapeHtml(artist)} - ${escapeHtml(title)}
-          </a>
-        </div>
-        <div class="diff">[${escapeHtml(version)}]</div>
-        <div class="mods">${renderMods(score)}</div>
-        <div class="meta-line">
-          <span class="source-chip client-${escapeHtml(clientLabel(score))}">${escapeHtml(clientLabel(score))}</span>
-          <span class="source-chip">${escapeHtml(storageLabel(score))}</span>
-          <span>${formatDate(score.ended_at || score.created_at)}</span>
-          <span>${formatPp(scorePpValue(score))}</span>
-          <span>${formatAccuracy(score.accuracy)}</span>
-          <span>${formatNumber(score.max_combo)}x ${escapeHtml(t("label.combo"))}</span>
-          <span>${missCount(score)} ${escapeHtml(t("label.miss"))}</span>
-        </div>
-        <div class="rp-metrics">
-          <span><small>${escapeHtml(t("label.rpSystem"))}</small><strong>${escapeHtml(rpSystemLabel(rp.system))}</strong></span>
-          <span><small>${escapeHtml(t("label.rpStandard"))}</small><strong>${formatNumber(rp.standardisedScore)}</strong></span>
-          <span><small>${escapeHtml(t("label.rpAnchor"))}</small><strong>${escapeHtml(rpAnchorLabel(anchor.anchorSource))}</strong></span>
-          <span><small>${escapeHtml(t("label.rpReference"))}</small><strong>${formatNumber(referenceValue)}</strong></span>
-          <span><small>${escapeHtml(t("label.rpMapRank"))}</small><strong>${escapeHtml(mapRank)}</strong></span>
-          <span><small>${escapeHtml(t("label.rpMapFactor"))}</small><strong>${formatNumber(rp.mapFactor)}</strong></span>
-          <span><small>${escapeHtml(t("label.rpSuccess"))}</small><strong>${rp.successRate ? `${(rp.successRate * 100).toFixed(1)}%` : "-"}</strong></span>
-          <span><small>${escapeHtml(t("label.rpPenalty"))}</small><strong>-${formatNumber(penalty.value || 0)} ${escapeHtml(t("label.rpValue"))}</strong></span>
-          <span><small>${escapeHtml(t("label.rpReplay"))}</small><strong>${escapeHtml(rpReplayLabel(replay.state))}</strong></span>
-        </div>
-      </div>
-      <div class="rp-side">
-        <div class="rp-value">${Number(rp.value || 0).toFixed(2)}</div>
-        <div class="small">${escapeHtml(t("label.rpValue"))}</div>
-        <span class="confidence-chip ${confidenceClass}">
-          ${escapeHtml(t("label.rpConfidence"))}: ${escapeHtml(rpConfidenceLabel(rp.confidenceLabel))} (${formatNumber(rp.confidence)}%)
-        </span>
-      </div>
-    </article>
-  `;
-}
-
-function renderRpData(data) {
-  renderRpSummary(data);
-  const filteredScores = (data.scores || []).filter(rpItemMatchesFilter);
-  if (!filteredScores.length) {
-    rpPanel.innerHTML = `
-      ${renderRpSystemsIntro(data)}
-      <div class="empty-state">${escapeHtml(t("empty.noRp"))}</div>
-    `;
-    return;
-  }
-
-  rpPanel.innerHTML = `
-    ${renderRpSystemsIntro(data)}
-    <div class="rp-list">
-      ${filteredScores.map((item) => renderRpItem(item, data.meta.mode)).join("")}
-    </div>
   `;
 }
 
@@ -1953,35 +1653,6 @@ async function runSearch(event) {
   }
 }
 
-async function runRpSearch(event) {
-  event?.preventDefault();
-  stopLiveScanner("status.liveStopped");
-  summary.classList.add("hidden");
-  lastRpData = null;
-  setLoading(true);
-  rpPanel.innerHTML = `<div class="loading-state">${escapeHtml(t("loading.rp"))}</div>`;
-
-  try {
-    const params = new URLSearchParams();
-    params.set("username", document.querySelector("#username").value.trim());
-    params.set("limit", rpDisplayLimit);
-
-    const response = await fetch(`/api/rp?${params.toString()}`);
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || t("error.rpFailed"));
-    }
-
-    lastRpData = data;
-    renderRpData(data);
-  } catch (error) {
-    rpPanel.innerHTML = `<div class="error-state">${escapeHtml(error.message)}</div>`;
-  } finally {
-    setLoading(false);
-  }
-}
-
 function setLiveStatus(key, values = {}, className = "") {
   if (!liveStatus) return;
   liveStatus.className = `status-pill live-pill ${className}`.trim();
@@ -2072,28 +1743,18 @@ clearMods.addEventListener("click", () => {
   updateModButtons();
 });
 
-function setActiveView(nextView) {
-  activeView = ["scores", "improvements", "calendar", "rp"].includes(nextView) ? nextView : "scores";
-  for (const tab of viewTabs.querySelectorAll("button")) {
-    tab.classList.toggle("active", tab.dataset.view === activeView);
-  }
-
-  results.classList.toggle("hidden", activeView !== "scores");
-  improvements.classList.toggle("hidden", activeView !== "improvements");
-  calendar.classList.toggle("hidden", activeView !== "calendar");
-  rpPanel.classList.toggle("hidden", activeView !== "rp");
-  form.classList.toggle("rp-compact", activeView === "rp");
-  setLoading(isLoading);
-
-  if (activeView === "rp" && !lastRpData && !rpPanel.innerHTML.trim()) {
-    rpPanel.innerHTML = `${renderRpSystemsIntro({ meta: {} })}<div class="empty-state">${escapeHtml(t("empty.noRp"))}</div>`;
-  }
-}
-
 viewTabs.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-view]");
   if (!button) return;
-  setActiveView(button.dataset.view);
+
+  for (const tab of viewTabs.querySelectorAll("button")) {
+    tab.classList.toggle("active", tab === button);
+  }
+
+  activeView = button.dataset.view;
+  results.classList.toggle("hidden", activeView !== "scores");
+  improvements.classList.toggle("hidden", activeView !== "improvements");
+  calendar.classList.toggle("hidden", activeView !== "calendar");
 });
 
 function handleDetailsClick(event) {
@@ -2139,26 +1800,6 @@ calendar.addEventListener("click", (event) => {
   handleDetailsClick(event);
 });
 
-rpPanel.addEventListener("change", (event) => {
-  const systemSelect = event.target.closest("[data-rp-system-filter]");
-  if (systemSelect) {
-    rpSystemFilter = systemSelect.value;
-    if (lastRpData) renderRpData(lastRpData);
-    return;
-  }
-
-  const limitSelect = event.target.closest("[data-rp-limit]");
-  if (limitSelect) {
-    rpDisplayLimit = limitSelect.value;
-  }
-});
-
-rpPanel.addEventListener("click", (event) => {
-  const refreshButton = event.target.closest("[data-rp-refresh]");
-  if (!refreshButton) return;
-  runRpSearch();
-});
-
 detailsPanel.addEventListener("click", (event) => {
   if (!event.target.closest("[data-close-details]")) return;
   detailsPanel.classList.add("hidden");
@@ -2176,12 +1817,8 @@ document.querySelector("#liveScanner")?.addEventListener("change", () => {
   else stopLiveScanner();
 });
 
-form.addEventListener("submit", (event) => {
-  if (activeView === "rp") return runRpSearch(event);
-  return runSearch(event);
-});
+form.addEventListener("submit", runSearch);
 
 initHelp();
 applyLanguage(currentLanguage, { rerender: false });
-setActiveView(activeView);
 checkStatus();
