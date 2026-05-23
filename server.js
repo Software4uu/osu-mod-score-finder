@@ -916,6 +916,20 @@ function dedupeScores(scores) {
   return [...deduped.values()];
 }
 
+function monthKeyForScore(score) {
+  return berlinDateKey(score?.ended_at || score?.created_at).slice(0, 7);
+}
+
+function mergeScoreWorkSets(...sets) {
+  const merged = new Map();
+  for (const scores of sets) {
+    for (const score of scores) {
+      merged.set(scoreStorageKey(score), score);
+    }
+  }
+  return [...merged.values()];
+}
+
 async function handleSearch(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const username = (url.searchParams.get("username") || "").trim();
@@ -1010,19 +1024,30 @@ async function handleSearch(req, res) {
     .filter((score) => (rankedOnly ? isRankedBeatmap(score, includeLoved) : true))
     .filter((score) => modsMatch(score.normalized_mods || normalizeMods(score.mods), selectedMods, matchMode));
 
-  const ppWorkLimit = sort === "pp" || rankMode === "pp" ? Math.max(finalLimit, 1000) : Math.max(finalLimit, 200);
-  const ppWorkSet =
+  const primaryPpWorkLimit = sort === "pp" || rankMode === "pp" ? Math.max(finalLimit, 1000) : Math.max(finalLimit, 300);
+  const primaryPpWorkSet =
     sort === "pp" || rankMode === "pp"
       ? [...filteredCandidates]
           .sort((a, b) => effectivePp(b) - effectivePp(a) || compareScores(a, b, "score"))
-          .slice(0, ppWorkLimit)
-      : [...filteredCandidates].sort((a, b) => compareScores(a, b, sort)).slice(0, ppWorkLimit);
+          .slice(0, primaryPpWorkLimit)
+      : [...filteredCandidates].sort((a, b) => compareScores(a, b, sort)).slice(0, primaryPpWorkLimit);
+  const currentMonth = berlinDateKey().slice(0, 7);
+  const currentMonthPpWorkSet = filteredCandidates
+    .filter((score) => monthKeyForScore(score) === currentMonth)
+    .sort((a, b) => compareScores(a, b, "date"))
+    .slice(0, 2000);
+  const recentLocalPpWorkSet = filteredCandidates
+    .filter((score) => !effectivePp(score) && score.beatmap?.local_osu_path)
+    .sort((a, b) => compareScores(a, b, "date"))
+    .slice(0, 2500);
+  const ppWorkSet = mergeScoreWorkSets(primaryPpWorkSet, currentMonthPpWorkSet, recentLocalPpWorkSet);
+  const ppCalculationLimit = Math.min(ppWorkSet.length, 2500);
 
   const ppHydration = await hydrateVisiblePp(ppWorkSet, mode);
   const calculatedHydration = recalculatePp
     ? await hydrateCalculatedPp(ppWorkSet, mode, {
         force: true,
-        max: ppWorkLimit,
+        max: ppCalculationLimit,
       })
     : { attempted: 0, filled: 0, unavailable: false, errors: [] };
 

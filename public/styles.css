@@ -1087,10 +1087,10 @@ select:focus {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(220px, 1fr);
   gap: 14px;
-  width: min(1040px, 100%);
-  max-height: min(780px, 88vh);
+  width: min(1120px, 100%);
+  max-height: min(940px, 94vh);
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1142,11 +1142,15 @@ select:focus {
 }
 
 .details-table-wrap {
-  max-height: min(360px, 38vh);
-  min-height: 0;
+  max-height: min(520px, 46vh);
+  min-height: min(260px, 32vh);
   overflow: auto;
   border: 1px solid rgba(152, 170, 203, 0.18);
   border-radius: 6px;
+}
+
+.details-card .try-chart-plot svg {
+  height: 300px;
 }
 
 .details-table {

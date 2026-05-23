@@ -698,7 +698,7 @@ function filteredCalendarScoresByDay(data) {
   const filtered = {};
 
   for (const [dayKey, scores] of Object.entries(scoresByDay)) {
-    const dayScores = scores.filter(scoreInCalendarPpRange);
+    const dayScores = enrichScoresWithMatchedPp(scores).filter(scoreInCalendarPpRange);
     if (dayScores.length) filtered[dayKey] = dayScores;
   }
 
@@ -1108,7 +1108,7 @@ function renderTryHistoryChart(tries, options = {}) {
         score,
         index,
         time: rawTime || index,
-        pp: scorePpValue(score),
+        pp: scorePpValue(score) || null,
         acc: accuracyPercentValue(score),
         misses: Number(missCount(score) || 0),
       };
@@ -1136,12 +1136,14 @@ function renderTryHistoryChart(tries, options = {}) {
       label: t("label.metricPp"),
       color: "#ff66aa",
       format: (value) => (value ? `${value.toFixed(2)}pp` : t("label.ppMissing")),
+      hasValue: (value) => value !== null && value !== undefined && Number.isFinite(Number(value)) && Number(value) > 0,
     },
     {
       key: "acc",
       label: t("label.metricAcc"),
       color: "#91e36a",
       format: (value) => `${value.toFixed(2)}%`,
+      hasValue: (value) => value !== null && value !== undefined && Number.isFinite(Number(value)),
     },
     {
       key: "misses",
@@ -1149,17 +1151,20 @@ function renderTryHistoryChart(tries, options = {}) {
       color: "#ffd166",
       lowerBetter: true,
       format: (value) => `${formatNumber(value)} ${t("label.miss")}`,
+      hasValue: (value) => value !== null && value !== undefined && Number.isFinite(Number(value)),
     },
   ].map((metric) => {
-    const values = ordered.map((point) => metricValue(metric, point));
+    const values = ordered.map((point) => metricValue(metric, point)).filter((value) => metric.hasValue(value));
     return {
       ...metric,
-      min: Math.min(...values),
-      max: Math.max(...values),
+      available: values.length > 0,
+      min: values.length ? Math.min(...values) : 0,
+      max: values.length ? Math.max(...values) : 0,
     };
   });
   const yFor = (metric, point) => {
     const value = metricValue(metric, point);
+    if (!metric.hasValue(value)) return null;
     if (metric.max === metric.min) return top + plotHeight / 2;
     let ratio = (value - metric.min) / (metric.max - metric.min);
     if (metric.lowerBetter) ratio = 1 - ratio;
@@ -1187,10 +1192,15 @@ function renderTryHistoryChart(tries, options = {}) {
     .join("");
   const series = metrics
     .map((metric) => {
-      const points = ordered
+      if (!metric.available) return "";
+      const visiblePoints = ordered.filter((point) => metric.hasValue(metricValue(metric, point)));
+      const points = visiblePoints
         .map((point) => `${formatCoord(xFor(point))},${formatCoord(yFor(metric, point))}`)
         .join(" ");
-      const circles = ordered
+      const line = visiblePoints.length > 1
+        ? `<polyline points="${points}" fill="none" stroke="${metric.color}" stroke-width="${compact ? 2.8 : 3.4}" stroke-linecap="round" stroke-linejoin="round"></polyline>`
+        : "";
+      const circles = visiblePoints
         .map((point) => {
           const tooltip = [
             formatDate(point.score.ended_at || point.score.created_at),
@@ -1208,7 +1218,7 @@ function renderTryHistoryChart(tries, options = {}) {
         .join("");
       return `
         <g>
-          <polyline points="${points}" fill="none" stroke="${metric.color}" stroke-width="${compact ? 2.8 : 3.4}" stroke-linecap="round" stroke-linejoin="round"></polyline>
+          ${line}
           ${circles}
         </g>
       `;
@@ -1351,7 +1361,7 @@ function renderImprovements(data) {
 }
 
 function renderCalendarDayScores(data, dayKey, scoresByDay = filteredCalendarScoresByDay(data)) {
-  const scores = scoresByDay[dayKey] || [];
+  const scores = enrichScoresWithMatchedPp(scoresByDay[dayKey] || []);
   if (!scores.length) {
     return `
       <div class="calendar-day-head">
