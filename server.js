@@ -930,6 +930,24 @@ function mergeScoreWorkSets(...sets) {
   return [...merged.values()];
 }
 
+function collectImprovementPpWorkSet(scores, improvements, maxScores = 2500) {
+  const mapKeys = new Set(
+    improvements
+      .flatMap((item) => [item.score, item.previous])
+      .filter(Boolean)
+      .map(beatmapKey)
+  );
+
+  if (!mapKeys.size) return [];
+
+  return [...scores]
+    .filter((score) => mapKeys.has(beatmapKey(score)))
+    .filter((score) => !effectivePp(score))
+    .filter((score) => score.beatmap?.local_osu_path || score.legacy_score_id || score.id)
+    .sort((a, b) => scoreTime(b) - scoreTime(a))
+    .slice(0, maxScores);
+}
+
 async function handleSearch(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const username = (url.searchParams.get("username") || "").trim();
@@ -1040,7 +1058,14 @@ async function handleSearch(req, res) {
     .filter((score) => !effectivePp(score) && score.beatmap?.local_osu_path)
     .sort((a, b) => compareScores(a, b, "date"))
     .slice(0, 2500);
-  const ppWorkSet = mergeScoreWorkSets(primaryPpWorkSet, currentMonthPpWorkSet, recentLocalPpWorkSet);
+  const preHydrationImprovements = buildImprovements(filteredCandidates, improvementScope, bestMode).slice(0, 50);
+  const improvementPpWorkSet = collectImprovementPpWorkSet(filteredCandidates, preHydrationImprovements);
+  const ppWorkSet = mergeScoreWorkSets(
+    primaryPpWorkSet,
+    currentMonthPpWorkSet,
+    recentLocalPpWorkSet,
+    improvementPpWorkSet
+  );
   const ppCalculationLimit = Math.min(ppWorkSet.length, 2500);
 
   const ppHydration = await hydrateVisiblePp(ppWorkSet, mode);
@@ -1126,6 +1151,7 @@ async function handleSearch(req, res) {
       ppFilled: ppHydration.filled,
       ppCalculated: calculatedHydration.filled,
       ppCalculationAttempted: calculatedHydration.attempted,
+      ppImprovementQueued: improvementPpWorkSet.length,
       ppCalculationWarnings: calculatedHydration.errors,
       source: "sqlite-score-database",
       note:

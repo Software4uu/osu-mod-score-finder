@@ -1261,11 +1261,17 @@ function renderTryHistoryChart(tries, options = {}) {
       `;
     })
     .join("");
-  const latest = ordered[ordered.length - 1];
+  const latestMetricValue = (metric) => {
+    for (let index = ordered.length - 1; index >= 0; index -= 1) {
+      const value = metricValue(metric, ordered[index]);
+      if (metric.hasValue(value)) return value;
+    }
+    return metricValue(metric, ordered[ordered.length - 1]);
+  };
   const legend = metrics
     .map((metric) => `
       <span style="--chart-color: ${metric.color}">
-        <i></i>${escapeHtml(metric.label)} <strong>${escapeHtml(metric.format(metricValue(metric, latest)))}</strong>
+        <i></i>${escapeHtml(metric.label)} <strong>${escapeHtml(metric.format(latestMetricValue(metric)))}</strong>
       </span>
     `)
     .join("");
