@@ -1,12 +1,76 @@
 import { readFile } from "node:fs/promises";
 
+const rosuPackageUrl = new URL("./node_modules/rosu-pp-js/package.json", import.meta.url);
+const rosuRegistryUrl = "https://registry.npmjs.org/rosu-pp-js/latest";
+
 let rosuPromise = null;
+let engineStatusCache = null;
+let engineStatusCheckedAt = 0;
 
 async function loadRosu() {
   if (!rosuPromise) {
     rosuPromise = import("rosu-pp-js").catch(() => null);
   }
   return rosuPromise;
+}
+
+function compareVersion(a, b) {
+  const left = String(a || "0").split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const right = String(b || "0").split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const length = Math.max(left.length, right.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const diff = (left[index] || 0) - (right[index] || 0);
+    if (diff !== 0) return diff;
+  }
+
+  return 0;
+}
+
+async function installedRosuVersion() {
+  try {
+    const raw = await readFile(rosuPackageUrl, "utf8");
+    return JSON.parse(raw).version || null;
+  } catch {
+    return null;
+  }
+}
+
+async function latestRosuVersion() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4_000);
+
+  try {
+    const response = await fetch(rosuRegistryUrl, {
+      signal: controller.signal,
+      headers: { accept: "application/json" },
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.version || null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function ppEngineStatus() {
+  const now = Date.now();
+  if (engineStatusCache && now - engineStatusCheckedAt < 60 * 60 * 1000) return engineStatusCache;
+
+  const installedVersion = await installedRosuVersion();
+  const latestVersion = await latestRosuVersion();
+  const outdated = Boolean(installedVersion && latestVersion && compareVersion(installedVersion, latestVersion) < 0);
+
+  engineStatusCache = {
+    name: "rosu-pp-js",
+    installedVersion,
+    latestVersion,
+    outdated,
+  };
+  engineStatusCheckedAt = now;
+  return engineStatusCache;
 }
 
 function missCount(score) {
@@ -117,9 +181,10 @@ async function calculateScorePp(score, mode, rosu) {
 }
 
 export async function hydrateCalculatedPp(scores, mode, options = {}) {
+  const engine = await ppEngineStatus();
   const rosu = await loadRosu();
   if (!rosu) {
-    return { attempted: 0, filled: 0, unavailable: true, errors: ["rosu-pp-js ist nicht installiert."] };
+    return { attempted: 0, filled: 0, unavailable: true, errors: ["rosu-pp-js ist nicht installiert."], engine };
   }
 
   const max = options.max ?? 250;
@@ -128,6 +193,12 @@ export async function hydrateCalculatedPp(scores, mode, options = {}) {
   let filled = 0;
   const errors = [];
   const onProgress = typeof options.onProgress === "function" ? options.onProgress : null;
+
+  if (engine.outdated) {
+    errors.push(
+      `PP-Engine veraltet: rosu-pp-js ${engine.installedVersion} installiert, ${engine.latestVersion} ist aktuell. Starte setup-beta.bat oder start-beta.bat neu, damit die aktuelle Rework-Berechnung installiert wird.`
+    );
+  }
 
   for (const score of scores) {
     if (attempted >= max) break;
@@ -146,7 +217,7 @@ export async function hydrateCalculatedPp(scores, mode, options = {}) {
       score.pp = calculated;
       score.calculated_pp = calculated;
       score.pp_source = "rosu-current";
-      score.pp_algorithm = "rosu-pp-js";
+      score.pp_algorithm = `rosu-pp-js@${engine.installedVersion || "unknown"}`;
       filled += 1;
     } catch (error) {
       if (errors.length < 5) errors.push(error.message || String(error));
@@ -154,5 +225,5 @@ export async function hydrateCalculatedPp(scores, mode, options = {}) {
     onProgress?.({ attempted, filled });
   }
 
-  return { attempted, filled, unavailable: false, errors };
+  return { attempted, filled, unavailable: false, errors, engine };
 }

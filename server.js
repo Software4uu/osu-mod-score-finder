@@ -1270,6 +1270,7 @@ async function handleSearch(req, res) {
       ppDisplayedQueued: visiblePpWorkSet.length,
       ppDisplayedCalculated: visibleCalculatedHydration.filled,
       ppBackfillUntil,
+      ppEngine: calculatedHydration.engine || visibleCalculatedHydration.engine || null,
       ppCalculationWarnings: [...calculatedHydration.errors, ...visibleCalculatedHydration.errors],
       source: "sqlite-score-database",
       note:
@@ -1395,6 +1396,7 @@ async function handleBackfillMonth(req, res) {
       ppFilled: ppHydration.filled,
       ppCalculated: calculatedHydration.filled,
       ppCalculationAttempted: calculatedHydration.attempted,
+      ppEngine: calculatedHydration.engine || null,
       ppCalculationWarnings: calculatedHydration.errors,
       localImported: localImport.scores.length,
       localImportSources: localImport.sources,

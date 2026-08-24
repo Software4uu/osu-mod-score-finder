@@ -51,6 +51,7 @@ http://localhost:5173/callback
 - Switch the UI language directly between German and English in the top right
 - Store scores locally in SQLite so results do not always need to be fetched online again
 - Show PP from the API, pp.huismetbenen, or local recalculation
+- Local PP recalculation uses `rosu-pp-js`; setup/start try to refresh it to `latest`, and the UI shows the PP engine version used
 - Optionally show only the best try for each map/difficulty
 - Display PP rank windows such as `1` to `100`
 - Improvement view for the latest try, the last hour, or today
@@ -129,6 +130,7 @@ http://localhost:5173/callback
 - UI-Sprache direkt oben rechts zwischen Deutsch und Englisch wechseln
 - Scores lokal in SQLite speichern, damit später nicht erneut alles online erreichbar sein muss
 - PP aus API, pp.huismetbenen oder lokal neu berechnet anzeigen
+- Lokale PP-Neuberechnung nutzt `rosu-pp-js`; Setup/Start versuchen diese Engine auf `latest` zu aktualisieren, und die UI zeigt die genutzte PP-Engine-Version
 - Optional nur den besten Try pro Map/Difficulty anzeigen
 - PP-Rangfenster wie `1` bis `100` anzeigen
 - Improvement-Ansicht für letzten Try, letzte Stunde oder heute

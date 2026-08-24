@@ -95,6 +95,8 @@ if "!PORT_BLOCKED!"=="1" (
   exit /b 1
 )
 
+call :UpdatePpEngine
+
 start "" "!APP_URL!"
 node --no-warnings server.js
 set "SERVER_EXIT=%ERRORLEVEL%"
@@ -144,4 +146,25 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $r = Invoke-WebReq
 set "APP_STATUS=%ERRORLEVEL%"
 if "!APP_STATUS!"=="0" set "APP_ALREADY_RUNNING=1"
 if "!APP_STATUS!"=="2" set "PORT_BLOCKED=1"
+exit /b 0
+
+:UpdatePpEngine
+where npm >nul 2>nul
+if errorlevel 1 exit /b 0
+if /I "!SETUP_LANG!"=="en" (
+  echo Checking latest PP calculation engine...
+  echo [%DATE% %TIME%] PP engine update check: npm install rosu-pp-js@latest --no-save --no-audit --no-fund --prefer-online>>"%~dp0setup.log"
+) else (
+  echo Pruefe aktuelle PP-Berechnungs-Engine...
+  echo [%DATE% %TIME%] PP-Engine Update-Pruefung: npm install rosu-pp-js@latest --no-save --no-audit --no-fund --prefer-online>>"%~dp0setup.log"
+)
+call npm install rosu-pp-js@latest --no-save --no-audit --no-fund --prefer-online >>"%~dp0setup.log" 2>&1
+set "PP_ENGINE_EXIT=%ERRORLEVEL%"
+if not "!PP_ENGINE_EXIT!"=="0" (
+  if /I "!SETUP_LANG!"=="en" (
+    echo PP engine update check failed. Continuing with the installed version.
+  ) else (
+    echo PP-Engine Update-Pruefung fehlgeschlagen. Nutze die installierte Version weiter.
+  )
+)
 exit /b 0

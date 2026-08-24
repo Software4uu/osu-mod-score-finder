@@ -184,6 +184,8 @@ const translations = {
     "label.ppAttempted": "bearbeitet",
     "label.ppVisibleReady": "sichtbare Scores geprueft",
     "label.ppBackfillUntil": "stueckweise aufgefuellt bis",
+    "label.ppEngine": "PP-Engine",
+    "label.ppEngineOutdated": "veraltet, aktuell",
     "label.bestPerMap": "beste pro Map",
     "label.multiplePerMap": "mehrere pro Map",
     "label.unknownArtist": "Unbekannter Artist",
@@ -381,6 +383,8 @@ const translations = {
     "label.ppAttempted": "processed",
     "label.ppVisibleReady": "visible scores checked",
     "label.ppBackfillUntil": "chunked backfill reached",
+    "label.ppEngine": "PP engine",
+    "label.ppEngineOutdated": "outdated, latest",
     "label.bestPerMap": "best per map",
     "label.multiplePerMap": "multiple per map",
     "label.unknownArtist": "Unknown artist",
@@ -1201,6 +1205,13 @@ function renderSummary(data) {
   const ppBackfill = data.meta.ppBackfillUntil
     ? ` - ${t("label.ppBackfillUntil")} ${formatDayKey(data.meta.ppBackfillUntil)}`
     : "";
+  const ppEngine = data.meta.ppEngine?.installedVersion
+    ? ` - ${t("label.ppEngine")} ${data.meta.ppEngine.name || "rosu-pp-js"} ${data.meta.ppEngine.installedVersion}${
+        data.meta.ppEngine.outdated && data.meta.ppEngine.latestVersion
+          ? ` (${t("label.ppEngineOutdated")} ${data.meta.ppEngine.latestVersion})`
+          : ""
+      }`
+    : "";
 
   summary.classList.remove("hidden");
   summary.innerHTML = `
@@ -1219,7 +1230,7 @@ function renderSummary(data) {
       ${formatNumber(data.meta.ppFilled || 0)} ${t("label.ppFilled")} -
       ${formatNumber(data.meta.ppCalculated || 0)} ${t("label.ppCalculated")} -
       ${formatNumber(data.meta.ppCalculationAttempted || 0)} ${t("label.ppAttempted")} -
-      ${formatNumber(data.meta.ppDisplayedQueued || 0)} ${t("label.ppVisibleReady")}${ppBackfill} -
+      ${formatNumber(data.meta.ppDisplayedQueued || 0)} ${t("label.ppVisibleReady")}${ppBackfill}${ppEngine} -
       ${data.meta.bestPerMap ? `${t("label.bestPerMap")} (${data.meta.bestMode || "score"})` : t("label.multiplePerMap")} -
       ${data.meta.selectedMods.length ? data.meta.selectedMods.join("+") : t("label.allMods")}
     </div>

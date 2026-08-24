@@ -85,6 +85,7 @@ $SetupTexts = @{
     "process.node" = "Node.js Installation"
     "process.deps" = "Projekt-Abhaengigkeiten"
     "process.depsFallback" = "Projekt-Abhaengigkeiten Fallback"
+    "process.ppEngine" = "Aktuelle PP-Berechnungs-Engine"
     "log.started" = "Setup gestartet."
     "log.success" = "Setup erfolgreich abgeschlossen."
     "log.startFlag" = "App-Start nach Setup wurde fuer setup-beta.bat vorgemerkt."
@@ -155,6 +156,7 @@ $SetupTexts = @{
     "process.node" = "Node.js installation"
     "process.deps" = "Project dependencies"
     "process.depsFallback" = "Project dependencies fallback"
+    "process.ppEngine" = "Latest PP calculation engine"
     "log.started" = "Setup started."
     "log.success" = "Setup completed successfully."
     "log.startFlag" = "App start after setup was queued for setup-beta.bat."
@@ -760,6 +762,12 @@ $saveButton.Add_Click({
         if ($installError) {
           Write-SetupLog (T "log.depsContinue")
           $status.Text = T "status.depsPresent"
+        }
+
+        try {
+          Run-CheckedProcess "npm" "install rosu-pp-js@latest --no-save --no-audit --no-fund --prefer-online" $Root (T "process.ppEngine")
+        } catch {
+          Write-SetupLog $_.Exception.Message
         }
       }
     }
