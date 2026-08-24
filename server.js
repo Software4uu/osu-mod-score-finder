@@ -997,10 +997,10 @@ async function osuFetch(pathname, params = {}, state = {}) {
   return payload;
 }
 
-async function getUserByName(username, mode) {
+async function getUserByName(username, mode, state = {}) {
   return osuFetch(`/users/${encodeURIComponent(username)}/${mode}`, {
     key: "username",
-  });
+  }, state);
 }
 
 async function getUserScores(userId, options) {
@@ -1081,23 +1081,37 @@ async function runStartupSync() {
       stageStartedAt: startedAt,
     });
 
+    let syncUser = stored.user;
     let fetchedScores = [];
     let apiWarning = null;
-    if (Number.isFinite(Number(stored.user.id))) {
+    const onRateLimit = (delay) => {
+      updateStartupSync({
+        stage: "rate_limited",
+        waitUntil: new Date(Date.now() + delay).toISOString(),
+      });
+    };
+
+    if (!Number.isFinite(Number(syncUser.id))) {
       try {
-        fetchedScores = await getUserScores(stored.user.id, {
+        syncUser = await getUserByName(stored.user.username, stored.mode, {
+          priority: 0,
+          onRateLimit,
+        });
+      } catch (error) {
+        apiWarning = error.message || String(error);
+      }
+    }
+
+    if (Number.isFinite(Number(syncUser.id))) {
+      try {
+        fetchedScores = await getUserScores(syncUser.id, {
           mode: stored.mode,
           type: "recent",
           pages: 20,
           includeLazer: true,
           passesOnly: true,
           priority: 0,
-          onRateLimit: (delay) => {
-            updateStartupSync({
-              stage: "rate_limited",
-              waitUntil: new Date(Date.now() + delay).toISOString(),
-            });
-          },
+          onRateLimit,
           onPage: ({ page, count, complete }) => {
             updateStartupSync({
               stage: "online",
@@ -1112,7 +1126,9 @@ async function runStartupSync() {
         apiWarning = error.message || String(error);
       }
     } else {
-      apiWarning = "Fuer diesen lokal gespeicherten Spieler ist keine Online-ID bekannt.";
+      if (!apiWarning) {
+        apiWarning = "Fuer diesen lokal gespeicherten Spieler konnte keine Online-ID ermittelt werden.";
+      }
       updateStartupSync({ apiPagesTotal: 0 });
     }
 
@@ -1124,13 +1140,13 @@ async function runStartupSync() {
       waitUntil: null,
     });
     const localImport = await importLocalScores({
-      username: stored.user.username,
-      userId: stored.user.id,
+      username: syncUser.username || stored.user.username,
+      userId: syncUser.id || stored.user.id,
       mode: stored.mode,
     });
     updateStartupSync({ localScoresSeen: localImport.scores.length });
 
-    const history = await upsertHistory(stored.user, stored.mode, [
+    const history = await upsertHistory(syncUser, stored.mode, [
       ...fetchedScores,
       ...localImport.scores,
     ]);
@@ -1159,7 +1175,7 @@ async function runStartupSync() {
         },
       });
       if (calculated.filled > 0) {
-        updateStoredScores(stored.user, stored.mode, ppCandidates);
+        updateStoredScores(syncUser, stored.mode, ppCandidates);
       }
     }
 
