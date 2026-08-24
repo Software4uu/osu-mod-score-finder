@@ -1,6 +1,7 @@
 const form = document.querySelector("#searchForm");
 const apiStatus = document.querySelector("#apiStatus");
 const liveStatus = document.querySelector("#liveStatus");
+const updateStatus = document.querySelector("#updateStatus");
 const results = document.querySelector("#results");
 const passes = document.querySelector("#passes");
 const improvements = document.querySelector("#improvements");
@@ -30,6 +31,7 @@ let liveScanBusy = false;
 let ppProgressTimer = null;
 let activePpProgressJob = "";
 let calendarLoadingMonth = "";
+let latestUpdateInfo = null;
 
 const modNames = {
   NM: "No Mod",
@@ -124,6 +126,14 @@ const translations = {
     "status.liveNoChanges": "Live aktuell",
     "status.liveStopped": "Live aus",
     "status.liveError": "Live Fehler",
+    "update.checking": "Update pruefen",
+    "update.current": "Aktuell",
+    "update.available": "Update verfuegbar",
+    "update.error": "Update Fehler",
+    "update.installing": "Updater startet",
+    "update.started": "Updater geoeffnet",
+    "update.confirm": "Neue Version verfuegbar: {current} -> {latest}. Update jetzt starten? .env, Datenbank und lokale Score-Daten bleiben erhalten. Nach dem Update bitte die App neu starten.",
+    "update.none": "Du nutzt bereits die aktuelle Version.",
     "aria.mods": "Mods auswaehlen",
     "aria.view": "Ansicht",
     "help.currentSelection": "Aktuelle Auswahl",
@@ -323,6 +333,14 @@ const translations = {
     "status.liveNoChanges": "Live current",
     "status.liveStopped": "Live off",
     "status.liveError": "Live error",
+    "update.checking": "Check update",
+    "update.current": "Up to date",
+    "update.available": "Update available",
+    "update.error": "Update error",
+    "update.installing": "Starting updater",
+    "update.started": "Updater opened",
+    "update.confirm": "New version available: {current} -> {latest}. Start the update now? .env, database, and local score data will be kept. Restart the app after the update.",
+    "update.none": "You are already on the latest version.",
     "aria.mods": "Select mods",
     "aria.view": "View",
     "help.currentSelection": "Current selection",
@@ -1085,6 +1103,66 @@ async function checkStatus() {
   } catch {
     apiStatus.className = "status-pill missing";
     apiStatus.textContent = t("status.offline");
+  }
+}
+
+function setUpdateStatus(key, className = "", title = "") {
+  if (!updateStatus) return;
+  updateStatus.className = `status-pill update-pill ${className}`.trim();
+  updateStatus.textContent = t(key);
+  updateStatus.title = title;
+}
+
+async function checkForUpdates() {
+  if (!updateStatus) return;
+  setUpdateStatus("update.checking", "checking");
+
+  try {
+    const response = await fetch("/api/update-check");
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || t("update.error"));
+
+    latestUpdateInfo = data;
+    if (data.updateAvailable) {
+      const title = `${data.currentVersion || "-"} -> ${data.latestVersion || "-"}`;
+      setUpdateStatus("update.available", "available", title);
+    } else {
+      setUpdateStatus("update.current", "ready", data.repo || "");
+    }
+  } catch (error) {
+    latestUpdateInfo = null;
+    setUpdateStatus("update.error", "missing", error.message || t("update.error"));
+  }
+}
+
+async function startUpdate() {
+  if (!updateStatus) return;
+  if (!latestUpdateInfo) {
+    await checkForUpdates();
+  }
+
+  if (!latestUpdateInfo?.updateAvailable) {
+    updateStatus.title = t("update.none");
+    return;
+  }
+
+  const confirmed = window.confirm(
+    t("update.confirm", {
+      current: latestUpdateInfo.currentVersion || "-",
+      latest: latestUpdateInfo.latestVersion || "-",
+    }),
+  );
+  if (!confirmed) return;
+
+  setUpdateStatus("update.installing", "checking");
+
+  try {
+    const response = await fetch("/api/update-start", { method: "POST" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || t("update.error"));
+    setUpdateStatus("update.started", "available", data.logPath || "");
+  } catch (error) {
+    setUpdateStatus("update.error", "missing", error.message || t("update.error"));
   }
 }
 
@@ -2209,7 +2287,10 @@ languageSelect?.addEventListener("change", () => {
   storeLanguage(languageSelect.value);
   applyLanguage(languageSelect.value);
   checkStatus();
+  checkForUpdates();
 });
+
+updateStatus?.addEventListener("click", startUpdate);
 
 document.querySelector("#liveScanner")?.addEventListener("change", () => {
   if (document.querySelector("#liveScanner").checked) startLiveScanner();
@@ -2221,3 +2302,4 @@ form.addEventListener("submit", runSearch);
 initHelp();
 applyLanguage(currentLanguage, { rerender: false });
 checkStatus();
+checkForUpdates();

@@ -1,4 +1,5 @@
 import http from "node:http";
+import { spawn } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -21,6 +22,13 @@ const osuApiBase = "https://osu.ppy.sh/api/v2";
 const tokenUrl = "https://osu.ppy.sh/oauth/token";
 const huisApiBase = "https://api.pp.huismetbenen.nl";
 const huisLiveReworkId = 1;
+const githubOwner = "Software4uu";
+const githubRepo = "osu-mod-score-finder";
+const githubRepoUrl = `https://github.com/${githubOwner}/${githubRepo}`;
+const githubApiBase = `https://api.github.com/repos/${githubOwner}/${githubRepo}`;
+const githubRawPackageUrl = `https://raw.githubusercontent.com/${githubOwner}/${githubRepo}/main/package.json`;
+const updaterBatPath = path.join(__dirname, "update-beta.bat");
+const updateLogPath = path.join(dataDir, "update.log");
 
 loadDotEnv();
 
@@ -156,6 +164,98 @@ function json(res, status, data) {
 function text(res, status, body) {
   res.writeHead(status, { "content-type": "text/plain; charset=utf-8" });
   res.end(body);
+}
+
+function statusError(status, message, details = null) {
+  const error = new Error(message);
+  error.status = status;
+  error.details = details;
+  return error;
+}
+
+function normalizeVersion(value) {
+  return String(value || "0.0.0")
+    .trim()
+    .replace(/^v/i, "")
+    .split(/[+-]/)[0];
+}
+
+function compareVersions(a, b) {
+  const left = normalizeVersion(a).split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const right = normalizeVersion(b).split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const max = Math.max(left.length, right.length, 3);
+
+  for (let index = 0; index < max; index += 1) {
+    const diff = (left[index] || 0) - (right[index] || 0);
+    if (diff !== 0) return diff > 0 ? 1 : -1;
+  }
+
+  return 0;
+}
+
+async function readPackageInfo() {
+  try {
+    return JSON.parse(await readFile(path.join(__dirname, "package.json"), "utf8"));
+  } catch {
+    return { version: "0.0.0" };
+  }
+}
+
+async function githubJson(url) {
+  const response = await fetch(url, {
+    headers: {
+      accept: "application/vnd.github+json",
+      "user-agent": "osu-mod-score-finder-beta",
+    },
+    signal: AbortSignal.timeout(7000),
+  });
+
+  if (!response.ok) {
+    throw statusError(response.status, `GitHub returned ${response.status}`);
+  }
+
+  return response.json();
+}
+
+async function resolveGitDir() {
+  const dotGit = path.join(__dirname, ".git");
+  const gitHead = path.join(dotGit, "HEAD");
+  if (existsSync(gitHead)) return dotGit;
+
+  try {
+    const pointer = await readFile(dotGit, "utf8");
+    const match = pointer.match(/^gitdir:\s*(.+)$/im);
+    if (!match) return null;
+    return path.resolve(__dirname, match[1].trim());
+  } catch {
+    return null;
+  }
+}
+
+async function readLocalGitHead() {
+  const gitDir = await resolveGitDir();
+  if (!gitDir) return null;
+
+  try {
+    const head = (await readFile(path.join(gitDir, "HEAD"), "utf8")).trim();
+    if (!head.startsWith("ref:")) return head;
+
+    const ref = head.replace(/^ref:\s*/, "").trim();
+    const refPath = path.join(gitDir, ...ref.split("/"));
+    if (existsSync(refPath)) return (await readFile(refPath, "utf8")).trim();
+
+    const packedRefs = await readFile(path.join(gitDir, "packed-refs"), "utf8");
+    const packedLine = packedRefs
+      .split(/\r?\n/)
+      .find((line) => line.endsWith(` ${ref}`));
+    return packedLine ? packedLine.split(" ")[0] : null;
+  } catch {
+    return null;
+  }
+}
+
+function psQuote(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
 }
 
 function clampNumber(value, fallback, min, max) {
@@ -1447,6 +1547,105 @@ async function handleLiveScan(req, res) {
   });
 }
 
+async function handleUpdateCheck(req, res) {
+  if (req.method !== "GET") {
+    throw statusError(405, "Method not allowed");
+  }
+
+  const localPackage = await readPackageInfo();
+  const currentVersion = normalizeVersion(localPackage.version);
+  const currentCommit = await readLocalGitHead();
+  const checks = [];
+  let latestPackage = null;
+  let latestCommit = null;
+  let latestRelease = null;
+
+  try {
+    latestPackage = await githubJson(githubRawPackageUrl);
+    checks.push("package");
+  } catch (error) {
+    checks.push(`package-failed:${error.status || "network"}`);
+  }
+
+  try {
+    latestCommit = await githubJson(`${githubApiBase}/commits/main`);
+    checks.push("commit");
+  } catch (error) {
+    checks.push(`commit-failed:${error.status || "network"}`);
+  }
+
+  try {
+    latestRelease = await githubJson(`${githubApiBase}/releases/latest`);
+    checks.push("release");
+  } catch (error) {
+    checks.push(`release-failed:${error.status || "none"}`);
+  }
+
+  if (!latestPackage && !latestCommit && !latestRelease) {
+    throw statusError(502, "Could not reach GitHub update information.", checks);
+  }
+
+  const latestVersion = normalizeVersion(
+    latestRelease?.tag_name || latestPackage?.version || currentVersion,
+  );
+  const versionComparison = compareVersions(latestVersion, currentVersion);
+  const versionIsNewer = versionComparison > 0;
+  const commitIsNewer = Boolean(
+    versionComparison === 0 &&
+      currentCommit &&
+      latestCommit?.sha &&
+      latestCommit.sha.slice(0, 12) !== currentCommit.slice(0, 12),
+  );
+
+  return json(res, 200, {
+    repo: githubRepoUrl,
+    currentVersion,
+    latestVersion,
+    currentCommit,
+    latestCommit: latestCommit?.sha || null,
+    updateAvailable: versionIsNewer || commitIsNewer,
+    canAutoUpdate: existsSync(updaterBatPath),
+    source: latestRelease ? "release" : "main",
+    htmlUrl: latestRelease?.html_url || latestCommit?.html_url || githubRepoUrl,
+    checks,
+  });
+}
+
+async function handleUpdateStart(req, res) {
+  if (req.method !== "POST") {
+    throw statusError(405, "Method not allowed");
+  }
+
+  if (!existsSync(updaterBatPath)) {
+    throw statusError(404, "Updater script was not found.");
+  }
+
+  if (process.platform !== "win32") {
+    throw statusError(400, "Automatic updates are currently available on Windows only.");
+  }
+
+  await mkdir(dataDir, { recursive: true });
+
+  const command = `Start-Process -FilePath ${psQuote(updaterBatPath)} -WorkingDirectory ${psQuote(__dirname)}`;
+  const child = spawn(
+    "powershell.exe",
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+    {
+      cwd: __dirname,
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    },
+  );
+  child.unref();
+
+  return json(res, 202, {
+    started: true,
+    logPath: updateLogPath,
+    message: "Updater started. Restart the app after the update window finishes.",
+  });
+}
+
 async function serveStatic(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = decodeURIComponent(url.pathname);
@@ -1482,6 +1681,14 @@ const server = http.createServer(async (req, res) => {
         port,
         database: storeStats,
       });
+    }
+
+    if (url.pathname === "/api/update-check") {
+      return await handleUpdateCheck(req, res);
+    }
+
+    if (url.pathname === "/api/update-start") {
+      return await handleUpdateStart(req, res);
     }
 
     if (url.pathname === "/api/search") {

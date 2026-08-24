@@ -112,6 +112,18 @@
       <pre><code>start-beta.bat</code></pre>
       <p>Danach oeffnet die App unter <a href="http://127.0.0.1:5173">http://127.0.0.1:5173</a>.</p>
 
+      <h2>Updates</h2>
+      <p>
+        Die App prueft GitHub auf eine neuere Version und zeigt den Status oben rechts an.
+        Wenn <strong>Update verfuegbar</strong> erscheint, kann der lokale Updater gestartet werden.
+      </p>
+      <ul>
+        <li>Git-Clones werden mit <code>git pull --ff-only origin main</code> aktualisiert.</li>
+        <li>GitHub-ZIP-Downloads werden ueber das neueste ZIP aktualisiert.</li>
+        <li><code>.env</code>, <code>data/</code>, <code>node_modules/</code>, Logs und lokale osu!-Ordner bleiben erhalten.</li>
+        <li>Nach einem Update die laufende App schliessen und <code>start-beta.bat</code> erneut starten.</li>
+      </ul>
+
       <h2>Wichtige Filter</h2>
       <ul>
         <li><strong>Scan-Seiten:</strong> wie viele Recent-Seiten aus der osu!api neu gesammelt werden.</li>

@@ -59,6 +59,7 @@ http://localhost:5173/callback
 - Calendar tab with a month grid, played days, and all stored scores for a selected day
 - Calendar PP range filter plus orange highlight for the day with the month's top PP play
 - Map detail view with all stored tries on the same map difficulty
+- Built-in GitHub update check that can start the local updater without touching `.env`, `data/`, local score databases, or osu! folders
 
 ## Start
 
@@ -76,6 +77,20 @@ npm start
 Then open:
 
 http://127.0.0.1:5173
+
+## Updates
+
+The app checks the GitHub repository for a newer version and shows the result in the top-right status area.
+
+- `Up to date` means the local version matches the newest known GitHub version.
+- `Update available` means the version on GitHub is newer. Click the update pill to start `update-beta.bat`.
+- If the folder is a Git clone, the updater uses `git pull --ff-only origin main`.
+- If the folder is a downloaded GitHub ZIP, the updater downloads the newest ZIP and copies only project files.
+- Local files are preserved: `.env`, `data/`, `node_modules/`, `.npm-cache`, logs, and local osu! folders are not uploaded or overwritten.
+
+After the update window finishes, close the running app window and start `start-beta.bat` again.
+
+For future releases, increase the `version` in `package.json`. This is what ZIP users rely on for reliable update detection.
 
 ---
 
@@ -138,6 +153,7 @@ http://localhost:5173/callback
 - Kalender-Tab mit Monatsraster, gespielten Tagen und allen gespeicherten Scores eines Tages
 - Kalender-PP-Range-Filter plus orange Markierung fuer den Tag mit dem Top-PP-Play des Monats
 - Map-Detailansicht mit allen gespeicherten Tries auf derselben Difficulty
+- Eingebauter GitHub-Update-Check, der den lokalen Updater starten kann, ohne `.env`, `data/`, lokale Score-Datenbanken oder osu!-Ordner anzufassen
 
 ## Starten
 
@@ -155,3 +171,17 @@ npm start
 Danach öffnen:
 
 http://127.0.0.1:5173
+
+## Updates
+
+Die App prueft das GitHub-Repository auf eine neuere Version und zeigt das Ergebnis oben rechts im Statusbereich.
+
+- `Aktuell` bedeutet: deine lokale Version entspricht der neuesten bekannten GitHub-Version.
+- `Update verfuegbar` bedeutet: auf GitHub liegt eine neuere Version. Klicke auf den Update-Status, um `update-beta.bat` zu starten.
+- Wenn der Ordner ein Git-Clone ist, nutzt der Updater `git pull --ff-only origin main`.
+- Wenn der Ordner ein heruntergeladenes GitHub-ZIP ist, laedt der Updater das neueste ZIP herunter und kopiert nur Projektdateien.
+- Lokale Dateien bleiben erhalten: `.env`, `data/`, `node_modules/`, `.npm-cache`, Logs und lokale osu!-Ordner werden nicht hochgeladen und nicht ueberschrieben.
+
+Wenn das Update-Fenster fertig ist, schliesse das laufende App-Fenster und starte `start-beta.bat` erneut.
+
+Fuer neue Releases sollte die `version` in `package.json` erhoeht werden. Darauf verlassen sich ZIP-Nutzer fuer eine saubere Update-Erkennung.

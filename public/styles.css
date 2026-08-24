@@ -63,6 +63,7 @@ button {
   flex: 0 0 auto;
   align-items: flex-end;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -110,6 +111,27 @@ h1 {
 
 .status-pill.missing {
   border-color: rgba(255, 209, 102, 0.55);
+  color: var(--yellow);
+}
+
+.update-pill {
+  min-width: 124px;
+  text-align: center;
+}
+
+.update-pill.ready {
+  border-color: rgba(104, 216, 255, 0.35);
+  color: var(--cyan);
+}
+
+.update-pill.available {
+  border-color: rgba(255, 102, 170, 0.75);
+  color: var(--pink);
+  box-shadow: 0 0 0 1px rgba(255, 102, 170, 0.16) inset;
+}
+
+.update-pill.checking {
+  border-color: rgba(255, 209, 102, 0.5);
   color: var(--yellow);
 }
 
