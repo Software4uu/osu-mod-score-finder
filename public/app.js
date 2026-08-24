@@ -2,6 +2,7 @@ const form = document.querySelector("#searchForm");
 const apiStatus = document.querySelector("#apiStatus");
 const liveStatus = document.querySelector("#liveStatus");
 const results = document.querySelector("#results");
+const passes = document.querySelector("#passes");
 const improvements = document.querySelector("#improvements");
 const calendar = document.querySelector("#calendar");
 const detailsPanel = document.querySelector("#detailsPanel");
@@ -22,8 +23,13 @@ let currentCalendarDay = "";
 let currentCalendarMonth = "";
 let calendarPpMin = "";
 let calendarPpMax = "";
+let passStarMin = "6.54";
+let passStarMax = "7";
 let liveTimer = null;
 let liveScanBusy = false;
+let ppProgressTimer = null;
+let activePpProgressJob = "";
+let calendarLoadingMonth = "";
 
 const modNames = {
   NM: "No Mod",
@@ -70,6 +76,7 @@ const translations = {
     "field.improvement": "Improvement",
     "field.mods": "Mods",
     "tab.scores": "Scores",
+    "tab.passes": "Passes",
     "tab.improvements": "Improvement",
     "tab.calendar": "Kalender",
     "placeholder.username": "z. B. WhiteCat",
@@ -172,6 +179,11 @@ const translations = {
     "label.local": "lokal",
     "label.ppFilled": "PP ergaenzt",
     "label.ppCalculated": "PP berechnet",
+    "label.ppStatus": "PP-Status",
+    "label.ppQueued": "PP-Warteschlange",
+    "label.ppAttempted": "bearbeitet",
+    "label.ppVisibleReady": "sichtbare Scores geprueft",
+    "label.ppBackfillUntil": "stueckweise aufgefuellt bis",
     "label.bestPerMap": "beste pro Map",
     "label.multiplePerMap": "mehrere pro Map",
     "label.unknownArtist": "Unbekannter Artist",
@@ -205,6 +217,15 @@ const translations = {
     "label.calendarPpFilter": "Kalender PP-Range",
     "label.calendarMinPp": "Min PP",
     "label.calendarMaxPp": "Max PP",
+    "label.passesTitle": "Passes nach Sternen",
+    "label.passStarFilter": "Sterne-Range",
+    "label.minStars": "Min Sterne",
+    "label.maxStars": "Max Sterne",
+    "label.totalPasses": "Passes insgesamt",
+    "label.shownPasses": "angezeigt",
+    "label.bestPassPp": "Beste PP",
+    "label.highestStars": "Hoechste Sterne",
+    "label.averageStars": "Durchschnitts-Sterne",
     "label.playedDay": "gespielt",
     "label.monthTopPlay": "Top-Play des Monats",
     "label.noScoresDay": "keine Scores",
@@ -225,7 +246,11 @@ const translations = {
     "empty.noCalendar": "Noch keine gespeicherten Spieltage fuer diese Filter.",
     "empty.noDayScores": "An diesem Tag sind fuer diese Filter keine Scores gespeichert.",
     "empty.noMapDetails": "Fuer diese Difficulty wurden in der aktuellen Suche keine weiteren Tries gefunden.",
+    "empty.noStarPasses": "Keine Passes in dieser Sterne-Range gefunden.",
     "loading.search": "Passes werden geladen und in der lokalen Datenbank gespeichert.",
+    "loading.ppProgress": "PP wird nachberechnet: {done} von {total}",
+    "loading.ppStarting": "PP-Nachberechnung wird vorbereitet...",
+    "loading.calendarPp": "Kalender-Monat wird nachberechnet...",
     "error.searchFailed": "Suche fehlgeschlagen.",
   },
   en: {
@@ -247,6 +272,7 @@ const translations = {
     "field.improvement": "Improvement",
     "field.mods": "Mods",
     "tab.scores": "Scores",
+    "tab.passes": "Passes",
     "tab.improvements": "Improvement",
     "tab.calendar": "Calendar",
     "placeholder.username": "e.g. WhiteCat",
@@ -349,6 +375,11 @@ const translations = {
     "label.local": "local",
     "label.ppFilled": "PP filled",
     "label.ppCalculated": "PP calculated",
+    "label.ppStatus": "PP status",
+    "label.ppQueued": "PP queue",
+    "label.ppAttempted": "processed",
+    "label.ppVisibleReady": "visible scores checked",
+    "label.ppBackfillUntil": "chunked backfill reached",
     "label.bestPerMap": "best per map",
     "label.multiplePerMap": "multiple per map",
     "label.unknownArtist": "Unknown artist",
@@ -382,6 +413,15 @@ const translations = {
     "label.calendarPpFilter": "Calendar PP range",
     "label.calendarMinPp": "Min PP",
     "label.calendarMaxPp": "Max PP",
+    "label.passesTitle": "Passes by stars",
+    "label.passStarFilter": "Star range",
+    "label.minStars": "Min stars",
+    "label.maxStars": "Max stars",
+    "label.totalPasses": "total passes",
+    "label.shownPasses": "shown",
+    "label.bestPassPp": "Best PP",
+    "label.highestStars": "Highest stars",
+    "label.averageStars": "Average stars",
     "label.playedDay": "played",
     "label.monthTopPlay": "Top play of the month",
     "label.noScoresDay": "no scores",
@@ -402,7 +442,11 @@ const translations = {
     "empty.noCalendar": "No stored play days for these filters yet.",
     "empty.noDayScores": "No scores are stored for these filters on this day.",
     "empty.noMapDetails": "No other tries for this difficulty were found in the current search.",
+    "empty.noStarPasses": "No passes found in this star range.",
     "loading.search": "Loading passes and storing them in the local database.",
+    "loading.ppProgress": "Recalculating PP: {done} of {total}",
+    "loading.ppStarting": "Preparing PP recalculation...",
+    "loading.calendarPp": "Recalculating this calendar month...",
     "error.searchFailed": "Search failed.",
   },
 };
@@ -451,6 +495,10 @@ function formatNumber(value) {
 
 function formatPp(value) {
   return value ? `${Number(value).toFixed(2)}pp` : t("label.ppMissing");
+}
+
+function formatStars(value) {
+  return Number(value || 0) > 0 ? `${Number(value).toFixed(2)}*` : "-";
 }
 
 function formatAccuracy(value) {
@@ -609,32 +657,11 @@ function scoreAttemptPpKey(score) {
 }
 
 function enrichScoresWithMatchedPp(scores) {
-  const ppByAttempt = new Map();
-
-  for (const score of scores) {
-    const pp = scorePpValue(score);
-    const key = scoreAttemptPpKey(score);
-    if (pp > 0 && key && !ppByAttempt.has(key)) {
-      ppByAttempt.set(key, pp);
-    }
-  }
-
-  return scores.map((score) => {
-    if (scorePpValue(score) > 0) return score;
-    const pp = ppByAttempt.get(scoreAttemptPpKey(score));
-    if (!pp) return score;
-    return {
-      ...score,
-      calculated_pp: pp,
-      pp_source: score.pp_source || "matched-local",
-    };
-  });
+  return scores;
 }
 
 function enrichScoreFromMatches(score, matchedScores) {
-  if (!score || scorePpValue(score) > 0) return score;
-  const key = scoreAttemptPpKey(score);
-  return matchedScores.find((candidate) => scoreAttemptPpKey(candidate) === key && scorePpValue(candidate) > 0) || score;
+  return score;
 }
 
 function accuracyPercentValue(score) {
@@ -654,9 +681,13 @@ function mapDomKey(score) {
   );
 }
 
-function allCalendarScores() {
-  const scoresByDay = lastSearchData?.calendar?.scoresByDay || {};
+function allScoresFromData(data) {
+  const scoresByDay = data?.calendar?.scoresByDay || {};
   return Object.values(scoresByDay).flat();
+}
+
+function allCalendarScores() {
+  return allScoresFromData(lastSearchData);
 }
 
 function findScoreByDomKey(key) {
@@ -691,6 +722,57 @@ function scoreInCalendarPpRange(score) {
   if (min !== null && value < min) return false;
   if (max !== null && value > max) return false;
   return true;
+}
+
+function beatmapStarValue(score) {
+  const beatmap = score?.beatmap || {};
+  const value = Number(beatmap.difficulty_rating || beatmap.star_rating || beatmap.stars || 0);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function passStarBounds() {
+  const min = passStarMin === "" ? null : Number(passStarMin);
+  const max = passStarMax === "" ? null : Number(passStarMax);
+  const parsedMin = Number.isFinite(min) ? min : null;
+  const parsedMax = Number.isFinite(max) ? max : null;
+
+  if (parsedMin !== null && parsedMax !== null && parsedMin > parsedMax) {
+    return { min: parsedMax, max: parsedMin };
+  }
+
+  return { min: parsedMin, max: parsedMax };
+}
+
+function scoreInPassStarRange(score) {
+  const stars = beatmapStarValue(score);
+  const { min, max } = passStarBounds();
+  if (stars <= 0) return false;
+  if (min !== null && stars < min) return false;
+  if (max !== null && stars > max) return false;
+  return true;
+}
+
+function scoreTimeValue(score) {
+  return Date.parse(score?.ended_at || score?.created_at || "") || 0;
+}
+
+function sortScoresForDisplay(scores, sort = "date") {
+  return [...scores].sort((a, b) => {
+    if (sort === "acc") return Number(b.accuracy || 0) - Number(a.accuracy || 0);
+    if (sort === "score") return Number(b.score || 0) - Number(a.score || 0);
+    if (sort === "pp") return scorePpValue(b) - scorePpValue(a) || scoreTimeValue(b) - scoreTimeValue(a);
+    return scoreTimeValue(b) - scoreTimeValue(a);
+  });
+}
+
+function uniqueScores(scores) {
+  const seen = new Set();
+  return scores.filter((score) => {
+    const key = scoreDomKey(score);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function filteredCalendarScoresByDay(data) {
@@ -948,6 +1030,63 @@ function buildLiveScanParams() {
   return params;
 }
 
+function makeJobId(prefix = "pp") {
+  const random = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${prefix}-${String(random).replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64)}`;
+}
+
+function renderPpProgress(progress = {}, context = "search") {
+  const total = Number(progress.total || 0);
+  const done = Number(progress.attempted || 0);
+  const filled = Number(progress.filled || 0);
+  const percent = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  const title = context === "calendar" ? t("loading.calendarPp") : t("label.ppStatus");
+  const line = total > 0
+    ? t("loading.ppProgress", { done: formatNumber(done), total: formatNumber(total) })
+    : t("loading.ppStarting");
+  const backfill = progress.backfill_until
+    ? `<span>${escapeHtml(t("label.ppBackfillUntil"))}: ${escapeHtml(formatDayKey(progress.backfill_until))}</span>`
+    : "";
+
+  summary.classList.remove("hidden");
+  summary.innerHTML = `
+    <div class="pp-progress-card">
+      <div>
+        <strong>${escapeHtml(title)}</strong>
+        <span>${escapeHtml(line)} - ${formatNumber(filled)} ${escapeHtml(t("label.ppCalculated"))}</span>
+      </div>
+      <div class="pp-progress-bar" aria-hidden="true"><i style="width: ${percent}%"></i></div>
+      <div class="pp-progress-meta">
+        <span>${formatNumber(done)} ${escapeHtml(t("label.ppAttempted"))}</span>
+        ${backfill}
+      </div>
+    </div>
+  `;
+}
+
+function stopPpProgressPolling() {
+  if (ppProgressTimer) clearInterval(ppProgressTimer);
+  ppProgressTimer = null;
+  activePpProgressJob = "";
+}
+
+function startPpProgressPolling(jobId, context = "search") {
+  stopPpProgressPolling();
+  activePpProgressJob = jobId;
+  renderPpProgress({ total: 0, attempted: 0, filled: 0 }, context);
+  ppProgressTimer = setInterval(async () => {
+    try {
+      const response = await fetch(`/api/pp-progress?id=${encodeURIComponent(jobId)}`);
+      const progress = await response.json();
+      if (activePpProgressJob !== jobId) return;
+      renderPpProgress(progress, context);
+      if (progress.status === "done") stopPpProgressPolling();
+    } catch {
+      stopPpProgressPolling();
+    }
+  }, 450);
+}
+
 function emptyMessage(meta) {
   const modText = meta.selectedMods.length ? meta.selectedMods.join("+") : t("label.allMods");
   const rankedText = meta.rankedOnly ? t("label.rankedMaps") : t("label.allMapStatuses");
@@ -971,6 +1110,9 @@ function renderSummary(data) {
   const usernameHtml = profileUrl
     ? `<a href="${escapeHtml(profileUrl)}" target="_blank" rel="noreferrer">${escapeHtml(data.user.username)}</a>`
     : escapeHtml(data.user.username);
+  const ppBackfill = data.meta.ppBackfillUntil
+    ? ` - ${t("label.ppBackfillUntil")} ${formatDayKey(data.meta.ppBackfillUntil)}`
+    : "";
 
   summary.classList.remove("hidden");
   summary.innerHTML = `
@@ -988,6 +1130,8 @@ function renderSummary(data) {
       ${formatNumber(data.meta.huisFetched || 0)} huis -
       ${formatNumber(data.meta.ppFilled || 0)} ${t("label.ppFilled")} -
       ${formatNumber(data.meta.ppCalculated || 0)} ${t("label.ppCalculated")} -
+      ${formatNumber(data.meta.ppCalculationAttempted || 0)} ${t("label.ppAttempted")} -
+      ${formatNumber(data.meta.ppDisplayedQueued || 0)} ${t("label.ppVisibleReady")}${ppBackfill} -
       ${data.meta.bestPerMap ? `${t("label.bestPerMap")} (${data.meta.bestMode || "score"})` : t("label.multiplePerMap")} -
       ${data.meta.selectedMods.length ? data.meta.selectedMods.join("+") : t("label.allMods")}
     </div>
@@ -1055,6 +1199,78 @@ function renderScore(score, mode) {
         <div class="small">${t("label.accuracy")}</div>
       </div>
     </article>
+  `;
+}
+
+function renderPassStat(label, value) {
+  return `
+    <div class="pass-stat">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </div>
+  `;
+}
+
+function renderPasses(data) {
+  const allScores = uniqueScores(allScoresFromData(data));
+  const matchingScores = allScores.filter(scoreInPassStarRange);
+  const sortedScores = sortScoresForDisplay(matchingScores, data.meta?.sort || "date");
+  const limit = Math.max(1, Number(data.meta?.limit || 100));
+  const ppRankByScore = new Map(
+    [...matchingScores]
+      .filter((score) => scorePpValue(score) > 0)
+      .sort((a, b) => scorePpValue(b) - scorePpValue(a) || scoreTimeValue(b) - scoreTimeValue(a))
+      .map((score, index) => [scoreDomKey(score), index + 1])
+  );
+  const displayScores = sortedScores
+    .slice(0, limit)
+    .map((score) => ({
+      ...score,
+      pp_rank: ppRankByScore.get(scoreDomKey(score)) || null,
+    }));
+  const starValues = matchingScores.map(beatmapStarValue).filter((value) => value > 0);
+  const bestPp = matchingScores.reduce((best, score) => Math.max(best, scorePpValue(score)), 0);
+  const highestStars = starValues.length ? Math.max(...starValues) : 0;
+  const averageStars = starValues.length
+    ? starValues.reduce((total, value) => total + value, 0) / starValues.length
+    : 0;
+  const { min, max } = passStarBounds();
+  const rangeLabel = `${min === null ? "0" : min.toFixed(2)} - ${max === null ? "max" : max.toFixed(2)}*`;
+
+  passes.innerHTML = `
+    <div class="passes-panel">
+      <div class="passes-head">
+        <div>
+          <span>${escapeHtml(t("label.passesTitle"))}</span>
+          <strong>${escapeHtml(rangeLabel)}</strong>
+        </div>
+        <div class="passes-filter">
+          <strong>${escapeHtml(t("label.passStarFilter"))}</strong>
+          <label>
+            <span>${escapeHtml(t("label.minStars"))}</span>
+            <input type="number" min="0" step="0.01" inputmode="decimal" data-pass-star-min value="${escapeHtml(passStarMin)}" placeholder="6.54" />
+          </label>
+          <label>
+            <span>${escapeHtml(t("label.maxStars"))}</span>
+            <input type="number" min="0" step="0.01" inputmode="decimal" data-pass-star-max value="${escapeHtml(passStarMax)}" placeholder="7.00" />
+          </label>
+          <button class="ghost-button" type="button" data-pass-filter="apply">${escapeHtml(t("button.apply"))}</button>
+          <button class="ghost-button" type="button" data-pass-filter="reset">${escapeHtml(t("button.reset"))}</button>
+        </div>
+      </div>
+      <div class="passes-summary">
+        ${renderPassStat(t("label.totalPasses"), formatNumber(matchingScores.length))}
+        ${renderPassStat(t("label.shownPasses"), `${formatNumber(displayScores.length)} / ${formatNumber(matchingScores.length)}`)}
+        ${renderPassStat(t("label.bestPassPp"), formatPp(bestPp))}
+        ${renderPassStat(t("label.highestStars"), formatStars(highestStars))}
+        ${renderPassStat(t("label.averageStars"), formatStars(averageStars))}
+      </div>
+    </div>
+    ${
+      displayScores.length
+        ? displayScores.map((score) => renderScore(score, data.meta.mode)).join("")
+        : `<div class="empty-state">${escapeHtml(t("empty.noStarPasses"))}</div>`
+    }
   `;
 }
 
@@ -1261,17 +1477,11 @@ function renderTryHistoryChart(tries, options = {}) {
       `;
     })
     .join("");
-  const latestMetricValue = (metric) => {
-    for (let index = ordered.length - 1; index >= 0; index -= 1) {
-      const value = metricValue(metric, ordered[index]);
-      if (metric.hasValue(value)) return value;
-    }
-    return metricValue(metric, ordered[ordered.length - 1]);
-  };
+  const latest = ordered[ordered.length - 1];
   const legend = metrics
     .map((metric) => `
       <span style="--chart-color: ${metric.color}">
-        <i></i>${escapeHtml(metric.label)} <strong>${escapeHtml(metric.format(latestMetricValue(metric)))}</strong>
+        <i></i>${escapeHtml(metric.label)} <strong>${escapeHtml(metric.format(metricValue(metric, latest)))}</strong>
       </span>
     `)
     .join("");
@@ -1459,6 +1669,7 @@ function renderCalendar(data) {
   const leadingCells = Array.from({ length: leadingEmptyCells }, () => '<span class="calendar-pad"></span>').join("");
   const prevDisabled = compareMonthKeys(currentCalendarMonth, minMonth) <= 0 ? " disabled" : "";
   const nextDisabled = compareMonthKeys(currentCalendarMonth, maxMonth) >= 0 ? " disabled" : "";
+  const monthLoading = calendarLoadingMonth === currentCalendarMonth;
 
   calendar.innerHTML = `
     <div class="calendar-month-panel">
@@ -1471,6 +1682,7 @@ function renderCalendar(data) {
         <button class="ghost-button today-button" type="button" data-calendar-today="1">${escapeHtml(t("button.today"))}</button>
         <button class="ghost-button" type="button" data-calendar-month="1" aria-label="${escapeHtml(t("button.nextMonth"))}"${nextDisabled}>&gt;</button>
       </div>
+      ${monthLoading ? `<div class="calendar-loading">${escapeHtml(t("loading.calendarPp"))}</div>` : ""}
       <div class="calendar-filter">
         <strong>${escapeHtml(t("label.calendarPpFilter"))}</strong>
         <label>
@@ -1501,6 +1713,44 @@ function renderCalendar(data) {
   `;
 }
 
+async function backfillCalendarMonth(monthKey) {
+  if (!lastSearchData || !monthKey || !document.querySelector("#recalculatePp")?.checked) return;
+  if (calendarLoadingMonth) return;
+
+  const jobId = makeJobId("cal");
+  const params = buildSearchParams();
+  params.set("month", monthKey);
+  params.set("ppJobId", jobId);
+  calendarLoadingMonth = monthKey;
+  renderCalendar(lastSearchData);
+  startPpProgressPolling(jobId, "calendar");
+
+  try {
+    const response = await fetch(`/api/backfill-month?${params.toString()}`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || t("error.searchFailed"));
+
+    lastSearchData.calendar = data.calendar;
+    lastSearchData.meta = {
+      ...lastSearchData.meta,
+      ...data.meta,
+      ppFetched: (lastSearchData.meta.ppFetched || 0) + (data.meta.ppFetched || 0),
+      ppFilled: (lastSearchData.meta.ppFilled || 0) + (data.meta.ppFilled || 0),
+      ppCalculated: (lastSearchData.meta.ppCalculated || 0) + (data.meta.ppCalculated || 0),
+      ppCalculationAttempted: (lastSearchData.meta.ppCalculationAttempted || 0) + (data.meta.ppCalculationAttempted || 0),
+    };
+  } catch (error) {
+    calendar.insertAdjacentHTML("afterbegin", `<div class="error-state">${escapeHtml(error.message)}</div>`);
+  } finally {
+    stopPpProgressPolling();
+    calendarLoadingMonth = "";
+    if (lastSearchData) {
+      renderSummary(lastSearchData);
+      renderCalendar(lastSearchData);
+    }
+  }
+}
+
 function selectCalendarDay(dayKey) {
   currentCalendarDay = dayKey;
   currentCalendarMonth = dayToMonthKey(dayKey);
@@ -1521,6 +1771,7 @@ function moveCalendarMonth(offset) {
 
   currentCalendarDay = firstPlayedDay || `${currentCalendarMonth}-01`;
   renderCalendar(lastSearchData);
+  void backfillCalendarMonth(currentCalendarMonth);
 }
 
 function goToCalendarToday() {
@@ -1531,6 +1782,7 @@ function goToCalendarToday() {
   const today = todayDayKey();
   currentCalendarDay = dayToMonthKey(today) === currentCalendarMonth ? today : `${currentCalendarMonth}-01`;
   renderCalendar(lastSearchData);
+  void backfillCalendarMonth(currentCalendarMonth);
 }
 
 function renderMapDetails(scoreKey) {
@@ -1629,6 +1881,7 @@ function renderMapDetails(scoreKey) {
 
 function renderSearchData(data) {
   renderSummary(data);
+  renderPasses(data);
   renderImprovements(data);
   renderCalendar(data);
 
@@ -1647,11 +1900,15 @@ async function runSearch(event) {
   lastSearchData = null;
   setLoading(true);
   setResultsState(`<div class="loading-state">${escapeHtml(t("loading.search"))}</div>`);
+  passes.innerHTML = "";
   setImprovementState("");
   calendar.innerHTML = "";
 
   try {
     const params = buildSearchParams();
+    const ppJobId = makeJobId("search");
+    params.set("ppJobId", ppJobId);
+    startPpProgressPolling(ppJobId, "search");
     const response = await fetch(`/api/search?${params.toString()}`);
     const data = await response.json();
 
@@ -1665,6 +1922,7 @@ async function runSearch(event) {
   } catch (error) {
     setResultsState(`<div class="error-state">${escapeHtml(error.message)}</div>`);
   } finally {
+    stopPpProgressPolling();
     setLoading(false);
   }
 }
@@ -1769,8 +2027,13 @@ viewTabs.addEventListener("click", (event) => {
 
   activeView = button.dataset.view;
   results.classList.toggle("hidden", activeView !== "scores");
+  passes.classList.toggle("hidden", activeView !== "passes");
   improvements.classList.toggle("hidden", activeView !== "improvements");
   calendar.classList.toggle("hidden", activeView !== "calendar");
+
+  if (activeView === "calendar") {
+    void backfillCalendarMonth(currentCalendarMonth || dayToMonthKey(currentCalendarDay) || todayDayKey().slice(0, 7));
+  }
 });
 
 function handleDetailsClick(event) {
@@ -1780,6 +2043,22 @@ function handleDetailsClick(event) {
 }
 
 results.addEventListener("click", handleDetailsClick);
+passes.addEventListener("click", (event) => {
+  const filterButton = event.target.closest("button[data-pass-filter]");
+  if (filterButton && lastSearchData) {
+    if (filterButton.dataset.passFilter === "reset") {
+      passStarMin = "";
+      passStarMax = "";
+    } else {
+      passStarMin = passes.querySelector("[data-pass-star-min]")?.value.trim() || "";
+      passStarMax = passes.querySelector("[data-pass-star-max]")?.value.trim() || "";
+    }
+    renderPasses(lastSearchData);
+    return;
+  }
+
+  handleDetailsClick(event);
+});
 improvements.addEventListener("click", handleDetailsClick);
 calendar.addEventListener("click", (event) => {
   const filterButton = event.target.closest("button[data-calendar-filter]");

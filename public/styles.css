@@ -373,6 +373,44 @@ select:focus {
   display: none;
 }
 
+.pp-progress-card {
+  display: grid;
+  width: 100%;
+  gap: 8px;
+}
+
+.pp-progress-card > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pp-progress-card strong {
+  color: var(--text);
+}
+
+.pp-progress-bar {
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(152, 170, 203, 0.18);
+}
+
+.pp-progress-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--pink), var(--cyan));
+}
+
+.pp-progress-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .user-card {
   display: flex;
   align-items: center;
@@ -458,6 +496,82 @@ select:focus {
 .error-state {
   border-color: rgba(255, 107, 107, 0.5);
   color: #ffd0d0;
+}
+
+.passes-panel {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(31, 37, 48, 0.88);
+  padding: 14px;
+}
+
+.passes-head {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) minmax(0, 2fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.passes-head > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.passes-head span,
+.passes-filter span,
+.passes-filter strong,
+.pass-stat span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.passes-head strong {
+  color: var(--text);
+  font-size: 1.1rem;
+}
+
+.passes-filter {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) repeat(2, minmax(110px, 150px)) auto auto;
+  gap: 8px;
+  align-items: end;
+  border: 1px solid rgba(152, 170, 203, 0.18);
+  border-radius: 6px;
+  background: rgba(15, 19, 28, 0.36);
+  padding: 10px;
+}
+
+.passes-filter label {
+  display: grid;
+  gap: 5px;
+}
+
+.passes-filter input {
+  min-height: 34px;
+}
+
+.passes-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+.pass-stat {
+  display: grid;
+  gap: 5px;
+  min-height: 64px;
+  border: 1px solid rgba(152, 170, 203, 0.18);
+  border-radius: 6px;
+  background: #111722;
+  padding: 10px;
+}
+
+.pass-stat strong {
+  color: var(--text);
+  font-size: 1.08rem;
 }
 
 .score-card {
@@ -900,6 +1014,17 @@ select:focus {
   font-size: 0.86rem;
 }
 
+.calendar-loading {
+  border: 1px solid rgba(104, 216, 255, 0.32);
+  border-radius: 6px;
+  background: rgba(104, 216, 255, 0.1);
+  color: var(--cyan);
+  padding: 8px 10px;
+  font-size: 0.86rem;
+  font-weight: 850;
+  text-align: center;
+}
+
 .today-button {
   min-width: 74px;
 }
@@ -1205,7 +1330,21 @@ select:focus {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .passes-head,
+  .passes-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .passes-filter {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .calendar-filter strong {
+    grid-column: 1 / -1;
+  }
+
+  .passes-filter strong {
     grid-column: 1 / -1;
   }
 
@@ -1266,6 +1405,12 @@ select:focus {
   }
 
   .calendar-filter {
+    grid-template-columns: 1fr;
+  }
+
+  .passes-head,
+  .passes-filter,
+  .passes-summary {
     grid-template-columns: 1fr;
   }
 

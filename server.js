@@ -27,6 +27,35 @@ loadDotEnv();
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "127.0.0.1";
 let tokenCache = null;
+const ppProgressJobs = new Map();
+
+function ppProgressId(value) {
+  const id = String(value || "").trim();
+  return /^[a-zA-Z0-9_-]{8,80}$/.test(id) ? id : "";
+}
+
+function updatePpProgress(id, patch) {
+  if (!id) return;
+  const current = ppProgressJobs.get(id) || {
+    id,
+    status: "starting",
+    stage: "waiting",
+    total: 0,
+    attempted: 0,
+    filled: 0,
+    updated_at: new Date().toISOString(),
+  };
+  ppProgressJobs.set(id, {
+    ...current,
+    ...patch,
+    updated_at: new Date().toISOString(),
+  });
+}
+
+function finishPpProgress(id, patch = {}) {
+  updatePpProgress(id, { status: "done", stage: "done", ...patch });
+  setTimeout(() => ppProgressJobs.delete(id), 2 * 60 * 1000).unref?.();
+}
 
 const mimeTypes = new Map([
   [".html", "text/html; charset=utf-8"],
@@ -920,6 +949,11 @@ function monthKeyForScore(score) {
   return berlinDateKey(score?.ended_at || score?.created_at).slice(0, 7);
 }
 
+function cleanMonthKey(value) {
+  const month = String(value || "").trim();
+  return /^\d{4}-\d{2}$/.test(month) ? month : berlinDateKey().slice(0, 7);
+}
+
 function mergeScoreWorkSets(...sets) {
   const merged = new Map();
   for (const scores of sets) {
@@ -928,6 +962,27 @@ function mergeScoreWorkSets(...sets) {
     }
   }
   return [...merged.values()];
+}
+
+function oldestDateKey(scores) {
+  const times = scores
+    .map(scoreTime)
+    .filter((time) => Number.isFinite(time) && time > 0);
+  if (!times.length) return "";
+  return berlinDateKey(new Date(Math.min(...times)).toISOString());
+}
+
+function ppProgressCallback(jobId, base = {}) {
+  return ({ attempted, filled }) => {
+    updatePpProgress(jobId, {
+      status: "running",
+      stage: base.stage || "calculating",
+      total: base.total || 0,
+      attempted,
+      filled,
+      ...base,
+    });
+  };
 }
 
 function collectImprovementPpWorkSet(scores, improvements, maxScores = 2500) {
@@ -974,6 +1029,7 @@ async function handleSearch(req, res) {
   const rankedOnly = boolParam(url.searchParams, "rankedOnly", true);
   const includeLoved = boolParam(url.searchParams, "includeLoved", false);
   const selectedMods = parseSelectedMods(url.searchParams.get("mods"));
+  const ppJobId = ppProgressId(url.searchParams.get("ppJobId"));
 
   if (!username) {
     return json(res, 400, { error: "Bitte gib einen osu!-Namen ein." });
@@ -1067,12 +1123,26 @@ async function handleSearch(req, res) {
     improvementPpWorkSet
   );
   const ppCalculationLimit = Math.min(ppWorkSet.length, 2500);
+  const ppBackfillUntil = oldestDateKey(recentLocalPpWorkSet);
 
+  updatePpProgress(ppJobId, {
+    status: "running",
+    stage: "search",
+    total: ppCalculationLimit,
+    attempted: 0,
+    filled: 0,
+    backfill_until: ppBackfillUntil,
+  });
   const ppHydration = await hydrateVisiblePp(ppWorkSet, mode);
   const calculatedHydration = recalculatePp
     ? await hydrateCalculatedPp(ppWorkSet, mode, {
         force: true,
         max: ppCalculationLimit,
+        onProgress: ppProgressCallback(ppJobId, {
+          stage: "search",
+          total: ppCalculationLimit,
+          backfill_until: ppBackfillUntil,
+        }),
       })
     : { attempted: 0, filled: 0, unavailable: false, errors: [] };
 
@@ -1099,9 +1169,54 @@ async function handleSearch(req, res) {
     Math.max(rankFrom, rankTo)
   );
 
-  const filteredScores = filteredCandidates
+  let filteredScores = filteredCandidates
     .sort((a, b) => compareScores(a, b, sort))
     .slice(0, finalLimit);
+  let visiblePpHydration = { fetched: 0, filled: 0 };
+  let visibleCalculatedHydration = { attempted: 0, filled: 0, unavailable: false, errors: [] };
+
+  const visiblePpWorkSet = mergeScoreWorkSets(filteredScores);
+  if (visiblePpWorkSet.length) {
+    updatePpProgress(ppJobId, {
+      status: "running",
+      stage: "visible",
+      total: visiblePpWorkSet.length,
+      attempted: 0,
+      filled: 0,
+    });
+    visiblePpHydration = await hydrateVisiblePp(visiblePpWorkSet, mode);
+    visibleCalculatedHydration = recalculatePp
+      ? await hydrateCalculatedPp(visiblePpWorkSet, mode, {
+          force: true,
+          max: visiblePpWorkSet.length,
+          onProgress: ppProgressCallback(ppJobId, {
+            stage: "visible",
+            total: visiblePpWorkSet.length,
+          }),
+        })
+      : visibleCalculatedHydration;
+
+    if (visiblePpHydration.filled > 0 || visibleCalculatedHydration.filled > 0) {
+      updateStoredScores(user, mode, visiblePpWorkSet);
+      assignPpRanks(filteredCandidates);
+      filteredCandidates = filterRankWindow(
+        filteredCandidates,
+        rankMode,
+        Math.min(rankFrom, rankTo),
+        Math.max(rankFrom, rankTo)
+      );
+      filteredScores = filteredCandidates
+        .sort((a, b) => compareScores(a, b, sort))
+        .slice(0, finalLimit);
+    }
+  }
+
+  finishPpProgress(ppJobId, {
+    total: ppCalculationLimit + visiblePpWorkSet.length,
+    attempted: calculatedHydration.attempted + visibleCalculatedHydration.attempted,
+    filled: calculatedHydration.filled + visibleCalculatedHydration.filled,
+    backfill_until: ppBackfillUntil,
+  });
 
   return json(res, 200, {
     user: {
@@ -1147,18 +1262,144 @@ async function handleSearch(req, res) {
       localImportWarnings: localImport.warnings,
       apiWarning,
       huisWarning,
-      ppFetched: ppHydration.fetched,
-      ppFilled: ppHydration.filled,
-      ppCalculated: calculatedHydration.filled,
-      ppCalculationAttempted: calculatedHydration.attempted,
+      ppFetched: ppHydration.fetched + visiblePpHydration.fetched,
+      ppFilled: ppHydration.filled + visiblePpHydration.filled,
+      ppCalculated: calculatedHydration.filled + visibleCalculatedHydration.filled,
+      ppCalculationAttempted: calculatedHydration.attempted + visibleCalculatedHydration.attempted,
       ppImprovementQueued: improvementPpWorkSet.length,
-      ppCalculationWarnings: calculatedHydration.errors,
+      ppDisplayedQueued: visiblePpWorkSet.length,
+      ppDisplayedCalculated: visibleCalculatedHydration.filled,
+      ppBackfillUntil,
+      ppCalculationWarnings: [...calculatedHydration.errors, ...visibleCalculatedHydration.errors],
       source: "sqlite-score-database",
       note:
         "Die App speichert alle gefundenen Scores lokal in SQLite. osu!api v2 liefert trotzdem keine komplette alte Score-Historie.",
     },
     improvements,
     calendar,
+  });
+}
+
+async function handlePpProgress(req, res) {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const id = ppProgressId(url.searchParams.get("id"));
+  return json(res, 200, ppProgressJobs.get(id) || {
+    id,
+    status: "idle",
+    stage: "idle",
+    total: 0,
+    attempted: 0,
+    filled: 0,
+  });
+}
+
+async function handleBackfillMonth(req, res) {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const username = (url.searchParams.get("username") || "").trim();
+  const mode = url.searchParams.get("mode") || "osu";
+  const sort = url.searchParams.get("sort") || "date";
+  const month = cleanMonthKey(url.searchParams.get("month"));
+  const matchMode = url.searchParams.get("match") || "contains";
+  const includeLazer = boolParam(url.searchParams, "includeLazer", true);
+  const rankedOnly = boolParam(url.searchParams, "rankedOnly", true);
+  const includeLoved = boolParam(url.searchParams, "includeLoved", false);
+  const recalculatePp = boolParam(url.searchParams, "recalculatePp", true);
+  const selectedMods = parseSelectedMods(url.searchParams.get("mods"));
+  const ppJobId = ppProgressId(url.searchParams.get("ppJobId"));
+
+  if (!username) {
+    return json(res, 400, { error: "Bitte gib einen osu!-Namen ein." });
+  }
+
+  if (!["osu", "taiko", "fruits", "mania"].includes(mode)) {
+    return json(res, 400, { error: "Ungueltiger Spielmodus." });
+  }
+
+  updatePpProgress(ppJobId, {
+    status: "running",
+    stage: "collecting",
+    total: 0,
+    attempted: 0,
+    filled: 0,
+  });
+
+  const storedUser = getStoredUserByName(username, mode);
+  const user =
+    storedUser?.user || {
+      id: `local:${mode}:${username.toLowerCase()}`,
+      username,
+      avatar_url: "",
+      country_code: "--",
+      statistics: {},
+    };
+
+  const localImport = await importLocalScores({
+    username: user.username,
+    userId: user.id,
+    mode,
+  });
+  const history = await upsertHistory(user, mode, localImport.scores);
+
+  const filteredCandidates = history.scores
+    .filter((score) => isAllowedClient(score, includeLazer))
+    .filter(isPassed)
+    .filter((score) => (rankedOnly ? isRankedBeatmap(score, includeLoved) : true))
+    .filter((score) => modsMatch(score.normalized_mods || normalizeMods(score.mods), selectedMods, matchMode));
+
+  const monthScores = filteredCandidates
+    .filter((score) => monthKeyForScore(score) === month)
+    .sort((a, b) => compareScores(a, b, "date"));
+  const ppWorkSet = mergeScoreWorkSets(
+    monthScores.filter((score) => score.beatmap?.local_osu_path || score.legacy_score_id || score.id)
+  );
+
+  updatePpProgress(ppJobId, {
+    status: "running",
+    stage: "calendar",
+    month,
+    total: ppWorkSet.length,
+    attempted: 0,
+    filled: 0,
+  });
+
+  const ppHydration = await hydrateVisiblePp(ppWorkSet, mode);
+  const calculatedHydration = recalculatePp
+    ? await hydrateCalculatedPp(ppWorkSet, mode, {
+        force: true,
+        max: ppWorkSet.length,
+        onProgress: ppProgressCallback(ppJobId, {
+          stage: "calendar",
+          month,
+          total: ppWorkSet.length,
+        }),
+      })
+    : { attempted: 0, filled: 0, unavailable: false, errors: [] };
+
+  if (ppHydration.filled > 0 || calculatedHydration.filled > 0) {
+    updateStoredScores(user, mode, ppWorkSet);
+  }
+
+  const calendar = buildCalendar(filteredCandidates, sort);
+  finishPpProgress(ppJobId, {
+    month,
+    total: ppWorkSet.length,
+    attempted: calculatedHydration.attempted,
+    filled: calculatedHydration.filled,
+  });
+
+  return json(res, 200, {
+    month,
+    calendar,
+    meta: {
+      ppFetched: ppHydration.fetched,
+      ppFilled: ppHydration.filled,
+      ppCalculated: calculatedHydration.filled,
+      ppCalculationAttempted: calculatedHydration.attempted,
+      ppCalculationWarnings: calculatedHydration.errors,
+      localImported: localImport.scores.length,
+      localImportSources: localImport.sources,
+      localImportWarnings: localImport.warnings,
+    },
   });
 }
 
@@ -1243,6 +1484,14 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === "/api/search") {
       return await handleSearch(req, res);
+    }
+
+    if (url.pathname === "/api/pp-progress") {
+      return await handlePpProgress(req, res);
+    }
+
+    if (url.pathname === "/api/backfill-month") {
+      return await handleBackfillMonth(req, res);
     }
 
     if (url.pathname === "/api/live-scan") {

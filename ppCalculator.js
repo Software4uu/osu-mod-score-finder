@@ -93,6 +93,7 @@ export async function hydrateCalculatedPp(scores, mode, options = {}) {
   let attempted = 0;
   let filled = 0;
   const errors = [];
+  const onProgress = typeof options.onProgress === "function" ? options.onProgress : null;
 
   for (const score of scores) {
     if (attempted >= max) break;
@@ -102,7 +103,10 @@ export async function hydrateCalculatedPp(scores, mode, options = {}) {
     attempted += 1;
     try {
       const calculated = await calculateScorePp(score, mode, rosu);
-      if (calculated === null || calculated === undefined) continue;
+      if (calculated === null || calculated === undefined) {
+        onProgress?.({ attempted, filled });
+        continue;
+      }
 
       if (score.pp && !score.original_pp) score.original_pp = score.pp;
       score.pp = calculated;
@@ -113,6 +117,7 @@ export async function hydrateCalculatedPp(scores, mode, options = {}) {
     } catch (error) {
       if (errors.length < 5) errors.push(error.message || String(error));
     }
+    onProgress?.({ attempted, filled });
   }
 
   return { attempted, filled, unavailable: false, errors };
