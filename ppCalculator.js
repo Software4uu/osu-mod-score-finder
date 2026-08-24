@@ -35,6 +35,39 @@ function modsForPp(score) {
   return acronyms.join("");
 }
 
+function modSettingNumber(mod, keys) {
+  const settings = mod?.settings || {};
+  for (const key of keys) {
+    const value = Number(settings[key] ?? mod?.[key]);
+    if (Number.isFinite(value) && value > 0) return value;
+  }
+  return null;
+}
+
+function clockRateForPp(score) {
+  const mods = Array.isArray(score.normalized_mods) ? score.normalized_mods : score.mods || [];
+  for (const mod of mods) {
+    const acronym = String(typeof mod === "string" ? mod : mod?.acronym || "").toUpperCase();
+    if (!["DT", "NC", "HT"].includes(acronym)) continue;
+
+    const customSpeed = modSettingNumber(mod, [
+      "speed_change",
+      "speedChange",
+      "SpeedChange",
+      "clock_rate",
+      "clockRate",
+      "rate",
+      "speed",
+    ]);
+
+    if (customSpeed !== null) return customSpeed;
+    if (acronym === "HT") return 0.75;
+    return 1.5;
+  }
+
+  return null;
+}
+
 function modeEnum(rosu, mode) {
   if (mode === "taiko") return rosu.GameMode.Taiko;
   if (mode === "fruits") return rosu.GameMode.Catch;
@@ -46,6 +79,7 @@ function performanceOptions(rosu, score) {
   const stats = score.statistics || {};
   const options = {
     mods: modsForPp(score),
+    clockRate: clockRateForPp(score) ?? undefined,
     combo: score.max_combo || undefined,
     misses: missCount(score),
     accuracy: accuracyPercent(score) ?? undefined,

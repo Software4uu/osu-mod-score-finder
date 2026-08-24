@@ -893,6 +893,52 @@ function missCount(score) {
   return stats.miss || stats.count_miss || 0;
 }
 
+function modSettingNumber(mod, keys) {
+  const settings = mod?.settings || {};
+  for (const key of keys) {
+    const value = Number(settings[key] ?? mod?.[key]);
+    if (Number.isFinite(value) && value > 0) return value;
+  }
+  return null;
+}
+
+function speedMultiplierForMod(mod) {
+  const acronym = String(mod?.acronym || mod || "").toUpperCase();
+  if (!["DT", "NC", "HT"].includes(acronym)) return null;
+
+  const customSpeed = modSettingNumber(mod, [
+    "speed_change",
+    "speedChange",
+    "SpeedChange",
+    "clock_rate",
+    "clockRate",
+    "rate",
+    "speed",
+  ]);
+
+  if (customSpeed !== null) return customSpeed;
+  if (acronym === "HT") return 0.75;
+  return 1.5;
+}
+
+function formatMultiplier(value) {
+  if (!Number.isFinite(Number(value))) return "";
+  return `${Number(value).toFixed(3).replace(/\.?0+$/, "")}x`;
+}
+
+function modDisplayLabel(mod) {
+  const acronym = String(mod?.acronym || mod || "").toUpperCase();
+  const speed = speedMultiplierForMod(mod);
+  return speed ? `${acronym} ${formatMultiplier(speed)}` : acronym;
+}
+
+function modDisplayTitle(mod) {
+  const acronym = String(mod?.acronym || mod || "").toUpperCase();
+  const speed = speedMultiplierForMod(mod);
+  const name = modNames[acronym] || acronym;
+  return speed ? `${name} (${formatMultiplier(speed)})` : name;
+}
+
 function renderMods(score) {
   const mods = score.normalized_mods || [];
   if (mods.length === 0) {
@@ -901,8 +947,8 @@ function renderMods(score) {
 
   return mods
     .map((mod) => {
-      const label = escapeHtml(mod.acronym);
-      const title = escapeHtml(modNames[mod.acronym] || mod.acronym);
+      const label = escapeHtml(modDisplayLabel(mod));
+      const title = escapeHtml(modDisplayTitle(mod));
       return `<span class="mod-badge" title="${title}">${label}</span>`;
     })
     .join("");
