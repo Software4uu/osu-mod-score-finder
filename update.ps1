@@ -54,6 +54,62 @@ function Assert-ProjectRoot {
   }
 }
 
+function Get-AppPort {
+  $port = 5173
+  $envPath = Join-Path $Root ".env"
+  if (Test-Path -LiteralPath $envPath) {
+    foreach ($line in Get-Content -LiteralPath $envPath) {
+      if ($line -match "^\s*PORT\s*=\s*(\d+)\s*$") {
+        $port = [int]$Matches[1]
+        break
+      }
+    }
+  }
+  return $port
+}
+
+function Stop-AppServer {
+  param([Parameter(Mandatory = $true)][int]$Port)
+
+  $connections = @()
+  try {
+    $connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+  } catch {
+    $connections = @()
+  }
+
+  foreach ($processId in ($connections | Select-Object -ExpandProperty OwningProcess -Unique)) {
+    if (-not $processId) {
+      continue
+    }
+
+    try {
+      $process = Get-Process -Id $processId -ErrorAction Stop
+      if ($process.ProcessName -like "node*") {
+        Write-Step -English "Stopping the old app server before restart." -German "Stoppe den alten App-Server vor dem Neustart."
+        Stop-Process -Id $processId -Force
+      }
+    } catch {
+      # If the process has already ended, the restart can continue.
+    }
+  }
+}
+
+function Start-AppAfterUpdate {
+  $startBat = Join-Path $Root "start-beta.bat"
+  if (-not (Test-Path -LiteralPath $startBat)) {
+    Write-Step -English "start-beta.bat was not found. Start the app manually after this update." -German "start-beta.bat wurde nicht gefunden. Starte die App nach dem Update manuell."
+    return $false
+  }
+
+  $port = Get-AppPort
+  Stop-AppServer -Port $port
+  Start-Sleep -Milliseconds 800
+  Write-Step -English "Restarting the app automatically." -German "Starte die App automatisch neu."
+  Start-Process -FilePath $startBat -WorkingDirectory $Root
+  return $true
+}
+
 function Copy-ProjectItem {
   param(
     [Parameter(Mandatory = $true)][string]$SourceRoot,
@@ -132,6 +188,7 @@ try {
       "setup-beta.bat",
       "setup.ps1",
       "start-beta.bat",
+      "update-beta.bat",
       "update.ps1"
     )
 
@@ -159,7 +216,12 @@ try {
     Write-Step -English "npm was not found. Run setup-beta.bat after this update." -German "npm wurde nicht gefunden. Starte nach dem Update setup-beta.bat."
   }
 
-  Write-Step -English "Update finished. Restart start-beta.bat to use the new files." -German "Update fertig. Starte start-beta.bat neu, um die neuen Dateien zu nutzen."
+  $restarted = Start-AppAfterUpdate
+  if ($restarted) {
+    Write-Step -English "Update finished. The app was restarted automatically." -German "Update fertig. Die App wurde automatisch neu gestartet."
+  } else {
+    Write-Step -English "Update finished. Restart start-beta.bat to use the new files." -German "Update fertig. Starte start-beta.bat neu, um die neuen Dateien zu nutzen."
+  }
   exit 0
 } catch {
   Write-Step -English ("Update failed: " + $_.Exception.Message) -German ("Update fehlgeschlagen: " + $_.Exception.Message)

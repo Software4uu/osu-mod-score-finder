@@ -87,8 +87,9 @@ The app checks the GitHub repository for a newer version and shows the result in
 - If the folder is a Git clone, the updater uses `git pull --ff-only origin main`.
 - If the folder is a downloaded GitHub ZIP, the updater downloads the newest ZIP and copies only project files.
 - Local files are preserved: `.env`, `data/`, `node_modules/`, `.npm-cache`, logs, and local osu! folders are not uploaded or overwritten.
+- The update prompt shows a short "what's new" list from the newest GitHub commits.
 
-After the update window finishes, close the running app window and start `start-beta.bat` again.
+After a successful update, the updater stops the old local server and starts `start-beta.bat` again automatically.
 
 For future releases, increase the `version` in `package.json`. This is what ZIP users rely on for reliable update detection.
 
@@ -181,7 +182,8 @@ Die App prueft das GitHub-Repository auf eine neuere Version und zeigt das Ergeb
 - Wenn der Ordner ein Git-Clone ist, nutzt der Updater `git pull --ff-only origin main`.
 - Wenn der Ordner ein heruntergeladenes GitHub-ZIP ist, laedt der Updater das neueste ZIP herunter und kopiert nur Projektdateien.
 - Lokale Dateien bleiben erhalten: `.env`, `data/`, `node_modules/`, `.npm-cache`, Logs und lokale osu!-Ordner werden nicht hochgeladen und nicht ueberschrieben.
+- Die Update-Abfrage zeigt kurz, was neu ist, basierend auf den neuesten GitHub-Commits.
 
-Wenn das Update-Fenster fertig ist, schliesse das laufende App-Fenster und starte `start-beta.bat` erneut.
+Nach einem erfolgreichen Update stoppt der Updater den alten lokalen Server und startet `start-beta.bat` automatisch neu.
 
 Fuer neue Releases sollte die `version` in `package.json` erhoeht werden. Darauf verlassen sich ZIP-Nutzer fuer eine saubere Update-Erkennung.

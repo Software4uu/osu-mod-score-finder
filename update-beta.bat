@@ -42,10 +42,10 @@ echo.
 if "!UPDATE_EXIT!"=="0" (
   if /I "!SETUP_LANG!"=="en" (
     echo Update completed successfully.
-    echo Close the running app window and start start-beta.bat again.
+    echo The app was restarted automatically.
   ) else (
     echo Update wurde erfolgreich abgeschlossen.
-    echo Schliesse das laufende App-Fenster und starte start-beta.bat erneut.
+    echo Die App wurde automatisch neu gestartet.
   )
 ) else (
   if /I "!SETUP_LANG!"=="en" (

@@ -227,6 +227,46 @@ async function githubPackageInfo() {
   return JSON.parse(Buffer.from(encoded, "base64").toString("utf8"));
 }
 
+function summarizeCommit(commit) {
+  if (!commit) return null;
+  const message = String(commit.commit?.message || commit.message || "")
+    .split(/\r?\n/)
+    .find(Boolean);
+  return {
+    sha: commit.sha || "",
+    shortSha: commit.sha ? commit.sha.slice(0, 7) : "",
+    message: message || "Update",
+    url: commit.html_url || "",
+  };
+}
+
+async function githubUpdateChanges(currentCommit, latestCommit) {
+  if (!latestCommit?.sha) return [];
+
+  try {
+    if (currentCommit && latestCommit.sha.slice(0, 12) !== currentCommit.slice(0, 12)) {
+      const compare = await githubJson(`${githubApiBase}/compare/${currentCommit}...main`);
+      return (compare.commits || [])
+        .map(summarizeCommit)
+        .filter(Boolean)
+        .reverse()
+        .slice(0, 5);
+    }
+
+    if (!currentCommit) {
+      const commits = await githubJson(`${githubApiBase}/commits?sha=main&per_page=5`);
+      return (Array.isArray(commits) ? commits : [])
+        .map(summarizeCommit)
+        .filter(Boolean)
+        .slice(0, 5);
+    }
+  } catch {
+    return [summarizeCommit(latestCommit)].filter(Boolean);
+  }
+
+  return [summarizeCommit(latestCommit)].filter(Boolean);
+}
+
 async function resolveGitDir() {
   const dotGit = path.join(__dirname, ".git");
   const gitHead = path.join(dotGit, "HEAD");
@@ -1606,6 +1646,8 @@ async function handleUpdateCheck(req, res) {
       latestCommit?.sha &&
       latestCommit.sha.slice(0, 12) !== currentCommit.slice(0, 12),
   );
+  const updateAvailable = versionIsNewer || commitIsNewer;
+  const changes = updateAvailable ? await githubUpdateChanges(currentCommit, latestCommit) : [];
 
   return json(res, 200, {
     repo: githubRepoUrl,
@@ -1613,10 +1655,11 @@ async function handleUpdateCheck(req, res) {
     latestVersion,
     currentCommit,
     latestCommit: latestCommit?.sha || null,
-    updateAvailable: versionIsNewer || commitIsNewer,
+    updateAvailable,
     canAutoUpdate: existsSync(updaterBatPath),
     source: latestRelease ? "release" : "main",
     htmlUrl: latestRelease?.html_url || latestCommit?.html_url || githubRepoUrl,
+    changes,
     checks,
   });
 }
@@ -1652,7 +1695,7 @@ async function handleUpdateStart(req, res) {
   return json(res, 202, {
     started: true,
     logPath: updateLogPath,
-    message: "Updater started. Restart the app after the update window finishes.",
+    message: "Updater started. The app will restart automatically after a successful update.",
   });
 }
 
