@@ -222,7 +222,7 @@ const translations = {
     "label.minStars": "Min Sterne",
     "label.maxStars": "Max Sterne",
     "label.totalPasses": "Passes insgesamt",
-    "label.shownPasses": "angezeigt",
+    "label.shownPasses": "angezeigte Maps",
     "label.bestPassPp": "Beste PP",
     "label.highestStars": "Hoechste Sterne",
     "label.averageStars": "Durchschnitts-Sterne",
@@ -418,7 +418,7 @@ const translations = {
     "label.minStars": "Min stars",
     "label.maxStars": "Max stars",
     "label.totalPasses": "total passes",
-    "label.shownPasses": "shown",
+    "label.shownPasses": "shown maps",
     "label.bestPassPp": "Best PP",
     "label.highestStars": "Highest stars",
     "label.averageStars": "Average stars",
@@ -773,6 +773,45 @@ function uniqueScores(scores) {
     seen.add(key);
     return true;
   });
+}
+
+function bestModeMetrics(bestMode = "score") {
+  if (bestMode === "pp") {
+    return [scorePpValue, accuracyPercentValue, (score) => Number(score.score || 0), (score) => -missCount(score)];
+  }
+
+  if (bestMode === "acc") {
+    return [accuracyPercentValue, (score) => -missCount(score), (score) => Number(score.score || 0), scorePpValue];
+  }
+
+  if (bestMode === "date") {
+    return [scoreTimeValue, (score) => Number(score.score || 0), accuracyPercentValue, scorePpValue];
+  }
+
+  return [(score) => Number(score.score || 0), accuracyPercentValue, (score) => -missCount(score), scorePpValue];
+}
+
+function isBetterScoreForMode(next, current, bestMode = "score") {
+  if (!current) return true;
+
+  for (const metric of bestModeMetrics(bestMode)) {
+    const nextValue = Number(metric(next) || 0);
+    const currentValue = Number(metric(current) || 0);
+    if (nextValue !== currentValue) return nextValue > currentValue;
+  }
+
+  return scoreTimeValue(next) > scoreTimeValue(current);
+}
+
+function bestScorePerMapForDisplay(scores, bestMode = "score") {
+  const best = new Map();
+
+  for (const score of scores) {
+    const key = mapDomKey(score);
+    if (isBetterScoreForMode(score, best.get(key), bestMode)) best.set(key, score);
+  }
+
+  return [...best.values()];
 }
 
 function filteredCalendarScoresByDay(data) {
@@ -1214,10 +1253,12 @@ function renderPassStat(label, value) {
 function renderPasses(data) {
   const allScores = uniqueScores(allScoresFromData(data));
   const matchingScores = allScores.filter(scoreInPassStarRange);
-  const sortedScores = sortScoresForDisplay(matchingScores, data.meta?.sort || "date");
+  const bestMode = data.meta?.bestMode || "score";
+  const bestMapScores = bestScorePerMapForDisplay(matchingScores, bestMode);
+  const sortedScores = sortScoresForDisplay(bestMapScores, data.meta?.sort || "date");
   const limit = Math.max(1, Number(data.meta?.limit || 100));
   const ppRankByScore = new Map(
-    [...matchingScores]
+    [...bestMapScores]
       .filter((score) => scorePpValue(score) > 0)
       .sort((a, b) => scorePpValue(b) - scorePpValue(a) || scoreTimeValue(b) - scoreTimeValue(a))
       .map((score, index) => [scoreDomKey(score), index + 1])
@@ -1239,28 +1280,28 @@ function renderPasses(data) {
 
   passes.innerHTML = `
     <div class="passes-panel">
+      <div class="passes-filter">
+        <strong>${escapeHtml(t("label.passStarFilter"))}</strong>
+        <label>
+          <span>${escapeHtml(t("label.minStars"))}</span>
+          <input type="number" min="0" step="0.01" inputmode="decimal" data-pass-star-min value="${escapeHtml(passStarMin)}" placeholder="6.54" />
+        </label>
+        <label>
+          <span>${escapeHtml(t("label.maxStars"))}</span>
+          <input type="number" min="0" step="0.01" inputmode="decimal" data-pass-star-max value="${escapeHtml(passStarMax)}" placeholder="7.00" />
+        </label>
+        <button class="ghost-button" type="button" data-pass-filter="apply">${escapeHtml(t("button.apply"))}</button>
+        <button class="ghost-button" type="button" data-pass-filter="reset">${escapeHtml(t("button.reset"))}</button>
+      </div>
       <div class="passes-head">
         <div>
           <span>${escapeHtml(t("label.passesTitle"))}</span>
           <strong>${escapeHtml(rangeLabel)}</strong>
         </div>
-        <div class="passes-filter">
-          <strong>${escapeHtml(t("label.passStarFilter"))}</strong>
-          <label>
-            <span>${escapeHtml(t("label.minStars"))}</span>
-            <input type="number" min="0" step="0.01" inputmode="decimal" data-pass-star-min value="${escapeHtml(passStarMin)}" placeholder="6.54" />
-          </label>
-          <label>
-            <span>${escapeHtml(t("label.maxStars"))}</span>
-            <input type="number" min="0" step="0.01" inputmode="decimal" data-pass-star-max value="${escapeHtml(passStarMax)}" placeholder="7.00" />
-          </label>
-          <button class="ghost-button" type="button" data-pass-filter="apply">${escapeHtml(t("button.apply"))}</button>
-          <button class="ghost-button" type="button" data-pass-filter="reset">${escapeHtml(t("button.reset"))}</button>
-        </div>
       </div>
       <div class="passes-summary">
         ${renderPassStat(t("label.totalPasses"), formatNumber(matchingScores.length))}
-        ${renderPassStat(t("label.shownPasses"), `${formatNumber(displayScores.length)} / ${formatNumber(matchingScores.length)}`)}
+        ${renderPassStat(t("label.shownPasses"), `${formatNumber(displayScores.length)} / ${formatNumber(bestMapScores.length)}`)}
         ${renderPassStat(t("label.bestPassPp"), formatPp(bestPp))}
         ${renderPassStat(t("label.highestStars"), formatStars(highestStars))}
         ${renderPassStat(t("label.averageStars"), formatStars(averageStars))}

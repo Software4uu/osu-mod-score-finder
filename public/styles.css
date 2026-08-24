@@ -509,7 +509,7 @@ select:focus {
 
 .passes-head {
   display: grid;
-  grid-template-columns: minmax(190px, 1fr) minmax(0, 2fr);
+  grid-template-columns: minmax(190px, 1fr);
   gap: 12px;
   align-items: end;
 }
@@ -535,7 +535,7 @@ select:focus {
 
 .passes-filter {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) repeat(2, minmax(110px, 150px)) auto auto;
+  grid-template-columns: minmax(160px, 1fr) repeat(2, minmax(130px, 190px)) auto auto;
   gap: 8px;
   align-items: end;
   border: 1px solid rgba(152, 170, 203, 0.18);
