@@ -354,8 +354,8 @@ select:focus {
   min-height: 46px;
   border: 0;
   border-radius: 6px;
-  background: linear-gradient(90deg, var(--pink), #ff8f70);
-  color: #1c0f16;
+  background: linear-gradient(90deg, #68d8ff, #91e36a);
+  color: #08121a;
   font-weight: 900;
 }
 
