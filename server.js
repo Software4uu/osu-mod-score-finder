@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { importLocalScores } from "./localImport.js";
 import { hydrateCalculatedPp } from "./ppCalculator.js";
 import {
+  getMostRecentStoredUser,
   getScoreStoreStats,
   getStoredUserByName,
   updateStoredScores,
@@ -29,6 +30,8 @@ const githubApiBase = `https://api.github.com/repos/${githubOwner}/${githubRepo}
 const githubPackageContentsUrl = `${githubApiBase}/contents/package.json?ref=main`;
 const updaterBatPath = path.join(__dirname, "update-beta.bat");
 const updateLogPath = path.join(dataDir, "update.log");
+const osuApiMinIntervalMs = 1_050;
+const osuApiMaxRetries = 3;
 
 loadDotEnv();
 
@@ -36,6 +39,147 @@ const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "127.0.0.1";
 let tokenCache = null;
 const ppProgressJobs = new Map();
+const osuApiQueue = [];
+let osuApiQueueRunning = false;
+let osuApiQueueSequence = 0;
+let osuApiLastRequestAt = 0;
+let osuApiBlockedUntil = 0;
+let startupSyncPromise = null;
+let startupSync = {
+  status: "scheduled",
+  stage: "waiting",
+  username: "",
+  mode: "osu",
+  apiPagesDone: 0,
+  apiPagesTotal: 20,
+  onlineScoresSeen: 0,
+  localScoresSeen: 0,
+  newScores: 0,
+  ppDone: 0,
+  ppTotal: 0,
+  ppFilled: 0,
+  waitUntil: null,
+  warning: null,
+  error: null,
+  percent: 0,
+  etaSeconds: null,
+  startedAt: null,
+  stageStartedAt: null,
+  updatedAt: new Date().toISOString(),
+};
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
+}
+
+function runNextOsuApiRequest() {
+  if (osuApiQueueRunning || !osuApiQueue.length) return;
+  osuApiQueueRunning = true;
+  osuApiQueue.sort((a, b) => b.priority - a.priority || a.sequence - b.sequence);
+  const entry = osuApiQueue.shift();
+
+  void (async () => {
+    try {
+      const earliestStart = Math.max(
+        osuApiLastRequestAt + osuApiMinIntervalMs,
+        osuApiBlockedUntil,
+      );
+      await wait(earliestStart - Date.now());
+      osuApiLastRequestAt = Date.now();
+      entry.resolve(await entry.request());
+    } catch (error) {
+      entry.reject(error);
+    } finally {
+      osuApiQueueRunning = false;
+      runNextOsuApiRequest();
+    }
+  })();
+}
+
+function enqueueOsuApiRequest(request, priority = 10) {
+  return new Promise((resolve, reject) => {
+    osuApiQueue.push({
+      request,
+      priority: Number(priority || 0),
+      sequence: osuApiQueueSequence++,
+      resolve,
+      reject,
+    });
+    runNextOsuApiRequest();
+  });
+}
+
+function osuRetryDelayMs(response, attempt) {
+  const retryAfter = response.headers.get("retry-after");
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return Math.max(osuApiMinIntervalMs, Math.ceil(seconds * 1_000));
+    }
+
+    const date = Date.parse(retryAfter);
+    if (Number.isFinite(date)) {
+      return Math.max(osuApiMinIntervalMs, date - Date.now());
+    }
+  }
+
+  return Math.min(60_000, 5_000 * 2 ** attempt);
+}
+
+function startupSyncEstimate() {
+  if (["done", "idle", "disabled", "error"].includes(startupSync.status)) {
+    return startupSync.status === "done" ? 0 : null;
+  }
+
+  if (startupSync.stage === "rate_limited" && startupSync.waitUntil) {
+    return Math.max(0, Math.ceil((Date.parse(startupSync.waitUntil) - Date.now()) / 1_000));
+  }
+
+  if (startupSync.stage === "online") {
+    const remainingRequests = Math.max(
+      0,
+      startupSync.apiPagesTotal - startupSync.apiPagesDone + osuApiQueue.length,
+    );
+    return Math.ceil((remainingRequests * osuApiMinIntervalMs) / 1_000);
+  }
+
+  if (startupSync.stage === "pp" && startupSync.ppTotal > 0) {
+    const elapsed = Math.max(1, (Date.now() - Date.parse(startupSync.stageStartedAt)) / 1_000);
+    const perSecond = startupSync.ppDone / elapsed;
+    return perSecond > 0
+      ? Math.ceil((startupSync.ppTotal - startupSync.ppDone) / perSecond)
+      : null;
+  }
+
+  return null;
+}
+
+function startupSyncPercent() {
+  if (startupSync.status === "done") return 100;
+  if (startupSync.stage === "online" || startupSync.stage === "rate_limited") {
+    return Math.min(70, Math.round((startupSync.apiPagesDone / Math.max(1, startupSync.apiPagesTotal)) * 70));
+  }
+  if (startupSync.stage === "local") return 72;
+  if (startupSync.stage === "pp") {
+    return Math.min(99, 72 + Math.round((startupSync.ppDone / Math.max(1, startupSync.ppTotal)) * 27));
+  }
+  return 0;
+}
+
+function updateStartupSync(patch) {
+  startupSync = {
+    ...startupSync,
+    ...patch,
+    updatedAt: new Date().toISOString(),
+  };
+  startupSync.percent = startupSyncPercent();
+  startupSync.etaSeconds = startupSyncEstimate();
+}
+
+function startupSyncSnapshot() {
+  updateStartupSync({});
+  return { ...startupSync, queueLength: osuApiQueue.length };
+}
 
 function ppProgressId(value) {
   const id = String(value || "").trim();
@@ -690,7 +834,7 @@ function ppCacheKey(mode, score) {
 
 async function hydrateScorePp(score, mode, cache) {
   const key = ppCacheKey(mode, score);
-  if (!key || score.pp) return { score, fetched: false };
+  if (!key || effectivePp(score)) return { score, fetched: false };
 
   const cached = cache[key];
   if (cached && cached.pp !== null && cached.pp !== undefined) {
@@ -716,33 +860,35 @@ async function hydrateScorePp(score, mode, cache) {
 
     return { score, fetched: true };
   } catch (error) {
-    cache[key] = {
-      pp: null,
-      error: error.status || error.message || "unknown",
-      fetched_at: new Date().toISOString(),
-      source: "osu-api",
-    };
+    const transient = error.status === 429 || error.status >= 500;
+    if (!transient) {
+      cache[key] = {
+        pp: null,
+        error: error.status || error.message || "unknown",
+        fetched_at: new Date().toISOString(),
+        source: "osu-api",
+      };
+    }
     return { score, fetched: true };
   }
 }
 
-async function hydrateVisiblePp(scores, mode) {
+async function hydrateVisiblePp(scores, mode, options = {}) {
   const cache = await loadPpCache();
+  const max = Math.max(0, Number(options.max ?? 5));
+  const candidates = scores
+    .filter((score) => !effectivePp(score) && ppCacheKey(mode, score))
+    .slice(0, max);
   let fetched = 0;
   let filled = 0;
-  let cursor = 0;
-  const workers = Array.from({ length: 6 }, async () => {
-    while (cursor < scores.length) {
-      const index = cursor;
-      cursor += 1;
-      const before = scores[index].pp;
-      const result = await hydrateScorePp(scores[index], mode, cache);
-      if (result.fetched) fetched += 1;
-      if (!before && scores[index].pp) filled += 1;
-    }
-  });
 
-  await Promise.all(workers);
+  for (const score of candidates) {
+    const before = effectivePp(score);
+    const result = await hydrateScorePp(score, mode, cache);
+    if (result.fetched) fetched += 1;
+    if (!before && effectivePp(score)) filled += 1;
+  }
+
   if (fetched > 0) await savePpCache(cache);
   return { fetched, filled };
 }
@@ -793,7 +939,10 @@ async function getAccessToken(forceRefresh = false) {
   return tokenCache.accessToken;
 }
 
-async function osuFetch(pathname, params = {}, retry = true) {
+async function osuFetch(pathname, params = {}, state = {}) {
+  const attempt = Number(state.attempt || 0);
+  const tokenRetried = Boolean(state.tokenRetried);
+  const priority = Number(state.priority ?? 10);
   const url = new URL(`${osuApiBase}${pathname}`);
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null && value !== "") {
@@ -802,23 +951,44 @@ async function osuFetch(pathname, params = {}, retry = true) {
   }
 
   const token = await getAccessToken();
-  const response = await fetch(url, {
-    headers: {
-      authorization: `Bearer ${token}`,
-      accept: "application/json",
-      "x-api-version": "20220705",
-    },
-  });
+  const response = await enqueueOsuApiRequest(
+    () =>
+      fetch(url, {
+        headers: {
+          authorization: `Bearer ${token}`,
+          accept: "application/json",
+          "x-api-version": "20220705",
+        },
+      }),
+    priority,
+  );
 
-  if (response.status === 401 && retry) {
+  if (response.status === 401 && !tokenRetried) {
+    await response.arrayBuffer().catch(() => undefined);
     await getAccessToken(true);
-    return osuFetch(pathname, params, false);
+    return osuFetch(pathname, params, { ...state, attempt, tokenRetried: true });
+  }
+
+  if (response.status === 429 && attempt < osuApiMaxRetries) {
+    await response.arrayBuffer().catch(() => undefined);
+    const retryDelay = osuRetryDelayMs(response, attempt);
+    osuApiBlockedUntil = Math.max(osuApiBlockedUntil, Date.now() + retryDelay);
+    state.onRateLimit?.(retryDelay);
+    return osuFetch(pathname, params, {
+      ...state,
+      attempt: attempt + 1,
+      tokenRetried,
+    });
   }
 
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const error = new Error(payload.error || payload.message || `osu! API Fehler ${response.status}`);
+    const fallbackMessage =
+      response.status === 429
+        ? "osu! API Rate-Limit aktiv. Die automatische Wartezeit war nicht ausreichend; bitte spaeter erneut versuchen."
+        : `osu! API Fehler ${response.status}`;
+    const error = new Error(payload.error || payload.message || fallbackMessage);
     error.status = response.status;
     error.details = payload;
     throw error;
@@ -850,7 +1020,16 @@ async function getUserScores(userId, options) {
       params.include_fails = options.passesOnly ? 0 : 1;
     }
 
-    const pageScores = await osuFetch(`/users/${userId}/scores/${options.type}`, params);
+    const pageScores = await osuFetch(`/users/${userId}/scores/${options.type}`, params, {
+      priority: options.priority ?? 10,
+      onRateLimit: options.onRateLimit,
+    });
+    options.onPage?.({
+      page: page + 1,
+      pages: options.pages,
+      count: Array.isArray(pageScores) ? pageScores.length : 0,
+      complete: !Array.isArray(pageScores) || pageScores.length < limit,
+    });
     if (!Array.isArray(pageScores) || pageScores.length === 0) break;
 
     for (const score of pageScores) {
@@ -864,6 +1043,149 @@ async function getUserScores(userId, options) {
   }
 
   return allScores;
+}
+
+async function runStartupSync() {
+  if (startupSyncPromise) return startupSyncPromise;
+
+  startupSyncPromise = (async () => {
+    if (!hasCredentials()) {
+      updateStartupSync({ status: "disabled", stage: "disabled" });
+      return;
+    }
+
+    const stored = getMostRecentStoredUser();
+    if (!stored?.user?.username) {
+      updateStartupSync({ status: "idle", stage: "idle" });
+      return;
+    }
+
+    const startedAt = new Date().toISOString();
+    updateStartupSync({
+      status: "running",
+      stage: "online",
+      username: stored.user.username,
+      mode: stored.mode,
+      apiPagesDone: 0,
+      apiPagesTotal: 20,
+      onlineScoresSeen: 0,
+      localScoresSeen: 0,
+      newScores: 0,
+      ppDone: 0,
+      ppTotal: 0,
+      ppFilled: 0,
+      waitUntil: null,
+      warning: null,
+      error: null,
+      startedAt,
+      stageStartedAt: startedAt,
+    });
+
+    let fetchedScores = [];
+    let apiWarning = null;
+    if (Number.isFinite(Number(stored.user.id))) {
+      try {
+        fetchedScores = await getUserScores(stored.user.id, {
+          mode: stored.mode,
+          type: "recent",
+          pages: 20,
+          includeLazer: true,
+          passesOnly: true,
+          priority: 0,
+          onRateLimit: (delay) => {
+            updateStartupSync({
+              stage: "rate_limited",
+              waitUntil: new Date(Date.now() + delay).toISOString(),
+            });
+          },
+          onPage: ({ page, count, complete }) => {
+            updateStartupSync({
+              stage: "online",
+              apiPagesDone: page,
+              apiPagesTotal: complete ? page : 20,
+              onlineScoresSeen: startupSync.onlineScoresSeen + count,
+              waitUntil: null,
+            });
+          },
+        });
+      } catch (error) {
+        apiWarning = error.message || String(error);
+      }
+    } else {
+      apiWarning = "Fuer diesen lokal gespeicherten Spieler ist keine Online-ID bekannt.";
+      updateStartupSync({ apiPagesTotal: 0 });
+    }
+
+    const localStageStartedAt = new Date().toISOString();
+    updateStartupSync({
+      stage: "local",
+      stageStartedAt: localStageStartedAt,
+      warning: apiWarning,
+      waitUntil: null,
+    });
+    const localImport = await importLocalScores({
+      username: stored.user.username,
+      userId: stored.user.id,
+      mode: stored.mode,
+    });
+    updateStartupSync({ localScoresSeen: localImport.scores.length });
+
+    const history = await upsertHistory(stored.user, stored.mode, [
+      ...fetchedScores,
+      ...localImport.scores,
+    ]);
+    updateStartupSync({ newScores: history.savedNow });
+
+    const ppCandidates = history.scores
+      .filter((score) => !effectivePp(score) && score.beatmap?.local_osu_path)
+      .sort((a, b) => compareScores(a, b, "date"))
+      .slice(0, 2_500);
+
+    let calculated = { attempted: 0, filled: 0, errors: [] };
+    if (ppCandidates.length) {
+      const ppStageStartedAt = new Date().toISOString();
+      updateStartupSync({
+        stage: "pp",
+        stageStartedAt: ppStageStartedAt,
+        ppDone: 0,
+        ppTotal: ppCandidates.length,
+        ppFilled: 0,
+      });
+      calculated = await hydrateCalculatedPp(ppCandidates, stored.mode, {
+        force: true,
+        max: ppCandidates.length,
+        onProgress: ({ attempted, filled }) => {
+          updateStartupSync({ ppDone: attempted, ppFilled: filled });
+        },
+      });
+      if (calculated.filled > 0) {
+        updateStoredScores(stored.user, stored.mode, ppCandidates);
+      }
+    }
+
+    const warningParts = [
+      apiWarning,
+      ...(localImport.warnings || []),
+      ...(calculated.errors || []),
+    ].filter(Boolean);
+    updateStartupSync({
+      status: "done",
+      stage: "done",
+      ppDone: calculated.attempted || 0,
+      ppFilled: calculated.filled || 0,
+      warning: warningParts.join(" | ") || null,
+      waitUntil: null,
+    });
+  })().catch((error) => {
+    updateStartupSync({
+      status: "error",
+      stage: "error",
+      error: error.message || String(error),
+      waitUntil: null,
+    });
+  });
+
+  return startupSyncPromise;
 }
 
 async function huisFetch(pathname, options = {}) {
@@ -1283,7 +1605,6 @@ async function handleSearch(req, res) {
     filled: 0,
     backfill_until: ppBackfillUntil,
   });
-  const ppHydration = await hydrateVisiblePp(ppWorkSet, mode);
   const calculatedHydration = recalculatePp
     ? await hydrateCalculatedPp(ppWorkSet, mode, {
         force: true,
@@ -1295,6 +1616,7 @@ async function handleSearch(req, res) {
         }),
       })
     : { attempted: 0, filled: 0, unavailable: false, errors: [] };
+  const ppHydration = await hydrateVisiblePp(ppWorkSet, mode, { max: 0 });
 
   if (ppHydration.filled > 0 || calculatedHydration.filled > 0) {
     updateStoredScores(user, mode, ppWorkSet);
@@ -1334,7 +1656,6 @@ async function handleSearch(req, res) {
       attempted: 0,
       filled: 0,
     });
-    visiblePpHydration = await hydrateVisiblePp(visiblePpWorkSet, mode);
     visibleCalculatedHydration = recalculatePp
       ? await hydrateCalculatedPp(visiblePpWorkSet, mode, {
           force: true,
@@ -1345,6 +1666,7 @@ async function handleSearch(req, res) {
           }),
         })
       : visibleCalculatedHydration;
+    visiblePpHydration = await hydrateVisiblePp(visiblePpWorkSet, mode, { max: 5 });
 
     if (visiblePpHydration.filled > 0 || visibleCalculatedHydration.filled > 0) {
       updateStoredScores(user, mode, visiblePpWorkSet);
@@ -1513,7 +1835,6 @@ async function handleBackfillMonth(req, res) {
     filled: 0,
   });
 
-  const ppHydration = await hydrateVisiblePp(ppWorkSet, mode);
   const calculatedHydration = recalculatePp
     ? await hydrateCalculatedPp(ppWorkSet, mode, {
         force: true,
@@ -1525,6 +1846,7 @@ async function handleBackfillMonth(req, res) {
         }),
       })
     : { attempted: 0, filled: 0, unavailable: false, errors: [] };
+  const ppHydration = await hydrateVisiblePp(ppWorkSet, mode, { max: 5 });
 
   if (ppHydration.filled > 0 || calculatedHydration.filled > 0) {
     updateStoredScores(user, mode, ppWorkSet);
@@ -1736,6 +2058,13 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    if (url.pathname === "/api/startup-sync") {
+      if (req.method !== "GET") {
+        throw statusError(405, "Method not allowed");
+      }
+      return json(res, 200, startupSyncSnapshot());
+    }
+
     if (url.pathname === "/api/update-check") {
       return await handleUpdateCheck(req, res);
     }
@@ -1772,4 +2101,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(port, host, () => {
   console.log(`osu! Mod Score Finder laeuft auf http://${host}:${port}`);
+  setTimeout(() => {
+    void runStartupSync();
+  }, 1_500).unref?.();
 });

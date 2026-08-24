@@ -112,6 +112,13 @@
       <pre><code>start-beta.bat</code></pre>
       <p>Danach oeffnet die App unter <a href="http://127.0.0.1:5173">http://127.0.0.1:5173</a>.</p>
 
+      <h2>Automatischer Score-Sync</h2>
+      <p>
+        Kurz nach dem Start synchronisiert die App den zuletzt verwendeten gespeicherten Spieler.
+        Ein Balken zeigt API-Seiten, neue Online- und lokale Scores, PP-Berechnung und die geschaetzte Restzeit.
+        Die osu!api wird mit etwa einer Anfrage pro Sekunde genutzt; bei einem 429-Limit wartet die App und setzt automatisch fort.
+      </p>
+
       <h2>Updates</h2>
       <p>
         Die App prueft GitHub auf eine neuere Version und zeigt den Status oben rechts an.
@@ -132,6 +139,7 @@
         <li><strong>Bester Try:</strong> entscheidet, welcher Try pro Map-Difficulty behalten wird.</li>
         <li><strong>Improvement:</strong> vergleicht letzten Try, letzte Stunde oder heutigen Tag.</li>
         <li><strong>Live-Scanner:</strong> prueft nach einer Suche automatisch auf neu gespeicherte lokale Scores.</li>
+        <li><strong>Start-Sync:</strong> synchronisiert beim Programmstart den zuletzt verwendeten gespeicherten Spieler und zeigt Fortschritt sowie Restzeit.</li>
         <li><strong>Kalender:</strong> zeigt ein Monatsraster, gespielte Tage und alle gespeicherten Scores fuer einen ausgewaehlten Tag.</li>
         <li><strong>Kalender-PP-Range:</strong> filtert den Kalender z. B. auf 100pp bis 250pp und markiert das Monats-Top-Play orange.</li>
         <li><strong>Details:</strong> zeigt alle gespeicherten Tries auf derselben Map-Difficulty.</li>

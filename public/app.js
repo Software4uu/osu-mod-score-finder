@@ -2,6 +2,7 @@ const form = document.querySelector("#searchForm");
 const apiStatus = document.querySelector("#apiStatus");
 const liveStatus = document.querySelector("#liveStatus");
 const updateStatus = document.querySelector("#updateStatus");
+const startupSync = document.querySelector("#startupSync");
 const results = document.querySelector("#results");
 const passes = document.querySelector("#passes");
 const improvements = document.querySelector("#improvements");
@@ -32,6 +33,8 @@ let ppProgressTimer = null;
 let activePpProgressJob = "";
 let calendarLoadingMonth = "";
 let latestUpdateInfo = null;
+let startupSyncTimer = null;
+let latestStartupSync = null;
 
 const modNames = {
   NM: "No Mod",
@@ -191,6 +194,22 @@ const translations = {
     "label.ppFilled": "PP ergaenzt",
     "label.ppCalculated": "PP berechnet",
     "label.ppStatus": "PP-Status",
+    "sync.title": "Automatischer Score-Sync",
+    "sync.scheduled": "Der Hintergrund-Sync wird vorbereitet...",
+    "sync.online": "Online-Scores werden geprueft: {done} von {total} API-Seiten",
+    "sync.rateLimited": "osu! begrenzt die API gerade. Automatische Fortsetzung in etwa {seconds} Sek.",
+    "sync.local": "Lokale osu!-Scores werden eingelesen...",
+    "sync.pp": "Fehlende PP werden lokal berechnet: {done} von {total}",
+    "sync.done": "Der automatische Score-Sync ist abgeschlossen.",
+    "sync.idle": "Der automatische Sync startet, sobald ein Spieler lokal gespeichert wurde.",
+    "sync.disabled": "Der Online-Sync wartet auf gueltige osu! API-Zugangsdaten.",
+    "sync.error": "Der automatische Score-Sync konnte nicht abgeschlossen werden.",
+    "sync.newScores": "{count} neue Scores",
+    "sync.onlineScores": "{count} online gefunden",
+    "sync.localScores": "{count} lokal gefunden",
+    "sync.ppFilled": "{count} PP berechnet",
+    "sync.eta": "Restzeit ca. {time}",
+    "sync.queue": "{count} API-Anfragen warten",
     "label.ppQueued": "PP-Warteschlange",
     "label.ppAttempted": "bearbeitet",
     "label.ppVisibleReady": "sichtbare Scores geprueft",
@@ -399,6 +418,22 @@ const translations = {
     "label.ppFilled": "PP filled",
     "label.ppCalculated": "PP calculated",
     "label.ppStatus": "PP status",
+    "sync.title": "Automatic score sync",
+    "sync.scheduled": "Preparing the background sync...",
+    "sync.online": "Checking online scores: {done} of {total} API pages",
+    "sync.rateLimited": "osu! is currently limiting the API. Continuing automatically in about {seconds} sec.",
+    "sync.local": "Reading local osu! scores...",
+    "sync.pp": "Calculating missing PP locally: {done} of {total}",
+    "sync.done": "The automatic score sync is complete.",
+    "sync.idle": "Automatic sync will start after a player has been stored locally.",
+    "sync.disabled": "Online sync is waiting for valid osu! API credentials.",
+    "sync.error": "The automatic score sync could not be completed.",
+    "sync.newScores": "{count} new scores",
+    "sync.onlineScores": "{count} found online",
+    "sync.localScores": "{count} found locally",
+    "sync.ppFilled": "{count} PP calculated",
+    "sync.eta": "About {time} remaining",
+    "sync.queue": "{count} API requests queued",
     "label.ppQueued": "PP queue",
     "label.ppAttempted": "processed",
     "label.ppVisibleReady": "visible scores checked",
@@ -566,6 +601,15 @@ function formatDayKey(value) {
     month: "short",
     day: "2-digit",
   }).format(date);
+}
+
+function formatDuration(value) {
+  const totalSeconds = Math.max(0, Math.ceil(Number(value || 0)));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (!minutes) return `${seconds} s`;
+  if (!seconds) return `${minutes} min`;
+  return `${minutes} min ${seconds} s`;
 }
 
 function formatMonthKey(value) {
@@ -1092,6 +1136,7 @@ function applyLanguage(language, { rerender = true } = {}) {
 
   refreshHelp();
   setLoading(isLoading);
+  if (latestStartupSync) renderStartupSync(latestStartupSync);
   if (rerender && lastSearchData) renderSearchData(lastSearchData);
   if (!lastSearchData) renderPasses();
 }
@@ -1106,6 +1151,92 @@ async function checkStatus() {
     apiStatus.className = "status-pill missing";
     apiStatus.textContent = t("status.offline");
   }
+}
+
+function startupSyncLine(data) {
+  if (data.stage === "online") {
+    return t("sync.online", {
+      done: formatNumber(data.apiPagesDone || 0),
+      total: formatNumber(data.apiPagesTotal || 0),
+    });
+  }
+  if (data.stage === "rate_limited") {
+    return t("sync.rateLimited", { seconds: formatNumber(data.etaSeconds || 0) });
+  }
+  if (data.stage === "local") return t("sync.local");
+  if (data.stage === "pp") {
+    return t("sync.pp", {
+      done: formatNumber(data.ppDone || 0),
+      total: formatNumber(data.ppTotal || 0),
+    });
+  }
+  if (data.status === "done") return t("sync.done");
+  if (data.status === "idle") return t("sync.idle");
+  if (data.status === "disabled") return t("sync.disabled");
+  if (data.status === "error") return t("sync.error");
+  return t("sync.scheduled");
+}
+
+function renderStartupSync(data = {}) {
+  if (!startupSync) return;
+  latestStartupSync = data;
+  const percent = Math.min(100, Math.max(0, Number(data.percent || 0)));
+  const player = data.username
+    ? `<span>${escapeHtml(data.username)} · ${escapeHtml(data.mode || "osu")}</span>`
+    : "";
+  const eta = Number.isFinite(Number(data.etaSeconds)) && Number(data.etaSeconds) > 0
+    ? `<span>${escapeHtml(t("sync.eta", { time: formatDuration(data.etaSeconds) }))}</span>`
+    : "";
+  const warning = data.warning
+    ? `<p class="startup-sync-warning">${escapeHtml(data.warning)}</p>`
+    : data.error
+      ? `<p class="startup-sync-warning">${escapeHtml(data.error)}</p>`
+      : "";
+
+  startupSync.classList.remove("hidden");
+  startupSync.innerHTML = `
+    <div class="startup-sync-head">
+      <div>
+        <strong>${escapeHtml(t("sync.title"))}</strong>
+        ${player}
+      </div>
+      <span>${escapeHtml(startupSyncLine(data))}</span>
+    </div>
+    <div class="pp-progress-bar" aria-hidden="true"><i style="width: ${percent}%"></i></div>
+    <div class="pp-progress-meta">
+      <span>${escapeHtml(t("sync.newScores", { count: formatNumber(data.newScores || 0) }))}</span>
+      <span>${escapeHtml(t("sync.onlineScores", { count: formatNumber(data.onlineScoresSeen || 0) }))}</span>
+      <span>${escapeHtml(t("sync.localScores", { count: formatNumber(data.localScoresSeen || 0) }))}</span>
+      <span>${escapeHtml(t("sync.ppFilled", { count: formatNumber(data.ppFilled || 0) }))}</span>
+      ${eta}
+      ${Number(data.queueLength || 0) > 0
+        ? `<span>${escapeHtml(t("sync.queue", { count: formatNumber(data.queueLength) }))}</span>`
+        : ""}
+    </div>
+    ${warning}
+  `;
+}
+
+async function pollStartupSync() {
+  try {
+    const response = await fetch("/api/startup-sync");
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Sync status failed");
+    renderStartupSync(data);
+    if (["done", "idle", "disabled", "error"].includes(data.status) && startupSyncTimer) {
+      clearInterval(startupSyncTimer);
+      startupSyncTimer = null;
+    }
+  } catch {
+    if (startupSyncTimer) clearInterval(startupSyncTimer);
+    startupSyncTimer = null;
+  }
+}
+
+function startStartupSyncPolling() {
+  void pollStartupSync();
+  if (startupSyncTimer) clearInterval(startupSyncTimer);
+  startupSyncTimer = setInterval(pollStartupSync, 1_000);
 }
 
 function setUpdateStatus(key, className = "", title = "") {
@@ -2323,3 +2454,4 @@ initHelp();
 applyLanguage(currentLanguage, { rerender: false });
 checkStatus();
 checkForUpdates();
+startStartupSyncPolling();

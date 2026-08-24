@@ -56,6 +56,8 @@ http://localhost:5173/callback
 - Display PP rank windows such as `1` to `100`
 - Improvement view for the latest try, the last hour, or today
 - Live scanner for newly saved local scores after a search
+- Automatic startup sync for the most recently used stored player, with progress, new-score counts, rate-limit waiting, and estimated remaining time
+- osu!api requests are cached, prioritised, and limited to about one request per second; `429` responses wait and retry automatically
 - Calendar tab with a month grid, played days, and all stored scores for a selected day
 - Calendar PP range filter plus orange highlight for the day with the month's top PP play
 - Map detail view with all stored tries on the same map difficulty
@@ -151,6 +153,8 @@ http://localhost:5173/callback
 - PP-Rangfenster wie `1` bis `100` anzeigen
 - Improvement-Ansicht für letzten Try, letzte Stunde oder heute
 - Live-Scanner für neu gespeicherte lokale Scores nach einer Suche
+- Automatischer Start-Sync fuer den zuletzt verwendeten gespeicherten Spieler mit Fortschritt, Anzahl neuer Scores, Rate-Limit-Wartezeit und geschaetzter Restzeit
+- osu!api-Anfragen werden gecacht, priorisiert und auf etwa eine Anfrage pro Sekunde begrenzt; bei `429` wartet die App und versucht es automatisch erneut
 - Kalender-Tab mit Monatsraster, gespielten Tagen und allen gespeicherten Scores eines Tages
 - Kalender-PP-Range-Filter plus orange Markierung fuer den Tag mit dem Top-PP-Play des Monats
 - Map-Detailansicht mit allen gespeicherten Tries auf derselben Difficulty

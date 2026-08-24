@@ -357,6 +357,31 @@ export function getStoredUserByName(username, mode) {
   };
 }
 
+export function getMostRecentStoredUser() {
+  const row = ensureDb()
+    .prepare(
+      `SELECT * FROM users
+       ORDER BY updated_at DESC
+       LIMIT 1`
+    )
+    .get();
+
+  if (!row) return null;
+  const rawUser = parseJson(row.raw_user_json, {}) || {};
+  return {
+    bucketKey: row.bucket_key,
+    mode: row.mode,
+    user: {
+      ...rawUser,
+      id: row.user_id,
+      username: row.username,
+      avatar_url: row.avatar_url,
+      country_code: row.country_code,
+      statistics: parseJson(row.statistics_json, rawUser.statistics || {}),
+    },
+  };
+}
+
 export function upsertStoredScores(user, mode, scores) {
   const now = new Date().toISOString();
   const key = upsertUser(user, mode, now);

@@ -384,6 +384,39 @@ select:focus {
   display: none !important;
 }
 
+.startup-sync {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.startup-sync-head,
+.startup-sync-head > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.startup-sync-head > div {
+  justify-content: flex-start;
+}
+
+.startup-sync-head > span,
+.startup-sync-head > div > span,
+.startup-sync-warning {
+  color: var(--muted);
+}
+
+.startup-sync-warning {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
 .summary {
   display: flex;
   align-items: center;
