@@ -26,7 +26,7 @@ const githubOwner = "Software4uu";
 const githubRepo = "osu-mod-score-finder";
 const githubRepoUrl = `https://github.com/${githubOwner}/${githubRepo}`;
 const githubApiBase = `https://api.github.com/repos/${githubOwner}/${githubRepo}`;
-const githubRawPackageUrl = `https://raw.githubusercontent.com/${githubOwner}/${githubRepo}/main/package.json`;
+const githubPackageContentsUrl = `${githubApiBase}/contents/package.json?ref=main`;
 const updaterBatPath = path.join(__dirname, "update-beta.bat");
 const updateLogPath = path.join(dataDir, "update.log");
 
@@ -215,6 +215,16 @@ async function githubJson(url) {
   }
 
   return response.json();
+}
+
+async function githubPackageInfo() {
+  const data = await githubJson(githubPackageContentsUrl);
+  const encoded = String(data.content || "").replace(/\s/g, "");
+  if (!encoded || data.encoding !== "base64") {
+    throw statusError(502, "GitHub package metadata could not be decoded.");
+  }
+
+  return JSON.parse(Buffer.from(encoded, "base64").toString("utf8"));
 }
 
 async function resolveGitDir() {
@@ -1561,7 +1571,7 @@ async function handleUpdateCheck(req, res) {
   let latestRelease = null;
 
   try {
-    latestPackage = await githubJson(githubRawPackageUrl);
+    latestPackage = await githubPackageInfo();
     checks.push("package");
   } catch (error) {
     checks.push(`package-failed:${error.status || "network"}`);
