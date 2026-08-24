@@ -71,14 +71,27 @@ function Get-AppPort {
 function Stop-AppServer {
   param([Parameter(Mandatory = $true)][int]$Port)
 
-  $connections = @()
+  $processIds = @()
   try {
-    $connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+    $processIds = @(
+      Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Stop |
+        Select-Object -ExpandProperty OwningProcess -Unique
+    )
   } catch {
-    $connections = @()
+    Write-Step -English "Windows port lookup was unavailable. Falling back to netstat." -German "Die Windows-Portabfrage war nicht verfuegbar. Nutze netstat als Fallback."
   }
 
-  foreach ($processId in ($connections | Select-Object -ExpandProperty OwningProcess -Unique)) {
+  if (-not $processIds.Count) {
+    $escapedPort = [regex]::Escape([string]$Port)
+    foreach ($line in (& netstat -ano -p tcp 2>$null)) {
+      if ($line -match ("^\s*TCP\s+\S+:" + $escapedPort + "\s+\S+\s+\S+\s+(\d+)\s*$")) {
+        $processIds += [int]$Matches[1]
+      }
+    }
+    $processIds = @($processIds | Sort-Object -Unique)
+  }
+
+  foreach ($processId in $processIds) {
     if (-not $processId) {
       continue
     }
