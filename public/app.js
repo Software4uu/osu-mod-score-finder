@@ -247,6 +247,7 @@ const translations = {
     "empty.noDayScores": "An diesem Tag sind fuer diese Filter keine Scores gespeichert.",
     "empty.noMapDetails": "Fuer diese Difficulty wurden in der aktuellen Suche keine weiteren Tries gefunden.",
     "empty.noStarPasses": "Keine Passes in dieser Sterne-Range gefunden.",
+    "empty.passSearchFirst": "Stelle die Sterne-Range ein und starte dann eine Suche.",
     "loading.search": "Passes werden geladen und in der lokalen Datenbank gespeichert.",
     "loading.ppProgress": "PP wird nachberechnet: {done} von {total}",
     "loading.ppStarting": "PP-Nachberechnung wird vorbereitet...",
@@ -443,6 +444,7 @@ const translations = {
     "empty.noDayScores": "No scores are stored for these filters on this day.",
     "empty.noMapDetails": "No other tries for this difficulty were found in the current search.",
     "empty.noStarPasses": "No passes found in this star range.",
+    "empty.passSearchFirst": "Set the star range, then start a search.",
     "loading.search": "Loading passes and storing them in the local database.",
     "loading.ppProgress": "Recalculating PP: {done} of {total}",
     "loading.ppStarting": "Preparing PP recalculation...",
@@ -1021,6 +1023,7 @@ function applyLanguage(language, { rerender = true } = {}) {
   refreshHelp();
   setLoading(isLoading);
   if (rerender && lastSearchData) renderSearchData(lastSearchData);
+  if (!lastSearchData) renderPasses();
 }
 
 async function checkStatus() {
@@ -1250,13 +1253,14 @@ function renderPassStat(label, value) {
   `;
 }
 
-function renderPasses(data) {
-  const allScores = uniqueScores(allScoresFromData(data));
+function renderPasses(data = null) {
+  const hasData = Boolean(data);
+  const allScores = hasData ? uniqueScores(allScoresFromData(data)) : [];
   const matchingScores = allScores.filter(scoreInPassStarRange);
-  const bestMode = data.meta?.bestMode || "score";
+  const bestMode = data?.meta?.bestMode || document.querySelector("#bestMode")?.value || "score";
   const bestMapScores = bestScorePerMapForDisplay(matchingScores, bestMode);
-  const sortedScores = sortScoresForDisplay(bestMapScores, data.meta?.sort || "date");
-  const limit = Math.max(1, Number(data.meta?.limit || 100));
+  const sortedScores = sortScoresForDisplay(bestMapScores, data?.meta?.sort || document.querySelector("#sort")?.value || "date");
+  const limit = Math.max(1, Number(data?.meta?.limit || document.querySelector("#limit")?.value || 100));
   const ppRankByScore = new Map(
     [...bestMapScores]
       .filter((score) => scorePpValue(score) > 0)
@@ -1308,7 +1312,9 @@ function renderPasses(data) {
       </div>
     </div>
     ${
-      displayScores.length
+      !hasData
+        ? `<div class="empty-state">${escapeHtml(t("empty.passSearchFirst"))}</div>`
+        : displayScores.length
         ? displayScores.map((score) => renderScore(score, data.meta.mode)).join("")
         : `<div class="empty-state">${escapeHtml(t("empty.noStarPasses"))}</div>`
     }
@@ -1941,7 +1947,7 @@ async function runSearch(event) {
   lastSearchData = null;
   setLoading(true);
   setResultsState(`<div class="loading-state">${escapeHtml(t("loading.search"))}</div>`);
-  passes.innerHTML = "";
+  renderPasses();
   setImprovementState("");
   calendar.innerHTML = "";
 
@@ -2086,7 +2092,7 @@ function handleDetailsClick(event) {
 results.addEventListener("click", handleDetailsClick);
 passes.addEventListener("click", (event) => {
   const filterButton = event.target.closest("button[data-pass-filter]");
-  if (filterButton && lastSearchData) {
+  if (filterButton) {
     if (filterButton.dataset.passFilter === "reset") {
       passStarMin = "";
       passStarMax = "";
