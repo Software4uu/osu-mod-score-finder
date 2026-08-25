@@ -122,6 +122,7 @@ const translations = {
     "toggle.liveScanner": "Live-Scanner",
     "toggle.rankedOnly": "ranked/approved",
     "toggle.includeLoved": "loved mitnehmen",
+    "toggle.includeUnrankedPasses": "unranked in Passes",
     "button.clear": "clear",
     "button.search": "Passes suchen",
     "button.loading": "Laedt Passes...",
@@ -200,6 +201,7 @@ const translations = {
     "help.toggle.liveScanner": "Prueft nach einer Suche automatisch deine lokalen osu!-Dateien und aktualisiert die Ansicht, wenn neue Scores gespeichert wurden.",
     "help.toggle.rankedOnly": "Zeigt nur ranked/approved Maps. Loved kann separat dazugeschaltet werden.",
     "help.toggle.includeLoved": "Nimmt Loved-Maps in den ranked/approved Filter mit auf.",
+    "help.toggle.includeUnrankedPasses": "Nimmt unranked und Custom-Rate-Scores nur im Passes-Tab mit auf. Scores, Improvement und Kalender bleiben vom ranked/approved Filter getrennt.",
     "label.allMods": "alle Mods",
     "label.allMapStatuses": "alle Map-Status",
     "label.rankedMaps": "ranked/approved Maps",
@@ -248,6 +250,7 @@ const translations = {
     "label.ppSourceCache": "PP Cache",
     "label.ppSourceOnline": "PP online",
     "label.ppSourceUnranked": "kein ranked PP",
+    "label.ppSourceHypothetical": "hypothetische PP",
     "label.noOnlineId": "keine Online-ID",
     "label.apiWithoutPp": "API ohne PP",
     "label.unrankedMod": "unranked Mod",
@@ -350,6 +353,7 @@ const translations = {
     "toggle.liveScanner": "Live scanner",
     "toggle.rankedOnly": "ranked/approved",
     "toggle.includeLoved": "include loved",
+    "toggle.includeUnrankedPasses": "unranked in Passes",
     "button.clear": "clear",
     "button.search": "Search passes",
     "button.loading": "Loading passes...",
@@ -428,6 +432,7 @@ const translations = {
     "help.toggle.liveScanner": "After a search, automatically checks your local osu! files and refreshes the view when new scores are stored.",
     "help.toggle.rankedOnly": "Shows only ranked/approved maps. Loved maps can be added separately.",
     "help.toggle.includeLoved": "Includes loved maps in the ranked/approved filter.",
+    "help.toggle.includeUnrankedPasses": "Includes unranked and custom-rate scores only in the Passes tab. Scores, Improvement, and Calendar stay separate from this filter.",
     "label.allMods": "all mods",
     "label.allMapStatuses": "all map statuses",
     "label.rankedMaps": "ranked/approved maps",
@@ -476,6 +481,7 @@ const translations = {
     "label.ppSourceCache": "PP cache",
     "label.ppSourceOnline": "PP online",
     "label.ppSourceUnranked": "no ranked PP",
+    "label.ppSourceHypothetical": "hypothetical PP",
     "label.noOnlineId": "no online ID",
     "label.apiWithoutPp": "API without PP",
     "label.unrankedMod": "unranked mod",
@@ -741,6 +747,24 @@ function scorePpValue(score) {
   return Number.isFinite(value) ? value : 0;
 }
 
+function passPpValue(score) {
+  const reason = unrankedScoreReason(score);
+  if (reason) {
+    const value = Number(score.unranked_calculated_pp || 0);
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  return scorePpValue(score);
+}
+
+function passPpTitle(score) {
+  const reason = unrankedScoreReason(score);
+  if (!reason) return ppSourceLabel(score);
+  return passPpValue(score) > 0
+    ? `${unrankedReasonLabel(reason)} - ${t("label.ppSourceHypothetical")}`
+    : unrankedReasonLabel(reason);
+}
+
 function scoreAttemptMinute(score) {
   const time = Date.parse(score?.ended_at || score?.created_at || "") || 0;
   return time ? Math.floor(time / 60000) : "";
@@ -786,12 +810,17 @@ function allScoresFromData(data) {
   return Object.values(scoresByDay).flat();
 }
 
+function passScoresFromData(data) {
+  if (Array.isArray(data?.passScores)) return data.passScores;
+  return allScoresFromData(data);
+}
+
 function allCalendarScores() {
   return allScoresFromData(lastSearchData);
 }
 
 function findScoreByDomKey(key) {
-  return [...(lastSearchData?.scores || []), ...allCalendarScores()]
+  return [...(lastSearchData?.scores || []), ...passScoresFromData(lastSearchData), ...allCalendarScores()]
     .find((score) => scoreDomKey(score) === key);
 }
 
@@ -874,26 +903,26 @@ function uniqueScores(scores) {
   });
 }
 
-function bestModeMetrics(bestMode = "score") {
+function bestModeMetrics(bestMode = "score", ppValue = scorePpValue) {
   if (bestMode === "pp") {
-    return [scorePpValue, accuracyPercentValue, (score) => Number(score.score || 0), (score) => -missCount(score)];
+    return [ppValue, accuracyPercentValue, (score) => Number(score.score || 0), (score) => -missCount(score)];
   }
 
   if (bestMode === "acc") {
-    return [accuracyPercentValue, (score) => -missCount(score), (score) => Number(score.score || 0), scorePpValue];
+    return [accuracyPercentValue, (score) => -missCount(score), (score) => Number(score.score || 0), ppValue];
   }
 
   if (bestMode === "date") {
-    return [scoreTimeValue, (score) => Number(score.score || 0), accuracyPercentValue, scorePpValue];
+    return [scoreTimeValue, (score) => Number(score.score || 0), accuracyPercentValue, ppValue];
   }
 
-  return [(score) => Number(score.score || 0), accuracyPercentValue, (score) => -missCount(score), scorePpValue];
+  return [(score) => Number(score.score || 0), accuracyPercentValue, (score) => -missCount(score), ppValue];
 }
 
-function isBetterScoreForMode(next, current, bestMode = "score") {
+function isBetterScoreForMode(next, current, bestMode = "score", ppValue = scorePpValue) {
   if (!current) return true;
 
-  for (const metric of bestModeMetrics(bestMode)) {
+  for (const metric of bestModeMetrics(bestMode, ppValue)) {
     const nextValue = Number(metric(next) || 0);
     const currentValue = Number(metric(current) || 0);
     if (nextValue !== currentValue) return nextValue > currentValue;
@@ -902,12 +931,12 @@ function isBetterScoreForMode(next, current, bestMode = "score") {
   return scoreTimeValue(next) > scoreTimeValue(current);
 }
 
-function bestScorePerMapForDisplay(scores, bestMode = "score") {
+function bestScorePerMapForDisplay(scores, bestMode = "score", ppValue = scorePpValue) {
   const best = new Map();
 
   for (const score of scores) {
     const key = mapDomKey(score);
-    if (isBetterScoreForMode(score, best.get(key), bestMode)) best.set(key, score);
+    if (isBetterScoreForMode(score, best.get(key), bestMode, ppValue)) best.set(key, score);
   }
 
   return [...best.values()];
@@ -1437,6 +1466,7 @@ function buildSearchParams() {
   params.set("passesOnly", "1");
   params.set("rankedOnly", document.querySelector("#rankedOnly").checked ? "1" : "0");
   params.set("includeLoved", document.querySelector("#includeLoved").checked ? "1" : "0");
+  params.set("includeUnrankedPasses", document.querySelector("#includeUnrankedPasses")?.checked ? "1" : "0");
   return params;
 }
 
@@ -1562,7 +1592,7 @@ function renderSummary(data) {
   `;
 }
 
-function renderScore(score, mode) {
+function renderScore(score, mode, options = {}) {
   const beatmap = score.beatmap || {};
   const set = score.beatmapset || {};
   const mapStats = effectiveBeatmapStats(score);
@@ -1583,11 +1613,16 @@ function renderScore(score, mode) {
   const client = clientLabel(score);
   const sourceLabel = storageLabel(score);
   const ppLabel = ppSourceLabel(score);
-  const ppTitle = unrankedScoreReason(score)
-    ? ppLabel
-    : scorePpValue(score) > 0
+  const passMode = Boolean(options.passMode);
+  const ppValue = passMode ? passPpValue(score) : scorePpValue(score);
+  const isUnrankedPassPp = passMode && Boolean(unrankedScoreReason(score)) && ppValue > 0;
+  const ppTitle = passMode
+    ? passPpTitle(score)
+    : unrankedScoreReason(score)
       ? ppLabel
-      : t("label.ppNotStored");
+      : scorePpValue(score) > 0
+        ? ppLabel
+        : t("label.ppNotStored");
   const ppRank = score.pp_rank ? `<span class="pp-rank-badge">#${formatNumber(score.pp_rank)}</span>` : "";
   const detailKey = scoreDomKey(score);
 
@@ -1623,7 +1658,7 @@ function renderScore(score, mode) {
         </div>
       </div>
       <div class="score-side">
-        <div class="pp" title="${escapeHtml(ppTitle)}">${formatPp(scorePpValue(score))}</div>
+        <div class="pp ${isUnrankedPassPp ? "pp-unranked" : ""}" title="${escapeHtml(ppTitle)}">${formatPp(ppValue)}</div>
         <div class="acc">${formatAccuracy(score.accuracy)}</div>
         <div class="small">${t("label.accuracy")}</div>
       </div>
@@ -1642,16 +1677,22 @@ function renderPassStat(label, value) {
 
 function renderPasses(data = null) {
   const hasData = Boolean(data);
-  const allScores = hasData ? uniqueScores(allScoresFromData(data)) : [];
+  const allScores = hasData ? uniqueScores(passScoresFromData(data)) : [];
   const matchingScores = allScores.filter(scoreInPassStarRange);
   const bestMode = data?.meta?.bestMode || document.querySelector("#bestMode")?.value || "score";
-  const bestMapScores = bestScorePerMapForDisplay(matchingScores, bestMode);
-  const sortedScores = sortScoresForDisplay(bestMapScores, data?.meta?.sort || document.querySelector("#sort")?.value || "date");
+  const bestMapScores = bestScorePerMapForDisplay(matchingScores, bestMode, passPpValue);
+  const sort = data?.meta?.sort || document.querySelector("#sort")?.value || "date";
+  const sortedScores = [...bestMapScores].sort((a, b) => {
+    if (sort === "acc") return Number(b.accuracy || 0) - Number(a.accuracy || 0);
+    if (sort === "score") return Number(b.score || 0) - Number(a.score || 0);
+    if (sort === "pp") return passPpValue(b) - passPpValue(a) || scoreTimeValue(b) - scoreTimeValue(a);
+    return scoreTimeValue(b) - scoreTimeValue(a);
+  });
   const limit = Math.max(1, Number(data?.meta?.limit || document.querySelector("#limit")?.value || 100));
   const ppRankByScore = new Map(
     [...bestMapScores]
-      .filter((score) => scorePpValue(score) > 0)
-      .sort((a, b) => scorePpValue(b) - scorePpValue(a) || scoreTimeValue(b) - scoreTimeValue(a))
+      .filter((score) => passPpValue(score) > 0)
+      .sort((a, b) => passPpValue(b) - passPpValue(a) || scoreTimeValue(b) - scoreTimeValue(a))
       .map((score, index) => [scoreDomKey(score), index + 1])
   );
   const displayScores = sortedScores
@@ -1661,7 +1702,7 @@ function renderPasses(data = null) {
       pp_rank: ppRankByScore.get(scoreDomKey(score)) || null,
     }));
   const starValues = matchingScores.map(beatmapStarValue).filter((value) => value > 0);
-  const bestPp = matchingScores.reduce((best, score) => Math.max(best, scorePpValue(score)), 0);
+  const bestPp = matchingScores.reduce((best, score) => Math.max(best, passPpValue(score)), 0);
   const highestStars = starValues.length ? Math.max(...starValues) : 0;
   const averageStars = starValues.length
     ? starValues.reduce((total, value) => total + value, 0) / starValues.length
@@ -1702,7 +1743,7 @@ function renderPasses(data = null) {
       !hasData
         ? `<div class="empty-state">${escapeHtml(t("empty.passSearchFirst"))}</div>`
         : displayScores.length
-        ? displayScores.map((score) => renderScore(score, data.meta.mode)).join("")
+        ? displayScores.map((score) => renderScore(score, data.meta.mode, { passMode: true })).join("")
         : `<div class="empty-state">${escapeHtml(t("empty.noStarPasses"))}</div>`
     }
   `;

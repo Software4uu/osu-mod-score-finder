@@ -256,6 +256,11 @@ function scorePpEligible(score) {
   return !unrankedScoreReason(score);
 }
 
+function hypotheticalPpEligible(score) {
+  const reason = unrankedScoreReason(score);
+  return reason === "custom_rate" || reason === "unranked_mod";
+}
+
 function modeEnum(rosu, mode) {
   if (mode === "taiko") return rosu.GameMode.Taiko;
   if (mode === "fruits") return rosu.GameMode.Catch;
@@ -375,7 +380,7 @@ async function calculateScoreMetrics(score, mode, rosu) {
     difficulty,
   };
 
-  if (scorePpEligible(score)) {
+  if (scorePpEligible(score) || hypotheticalPpEligible(score)) {
     const attrs = new rosu.Performance(performanceOptions(rosu, score)).calculate(beatmap);
     result.pp = attrs?.pp ?? null;
     result.difficulty = attrs?.difficulty || difficulty;
@@ -447,6 +452,10 @@ export async function hydrateCalculatedPp(scores, mode, options = {}) {
         score.calculated_pp = calculated.pp;
         score.pp_source = "rosu-current";
         score.pp_algorithm = algorithm;
+        filled += 1;
+      } else if (reason && hypotheticalPpEligible(score) && calculatedPpLooksSane(score, calculated.pp, calculated.difficulty)) {
+        score.unranked_calculated_pp = calculated.pp;
+        score.unranked_pp_algorithm = algorithm;
         filled += 1;
       } else if (authoritativePpValue(score) !== null) {
         score.calculated_pp = null;

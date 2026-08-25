@@ -1470,6 +1470,8 @@ function compactScore(score) {
     pp_source: score.pp_source || null,
     pp_algorithm: score.pp_algorithm || null,
     calculated_pp: score.calculated_pp || null,
+    unranked_calculated_pp: score.unranked_calculated_pp || null,
+    unranked_pp_algorithm: score.unranked_pp_algorithm || null,
     original_pp: score.original_pp || null,
     pp_rank: score.pp_rank || null,
     score_unranked_reason: scoreUnrankedReason,
@@ -1637,6 +1639,7 @@ async function handleSearch(req, res) {
   const passesOnly = true;
   const rankedOnly = boolParam(url.searchParams, "rankedOnly", true);
   const includeLoved = boolParam(url.searchParams, "includeLoved", false);
+  const includeUnrankedPasses = boolParam(url.searchParams, "includeUnrankedPasses", false);
   const selectedMods = parseSelectedMods(url.searchParams.get("mods"));
   const ppJobId = ppProgressId(url.searchParams.get("ppJobId"));
 
@@ -1701,11 +1704,13 @@ async function handleSearch(req, res) {
     ...localImport.scores,
   ]);
 
-  let filteredCandidates = history.scores
+  const baseCandidates = history.scores
     .filter((score) => isAllowedClient(score, includeLazer))
     .filter((score) => (passesOnly ? isPassed(score) : true))
-    .filter((score) => (rankedOnly ? isRankedBeatmap(score, includeLoved) : true))
     .filter((score) => modsMatch(score.normalized_mods || normalizeMods(score.mods), selectedMods, matchMode));
+  let filteredCandidates = baseCandidates
+    .filter((score) => (rankedOnly ? isRankedBeatmap(score, includeLoved) : true));
+  let passCandidates = includeUnrankedPasses ? baseCandidates : filteredCandidates;
 
   const primaryPpWorkLimit = sort === "pp" || rankMode === "pp" ? Math.max(finalLimit, 1000) : Math.max(finalLimit, 300);
   const primaryPpWorkSet =
@@ -1726,8 +1731,13 @@ async function handleSearch(req, res) {
     .slice(0, 2500);
   const preHydrationImprovements = buildImprovements(filteredCandidates, improvementScope, bestMode).slice(0, 50);
   const improvementPpWorkSet = collectImprovementPpWorkSet(filteredCandidates, preHydrationImprovements);
+  const passPpWorkSet = passCandidates
+    .filter((score) => score.beatmap?.local_osu_path)
+    .sort((a, b) => compareScores(a, b, sort))
+    .slice(0, Math.max(finalLimit, 1000));
   const ppWorkSet = mergeScoreWorkSets(
     primaryPpWorkSet,
+    passPpWorkSet,
     currentMonthPpWorkSet,
     recentLocalPpWorkSet,
     improvementPpWorkSet
@@ -1765,6 +1775,7 @@ async function handleSearch(req, res) {
 
   if (dateFilter === "today") {
     filteredCandidates = filteredCandidates.filter(isTodayScore);
+    passCandidates = passCandidates.filter(isTodayScore);
   }
 
   if (bestPerMap) {
@@ -1838,6 +1849,7 @@ async function handleSearch(req, res) {
       statistics: user.statistics,
     },
     scores: filteredScores,
+    passScores: passCandidates.sort((a, b) => compareScores(a, b, sort)),
     meta: {
       fetched: fetchedScores.length,
       returned: filteredScores.length,
@@ -1860,6 +1872,7 @@ async function handleSearch(req, res) {
       passesOnly,
       rankedOnly,
       includeLoved,
+      includeUnrankedPasses,
       matchMode,
       selectedMods,
       calendarDays: calendar.days.length,

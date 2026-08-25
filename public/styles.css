@@ -790,6 +790,11 @@ select:focus {
   font-weight: 950;
 }
 
+.pp.pp-unranked {
+  color: #7f729c;
+  text-shadow: 0 0 10px rgba(127, 114, 156, 0.16);
+}
+
 .acc {
   color: var(--green);
   font-weight: 850;
