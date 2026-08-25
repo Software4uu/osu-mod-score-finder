@@ -1,3 +1,7 @@
+param(
+  [switch]$SkipAppRestart
+)
+
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
@@ -32,17 +36,119 @@ function Write-Step {
   Add-Content -LiteralPath $LogPath -Value "[$stamp] $message"
 }
 
-function Invoke-LoggedCommand {
+function Write-LogOutput {
+  param([object[]]$Output)
+
+  foreach ($line in $Output) {
+    $text = if ($line -is [System.Management.Automation.ErrorRecord]) { $line.ToString() } else { [string]$line }
+    if (-not $text) { continue }
+    Write-Host $text
+    Add-Content -LiteralPath $LogPath -Value $text
+  }
+}
+
+function Invoke-LoggedCommandResult {
   param(
     [Parameter(Mandatory = $true)][string]$FilePath,
     [Parameter(Mandatory = $true)][string[]]$Arguments
   )
 
   Write-Step -English ("Running: " + $FilePath + " " + ($Arguments -join " ")) -German ("Fuehre aus: " + $FilePath + " " + ($Arguments -join " "))
-  & $FilePath @Arguments 2>&1 | Tee-Object -FilePath $LogPath -Append
-  if ($LASTEXITCODE -ne 0) {
-    throw "$FilePath failed with exit code $LASTEXITCODE."
+  $oldPreference = $ErrorActionPreference
+  $oldNativePreference = $null
+  $hasNativePreference = $false
+  $nativePreferenceVariable = Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -ErrorAction SilentlyContinue
+  if ($null -ne $nativePreferenceVariable) {
+    $hasNativePreference = $true
+    $oldNativePreference = $nativePreferenceVariable.Value
+    Set-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -Value $false
   }
+
+  $output = @()
+  $exitCode = 1
+  try {
+    $ErrorActionPreference = "Continue"
+    $output = & $FilePath @Arguments 2>&1
+    $exitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $oldPreference
+    if ($hasNativePreference) {
+      Set-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -Value $oldNativePreference
+    }
+  }
+
+  Write-LogOutput -Output $output
+
+  return [pscustomobject]@{
+    ExitCode = $exitCode
+    Output = @($output)
+  }
+}
+
+function Invoke-LoggedCommand {
+  param(
+    [Parameter(Mandatory = $true)][string]$FilePath,
+    [Parameter(Mandatory = $true)][string[]]$Arguments
+  )
+
+  $result = Invoke-LoggedCommandResult -FilePath $FilePath -Arguments $Arguments
+  if ($result.ExitCode -ne 0) {
+    throw "$FilePath failed with exit code $($result.ExitCode)."
+  }
+}
+
+function Test-RequiredDependencies {
+  $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
+  if (-not $nodeCommand) {
+    Write-Step -English "Node.js was not found, so dependency validation cannot run." -German "Node.js wurde nicht gefunden, daher kann die Abhaengigkeitspruefung nicht laufen."
+    return $false
+  }
+
+  Push-Location $Root
+  try {
+    $result = Invoke-LoggedCommandResult -FilePath "node" -Arguments @("--input-type=module", "-e", "await import('rosu-pp-js'); console.log('Required dependencies are available.');")
+    return ($result.ExitCode -eq 0)
+  } finally {
+    Pop-Location
+  }
+}
+
+function Install-ProjectDependencies {
+  $npmCommand = Get-Command npm -ErrorAction SilentlyContinue
+  if (-not $npmCommand) {
+    Write-Step -English "npm was not found. Run setup-beta.bat after this update." -German "npm wurde nicht gefunden. Starte nach dem Update setup-beta.bat."
+    return
+  }
+
+  Push-Location $Root
+  try {
+    $normalInstall = Invoke-LoggedCommandResult -FilePath "npm" -Arguments @("install", "--no-audit", "--no-fund", "--prefer-online")
+    if ($normalInstall.ExitCode -eq 0) {
+      Write-Step -English "Project dependencies are ready." -German "Projekt-Abhaengigkeiten sind bereit."
+      return
+    }
+
+    Write-Step -English "Normal npm install failed. Trying without optional dependencies." -German "Normales npm install fehlgeschlagen. Versuche es ohne optionale Abhaengigkeiten."
+    $fallbackInstall = Invoke-LoggedCommandResult -FilePath "npm" -Arguments @("install", "--no-audit", "--no-fund", "--omit=optional")
+    if ($fallbackInstall.ExitCode -eq 0) {
+      Write-Step -English "Project dependencies are ready without optional packages." -German "Projekt-Abhaengigkeiten sind ohne optionale Pakete bereit."
+      return
+    }
+
+    if (Test-RequiredDependencies) {
+      Write-Step -English "npm reported an install or cleanup warning, but the required dependencies are available. Continuing." -German "npm meldete eine Installations- oder Cleanup-Warnung, aber die benoetigten Abhaengigkeiten sind vorhanden. Update wird fortgesetzt."
+      return
+    }
+
+    throw "npm install failed and required dependencies are missing. Check data\update.log."
+  } finally {
+    Pop-Location
+  }
+}
+
+function Stop-AppBeforeUpdate {
+  $port = Get-AppPort
+  Stop-AppServer -Port $port
 }
 
 function Assert-ProjectRoot {
@@ -156,6 +262,8 @@ Set-Content -LiteralPath $LogPath -Value ("[" + (Get-Date -Format "yyyy-MM-dd HH
 Assert-ProjectRoot
 
 try {
+  Stop-AppBeforeUpdate
+
   $gitCommand = Get-Command git -ErrorAction SilentlyContinue
   $hasGitFolder = (Test-Path -LiteralPath (Join-Path $Root ".git"))
 
@@ -212,21 +320,11 @@ try {
     Write-Step -English "Project files updated. Local .env, data, node_modules, cache, and logs were kept." -German "Projektdateien aktualisiert. Lokale .env, data, node_modules, Cache und Logs wurden behalten."
   }
 
-  $npmCommand = Get-Command npm -ErrorAction SilentlyContinue
-  if ($npmCommand) {
-    Push-Location $Root
-    try {
-      try {
-        Invoke-LoggedCommand -FilePath "npm" -Arguments @("install", "--no-audit", "--no-fund", "--prefer-online")
-      } catch {
-        Write-Step -English "Normal npm install failed. Trying without optional dependencies." -German "Normales npm install fehlgeschlagen. Versuche es ohne optionale Abhaengigkeiten."
-        Invoke-LoggedCommand -FilePath "npm" -Arguments @("install", "--no-audit", "--no-fund", "--omit=optional")
-      }
-    } finally {
-      Pop-Location
-    }
-  } else {
-    Write-Step -English "npm was not found. Run setup-beta.bat after this update." -German "npm wurde nicht gefunden. Starte nach dem Update setup-beta.bat."
+  Install-ProjectDependencies
+
+  if ($SkipAppRestart) {
+    Write-Step -English "Update finished. The launcher will start the app in this CMD window." -German "Update fertig. Der Starter startet die App in diesem CMD-Fenster."
+    exit 0
   }
 
   $restarted = Start-AppAfterUpdate

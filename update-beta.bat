@@ -34,7 +34,7 @@ if not exist "%~dp0update.ps1" (
   exit /b 1
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0update.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0update.ps1" -SkipAppRestart
 set "UPDATE_EXIT=%ERRORLEVEL%"
 call :LoadLanguage
 
@@ -42,10 +42,20 @@ echo.
 if "!UPDATE_EXIT!"=="0" (
   if /I "!SETUP_LANG!"=="en" (
     echo Update completed successfully.
-    echo The app was restarted automatically.
+    echo Starting the app in this CMD window now.
   ) else (
     echo Update wurde erfolgreich abgeschlossen.
-    echo Die App wurde automatisch neu gestartet.
+    echo Die App wird jetzt in diesem CMD-Fenster gestartet.
+  )
+  echo.
+  if exist "%~dp0start-beta.bat" (
+    call "%~dp0start-beta.bat"
+    exit /b !ERRORLEVEL!
+  )
+  if /I "!SETUP_LANG!"=="en" (
+    echo start-beta.bat was not found. Start the app manually.
+  ) else (
+    echo start-beta.bat wurde nicht gefunden. Starte die App bitte manuell.
   )
 ) else (
   if /I "!SETUP_LANG!"=="en" (
