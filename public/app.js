@@ -1051,13 +1051,11 @@ function scoreClockRate(score) {
 function effectiveBeatmapStats(score) {
   const beatmap = score?.beatmap || {};
   const rate = scoreClockRate(score);
+  const preferOnlineDifficulty = score?.pp_source === "osu-api" || score?.pp_source === "huismetbenen-live";
   const baseStars = Number(
-    beatmap.effective_difficulty_rating ||
-      beatmap.calculated_difficulty_rating ||
-      beatmap.difficulty_rating ||
-      beatmap.star_rating ||
-      beatmap.stars ||
-      0
+    preferOnlineDifficulty
+      ? beatmap.difficulty_rating || beatmap.star_rating || beatmap.stars || beatmap.effective_difficulty_rating || beatmap.calculated_difficulty_rating || 0
+      : beatmap.effective_difficulty_rating || beatmap.calculated_difficulty_rating || beatmap.difficulty_rating || beatmap.star_rating || beatmap.stars || 0
   );
   const effectiveBpm = Number(beatmap.effective_bpm || 0);
   const baseBpm = Number(beatmap.bpm || 0);

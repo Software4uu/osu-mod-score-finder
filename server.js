@@ -920,6 +920,19 @@ function isFreshPpCacheEntry(cached) {
   return fetchedAt > 0 && Date.now() - fetchedAt < ppCacheFreshMs;
 }
 
+function clearLocalDisplayAttributes(score) {
+  if (!score.beatmap) return;
+  for (const key of [
+    "effective_difficulty_rating",
+    "effective_clock_rate",
+    "effective_bpm",
+    "effective_total_length",
+    "effective_hit_length",
+  ]) {
+    delete score.beatmap[key];
+  }
+}
+
 async function hydrateScorePp(score, mode, cache) {
   const key = ppCacheKey(mode, score);
   if (!key || !scorePpEligible(score) || hasAuthoritativePp(score)) return { score, fetched: false };
@@ -929,6 +942,7 @@ async function hydrateScorePp(score, mode, cache) {
     score.pp = cached.pp;
     score.pp_source = cached.source || "cache";
     score.calculated_pp = null;
+    clearLocalDisplayAttributes(score);
     return { score, fetched: false };
   }
 
@@ -946,6 +960,7 @@ async function hydrateScorePp(score, mode, cache) {
       score.pp = onlineScore.pp;
       score.pp_source = "osu-api";
       score.calculated_pp = null;
+      clearLocalDisplayAttributes(score);
     }
 
     return { score, fetched: true };
@@ -954,6 +969,7 @@ async function hydrateScorePp(score, mode, cache) {
       score.pp = cached.pp;
       score.pp_source = cached.source || "cache";
       score.calculated_pp = null;
+      clearLocalDisplayAttributes(score);
     }
 
     const transient = error.status === 429 || error.status >= 500;
