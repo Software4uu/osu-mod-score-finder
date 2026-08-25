@@ -7,6 +7,8 @@ let rosuPromise = null;
 let engineStatusCache = null;
 let engineStatusCheckedAt = 0;
 
+const authoritativePpSources = new Set(["osu-api", "huismetbenen-live"]);
+
 async function loadRosu() {
   if (!rosuPromise) {
     rosuPromise = import("rosu-pp-js").catch(() => null);
@@ -76,6 +78,79 @@ async function ppEngineStatus() {
 function missCount(score) {
   const stats = score.statistics || {};
   return stats.miss || stats.count_miss || 0;
+}
+
+function currentPpAlgorithm(engine) {
+  return `rosu-pp-js@${engine.installedVersion || "unknown"}`;
+}
+
+function authoritativePpValue(score) {
+  if (!authoritativePpSources.has(score.pp_source)) return null;
+  const value = Number(score.pp);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function isPassedScore(score) {
+  if (score.passed === false) return false;
+  return String(score.rank || "").toUpperCase() !== "F";
+}
+
+function hitResultTotal(score) {
+  const stats = score.statistics || {};
+  const values = [
+    stats.great ?? stats.count_300,
+    stats.ok ?? stats.count_100,
+    stats.meh ?? stats.count_50,
+    stats.geki ?? stats.count_geki,
+    stats.katu ?? stats.count_katu,
+    stats.miss ?? stats.count_miss,
+  ];
+
+  return values.reduce((total, value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? total + parsed : total;
+  }, 0);
+}
+
+function hasEnoughScoreData(score, beatmap) {
+  if (!isPassedScore(score)) return false;
+  const accuracy = accuracyPercent(score);
+  if (accuracy === null) return false;
+
+  const objects = Number(typeof beatmap?.nObjects === "function" ? beatmap.nObjects() : 0);
+  const hits = hitResultTotal(score);
+
+  if (objects > 0 && hits > 0) {
+    const ratio = hits / objects;
+    if (ratio < 0.5 || ratio > 1.5) return false;
+  }
+
+  return true;
+}
+
+function shouldCalculatePp(score, engine, force) {
+  if (!scorePpEligible(score) || !isPassedScore(score)) return false;
+  if (authoritativePpValue(score) !== null) return false;
+
+  const algorithm = currentPpAlgorithm(engine);
+  if (!force && score.pp && score.calculated_pp && score.pp_algorithm === algorithm) return false;
+
+  return true;
+}
+
+function calculatedPpLooksSane(score, pp, difficulty) {
+  const value = Number(pp);
+  if (!Number.isFinite(value) || value <= 0) return false;
+
+  const accuracy = accuracyPercent(score);
+  const misses = missCount(score);
+  const stars = Number(difficulty?.stars || score.beatmap?.effective_difficulty_rating || score.beatmap?.difficulty_rating || 0);
+
+  if (accuracy !== null && accuracy < 50 && value > 250) return false;
+  if (accuracy !== null && accuracy < 70 && value > 750) return false;
+  if (misses >= 100 && value > Math.max(250, stars * 80)) return false;
+
+  return true;
 }
 
 const clockRateDefaultByMod = new Map([
@@ -259,6 +334,27 @@ function applyDisplayAttributes(score, difficulty) {
   return changed;
 }
 
+function clearLocalDisplayAttributes(score) {
+  if (!score.beatmap) return false;
+  const keys = [
+    "effective_difficulty_rating",
+    "effective_clock_rate",
+    "effective_bpm",
+    "effective_total_length",
+    "effective_hit_length",
+  ];
+  let changed = false;
+
+  for (const key of keys) {
+    if (score.beatmap[key] !== undefined) {
+      delete score.beatmap[key];
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
 async function calculateScoreMetrics(score, mode, rosu) {
   const osuPath = score.beatmap?.local_osu_path;
   if (!osuPath) return null;
@@ -267,6 +363,7 @@ async function calculateScoreMetrics(score, mode, rosu) {
   const beatmap = new rosu.Beatmap(new Uint8Array(bytes));
 
   if (beatmap.isSuspicious()) return null;
+  if (!hasEnoughScoreData(score, beatmap)) return null;
 
   if (mode !== "osu") {
     beatmap.convert(modeEnum(rosu, mode), modsForDifficulty(score));
@@ -308,10 +405,23 @@ export async function hydrateCalculatedPp(scores, mode, options = {}) {
     );
   }
 
+  const algorithm = currentPpAlgorithm(engine);
+
   for (const score of scores) {
     if (attempted >= max) break;
+    if (authoritativePpValue(score) !== null) {
+      if (clearLocalDisplayAttributes(score)) enriched += 1;
+      continue;
+    }
     if (!score?.beatmap?.local_osu_path) continue;
-    if (!force && score.pp && score.beatmap?.effective_difficulty_rating) continue;
+    if (
+      !force &&
+      score.pp &&
+      score.beatmap?.effective_difficulty_rating &&
+      (authoritativePpValue(score) !== null || score.pp_algorithm === algorithm)
+    ) {
+      continue;
+    }
 
     attempted += 1;
     try {
@@ -321,19 +431,26 @@ export async function hydrateCalculatedPp(scores, mode, options = {}) {
         continue;
       }
 
-      if (applyDisplayAttributes(score, calculated.difficulty)) enriched += 1;
+      if (authoritativePpValue(score) !== null) {
+        if (clearLocalDisplayAttributes(score)) enriched += 1;
+      } else if (applyDisplayAttributes(score, calculated.difficulty)) {
+        enriched += 1;
+      }
 
       const reason = unrankedScoreReason(score);
       score.score_unranked_reason = reason || null;
       score.pp_ranked = !reason;
 
-      if (!reason && calculated.pp !== null && calculated.pp !== undefined) {
+      if (shouldCalculatePp(score, engine, force) && calculatedPpLooksSane(score, calculated.pp, calculated.difficulty)) {
         if (score.pp && !score.original_pp) score.original_pp = score.pp;
         score.pp = calculated.pp;
         score.calculated_pp = calculated.pp;
         score.pp_source = "rosu-current";
-        score.pp_algorithm = `rosu-pp-js@${engine.installedVersion || "unknown"}`;
+        score.pp_algorithm = algorithm;
         filled += 1;
+      } else if (authoritativePpValue(score) !== null) {
+        score.calculated_pp = null;
+        score.pp_algorithm = score.pp_algorithm || score.pp_source;
       }
     } catch (error) {
       if (errors.length < 5) errors.push(error.message || String(error));

@@ -32,6 +32,8 @@ const updaterBatPath = path.join(__dirname, "update-beta.bat");
 const updateLogPath = path.join(dataDir, "update.log");
 const osuApiMinIntervalMs = 1_050;
 const osuApiMaxRetries = 3;
+const authoritativePpSources = new Set(["osu-api", "huismetbenen-live"]);
+const ppCacheFreshMs = 24 * 60 * 60 * 1000;
 
 loadDotEnv();
 
@@ -652,7 +654,12 @@ function compareScores(a, b, sort) {
 
 function effectivePp(score) {
   if (!scorePpEligible(score)) return 0;
+  if (authoritativePpSources.has(score.pp_source)) return Number(score.pp || 0);
   return Number(score.calculated_pp || score.pp || 0);
+}
+
+function hasAuthoritativePp(score) {
+  return authoritativePpSources.has(score.pp_source) && effectivePp(score) > 0;
 }
 
 function scoreModsKey(score) {
@@ -907,14 +914,21 @@ function ppCacheKey(mode, score) {
   return `${mode}:${scoreId}`;
 }
 
+function isFreshPpCacheEntry(cached) {
+  if (!cached || cached.pp === null || cached.pp === undefined) return false;
+  const fetchedAt = Date.parse(cached.fetched_at || "");
+  return fetchedAt > 0 && Date.now() - fetchedAt < ppCacheFreshMs;
+}
+
 async function hydrateScorePp(score, mode, cache) {
   const key = ppCacheKey(mode, score);
-  if (!key || !scorePpEligible(score) || effectivePp(score)) return { score, fetched: false };
+  if (!key || !scorePpEligible(score) || hasAuthoritativePp(score)) return { score, fetched: false };
 
   const cached = cache[key];
-  if (cached && cached.pp !== null && cached.pp !== undefined) {
+  if (isFreshPpCacheEntry(cached)) {
     score.pp = cached.pp;
     score.pp_source = cached.source || "cache";
+    score.calculated_pp = null;
     return { score, fetched: false };
   }
 
@@ -931,10 +945,17 @@ async function hydrateScorePp(score, mode, cache) {
     if (onlineScore.pp !== null && onlineScore.pp !== undefined) {
       score.pp = onlineScore.pp;
       score.pp_source = "osu-api";
+      score.calculated_pp = null;
     }
 
     return { score, fetched: true };
   } catch (error) {
+    if (cached && cached.pp !== null && cached.pp !== undefined) {
+      score.pp = cached.pp;
+      score.pp_source = cached.source || "cache";
+      score.calculated_pp = null;
+    }
+
     const transient = error.status === 429 || error.status >= 500;
     if (!transient) {
       cache[key] = {
@@ -952,7 +973,7 @@ async function hydrateVisiblePp(scores, mode, options = {}) {
   const cache = await loadPpCache();
   const max = Math.max(0, Number(options.max ?? 5));
   const candidates = scores
-    .filter((score) => scorePpEligible(score) && !effectivePp(score) && ppCacheKey(mode, score))
+    .filter((score) => scorePpEligible(score) && !hasAuthoritativePp(score) && ppCacheKey(mode, score))
     .slice(0, max);
   let fetched = 0;
   let filled = 0;

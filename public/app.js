@@ -733,6 +733,10 @@ function scoreDomKey(score) {
 
 function scorePpValue(score) {
   if (unrankedScoreReason(score)) return 0;
+  if (score.pp_source === "osu-api" || score.pp_source === "huismetbenen-live") {
+    const onlineValue = Number(score.pp || 0);
+    return Number.isFinite(onlineValue) ? onlineValue : 0;
+  }
   const value = Number(score.calculated_pp || score.pp || 0);
   return Number.isFinite(value) ? value : 0;
 }
