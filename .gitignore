@@ -8,6 +8,7 @@ node_modules/
 .setup-language
 *.log
 setup.log
+tmp_pdf_render/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal

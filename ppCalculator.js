@@ -78,6 +78,24 @@ function missCount(score) {
   return stats.miss || stats.count_miss || 0;
 }
 
+const clockRateDefaultByMod = new Map([
+  ["DT", 1.5],
+  ["NC", 1.5],
+  ["HT", 0.75],
+]);
+const clockRateModAcronyms = new Set([...clockRateDefaultByMod.keys(), "RA"]);
+
+const unrankedGameplayMods = new Set(["RX", "AP", "AT", "CN"]);
+const customRateKeys = [
+  "speed_change",
+  "speedChange",
+  "SpeedChange",
+  "clock_rate",
+  "clockRate",
+  "rate",
+  "speed",
+];
+
 function accuracyPercent(score) {
   if (score.accuracy === null || score.accuracy === undefined) return null;
   const value = Number(score.accuracy);
@@ -86,11 +104,23 @@ function accuracyPercent(score) {
 }
 
 function modsForPp(score) {
+  return modAcronymsForCalculation(score, { includeUnrankedGameplay: true });
+}
+
+function modsForDifficulty(score) {
+  return modAcronymsForCalculation(score, { includeUnrankedGameplay: false });
+}
+
+function modAcronymsForCalculation(score, options = {}) {
+  const includeUnrankedGameplay = Boolean(options.includeUnrankedGameplay);
   const mods = Array.isArray(score.normalized_mods) ? score.normalized_mods : score.mods || [];
   const acronyms = mods
     .map((mod) => (typeof mod === "string" ? mod : mod?.acronym))
     .filter(Boolean)
-    .filter((mod) => mod !== "NM");
+    .map((mod) => String(mod).toUpperCase())
+    .filter((mod) => mod !== "NM")
+    .filter((mod) => mod !== "RA")
+    .filter((mod) => includeUnrankedGameplay || !unrankedGameplayMods.has(mod));
 
   if (score.client === "stable" && !acronyms.includes("CL")) {
     acronyms.push("CL");
@@ -112,24 +142,43 @@ function clockRateForPp(score) {
   const mods = Array.isArray(score.normalized_mods) ? score.normalized_mods : score.mods || [];
   for (const mod of mods) {
     const acronym = String(typeof mod === "string" ? mod : mod?.acronym || "").toUpperCase();
-    if (!["DT", "NC", "HT"].includes(acronym)) continue;
+    if (!clockRateModAcronyms.has(acronym)) continue;
 
-    const customSpeed = modSettingNumber(mod, [
-      "speed_change",
-      "speedChange",
-      "SpeedChange",
-      "clock_rate",
-      "clockRate",
-      "rate",
-      "speed",
-    ]);
+    const customSpeed = modSettingNumber(mod, customRateKeys);
 
     if (customSpeed !== null) return customSpeed;
-    if (acronym === "HT") return 0.75;
-    return 1.5;
+    return clockRateDefaultByMod.get(acronym) || null;
   }
 
   return null;
+}
+
+function isCustomClockRateMod(mod) {
+  const acronym = String(typeof mod === "string" ? mod : mod?.acronym || "").toUpperCase();
+  if (!clockRateModAcronyms.has(acronym)) return false;
+
+  const customSpeed = modSettingNumber(mod, customRateKeys);
+  if (customSpeed === null) return false;
+  if (acronym === "RA") return true;
+  return Math.abs(customSpeed - clockRateDefaultByMod.get(acronym)) > 0.001;
+}
+
+function unrankedScoreReason(score) {
+  if (score.score_unranked_reason) return score.score_unranked_reason;
+
+  const mods = Array.isArray(score.normalized_mods) ? score.normalized_mods : score.mods || [];
+  for (const mod of mods) {
+    const acronym = String(typeof mod === "string" ? mod : mod?.acronym || "").toUpperCase();
+    if (mod?.ranked === false) return "unranked_mod";
+    if (unrankedGameplayMods.has(acronym)) return acronym === "RX" ? "relax" : "unranked_mod";
+    if (acronym === "RA" || isCustomClockRateMod(mod)) return "custom_rate";
+  }
+
+  return "";
+}
+
+function scorePpEligible(score) {
+  return !unrankedScoreReason(score);
 }
 
 function modeEnum(rosu, mode) {
@@ -163,7 +212,54 @@ function performanceOptions(rosu, score) {
   return options;
 }
 
-async function calculateScorePp(score, mode, rosu) {
+function difficultyOptions(score) {
+  const options = {
+    mods: modsForDifficulty(score),
+    clockRate: clockRateForPp(score) ?? undefined,
+    lazer: score.client !== "stable",
+  };
+
+  for (const [key, value] of Object.entries(options)) {
+    if (value === undefined || value === null || value === "") delete options[key];
+  }
+
+  return options;
+}
+
+function setIfNumber(target, key, value) {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    target[key] = parsed;
+    return true;
+  }
+  return false;
+}
+
+function applyDisplayAttributes(score, difficulty) {
+  score.beatmap ||= {};
+  let changed = false;
+
+  if (setIfNumber(score.beatmap, "effective_difficulty_rating", difficulty?.stars)) changed = true;
+
+  const clockRate = clockRateForPp(score);
+  if (clockRate && Number.isFinite(clockRate) && clockRate > 0) {
+    score.beatmap.effective_clock_rate = clockRate;
+    changed = true;
+
+    const baseBpm = Number(score.beatmap.bpm || 0);
+    if (baseBpm > 0 && setIfNumber(score.beatmap, "effective_bpm", baseBpm * clockRate)) changed = true;
+
+    const baseTotalLength = Number(score.beatmap.total_length || 0);
+    if (baseTotalLength > 0 && setIfNumber(score.beatmap, "effective_total_length", Math.round(baseTotalLength / clockRate))) changed = true;
+
+    const baseHitLength = Number(score.beatmap.hit_length || 0);
+    if (baseHitLength > 0 && setIfNumber(score.beatmap, "effective_hit_length", Math.round(baseHitLength / clockRate))) changed = true;
+  }
+
+  return changed;
+}
+
+async function calculateScoreMetrics(score, mode, rosu) {
   const osuPath = score.beatmap?.local_osu_path;
   if (!osuPath) return null;
 
@@ -173,24 +269,36 @@ async function calculateScorePp(score, mode, rosu) {
   if (beatmap.isSuspicious()) return null;
 
   if (mode !== "osu") {
-    beatmap.convert(modeEnum(rosu, mode), modsForPp(score));
+    beatmap.convert(modeEnum(rosu, mode), modsForDifficulty(score));
   }
 
-  const attrs = new rosu.Performance(performanceOptions(rosu, score)).calculate(beatmap);
-  return attrs?.pp ?? null;
+  const difficulty = new rosu.Difficulty(difficultyOptions(score)).calculate(beatmap);
+  const result = {
+    pp: null,
+    difficulty,
+  };
+
+  if (scorePpEligible(score)) {
+    const attrs = new rosu.Performance(performanceOptions(rosu, score)).calculate(beatmap);
+    result.pp = attrs?.pp ?? null;
+    result.difficulty = attrs?.difficulty || difficulty;
+  }
+
+  return result;
 }
 
 export async function hydrateCalculatedPp(scores, mode, options = {}) {
   const engine = await ppEngineStatus();
   const rosu = await loadRosu();
   if (!rosu) {
-    return { attempted: 0, filled: 0, unavailable: true, errors: ["rosu-pp-js ist nicht installiert."], engine };
+    return { attempted: 0, filled: 0, enriched: 0, unavailable: true, errors: ["rosu-pp-js ist nicht installiert."], engine };
   }
 
   const max = options.max ?? 250;
   const force = Boolean(options.force);
   let attempted = 0;
   let filled = 0;
+  let enriched = 0;
   const errors = [];
   const onProgress = typeof options.onProgress === "function" ? options.onProgress : null;
 
@@ -203,27 +311,35 @@ export async function hydrateCalculatedPp(scores, mode, options = {}) {
   for (const score of scores) {
     if (attempted >= max) break;
     if (!score?.beatmap?.local_osu_path) continue;
-    if (!force && score.pp) continue;
+    if (!force && score.pp && score.beatmap?.effective_difficulty_rating) continue;
 
     attempted += 1;
     try {
-      const calculated = await calculateScorePp(score, mode, rosu);
-      if (calculated === null || calculated === undefined) {
+      const calculated = await calculateScoreMetrics(score, mode, rosu);
+      if (!calculated) {
         onProgress?.({ attempted, filled });
         continue;
       }
 
-      if (score.pp && !score.original_pp) score.original_pp = score.pp;
-      score.pp = calculated;
-      score.calculated_pp = calculated;
-      score.pp_source = "rosu-current";
-      score.pp_algorithm = `rosu-pp-js@${engine.installedVersion || "unknown"}`;
-      filled += 1;
+      if (applyDisplayAttributes(score, calculated.difficulty)) enriched += 1;
+
+      const reason = unrankedScoreReason(score);
+      score.score_unranked_reason = reason || null;
+      score.pp_ranked = !reason;
+
+      if (!reason && calculated.pp !== null && calculated.pp !== undefined) {
+        if (score.pp && !score.original_pp) score.original_pp = score.pp;
+        score.pp = calculated.pp;
+        score.calculated_pp = calculated.pp;
+        score.pp_source = "rosu-current";
+        score.pp_algorithm = `rosu-pp-js@${engine.installedVersion || "unknown"}`;
+        filled += 1;
+      }
     } catch (error) {
       if (errors.length < 5) errors.push(error.message || String(error));
     }
     onProgress?.({ attempted, filled });
   }
 
-  return { attempted, filled, unavailable: false, errors, engine };
+  return { attempted, filled, enriched, unavailable: false, errors, engine };
 }

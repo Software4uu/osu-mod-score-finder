@@ -61,6 +61,23 @@ const modNames = {
   RP: "Repel",
 };
 
+const clockRateDefaultByMod = new Map([
+  ["DT", 1.5],
+  ["NC", 1.5],
+  ["HT", 0.75],
+]);
+const clockRateModAcronyms = new Set([...clockRateDefaultByMod.keys(), "RA"]);
+const unrankedGameplayMods = new Set(["RX", "AP", "AT", "CN"]);
+const customRateKeys = [
+  "speed_change",
+  "speedChange",
+  "SpeedChange",
+  "clock_rate",
+  "clockRate",
+  "rate",
+  "speed",
+];
+
 const translations = {
   de: {
     "app.eyebrow": "Lokale Beta",
@@ -230,8 +247,12 @@ const translations = {
     "label.ppSourceApi": "PP aus API",
     "label.ppSourceCache": "PP Cache",
     "label.ppSourceOnline": "PP online",
+    "label.ppSourceUnranked": "kein ranked PP",
     "label.noOnlineId": "keine Online-ID",
     "label.apiWithoutPp": "API ohne PP",
+    "label.unrankedMod": "unranked Mod",
+    "label.unrankedRelax": "RX ist unranked",
+    "label.unrankedCustomRate": "Custom-Rate ist unranked",
     "label.combo": "Combo",
     "label.miss": "Miss",
     "label.score": "Score",
@@ -454,8 +475,12 @@ const translations = {
     "label.ppSourceApi": "PP from API",
     "label.ppSourceCache": "PP cache",
     "label.ppSourceOnline": "PP online",
+    "label.ppSourceUnranked": "no ranked PP",
     "label.noOnlineId": "no online ID",
     "label.apiWithoutPp": "API without PP",
+    "label.unrankedMod": "unranked mod",
+    "label.unrankedRelax": "RX is unranked",
+    "label.unrankedCustomRate": "custom rate is unranked",
     "label.combo": "Combo",
     "label.miss": "Miss",
     "label.score": "Score",
@@ -707,6 +732,7 @@ function scoreDomKey(score) {
 }
 
 function scorePpValue(score) {
+  if (unrankedScoreReason(score)) return 0;
   const value = Number(score.calculated_pp || score.pp || 0);
   return Number.isFinite(value) ? value : 0;
 }
@@ -795,8 +821,7 @@ function scoreInCalendarPpRange(score) {
 }
 
 function beatmapStarValue(score) {
-  const beatmap = score?.beatmap || {};
-  const value = Number(beatmap.difficulty_rating || beatmap.star_rating || beatmap.stars || 0);
+  const value = effectiveBeatmapStats(score).stars;
   return Number.isFinite(value) ? value : 0;
 }
 
@@ -972,21 +997,88 @@ function modSettingNumber(mod, keys) {
 
 function speedMultiplierForMod(mod) {
   const acronym = String(mod?.acronym || mod || "").toUpperCase();
-  if (!["DT", "NC", "HT"].includes(acronym)) return null;
+  if (!clockRateModAcronyms.has(acronym)) return null;
 
-  const customSpeed = modSettingNumber(mod, [
-    "speed_change",
-    "speedChange",
-    "SpeedChange",
-    "clock_rate",
-    "clockRate",
-    "rate",
-    "speed",
-  ]);
+  const customSpeed = modSettingNumber(mod, customRateKeys);
 
   if (customSpeed !== null) return customSpeed;
-  if (acronym === "HT") return 0.75;
-  return 1.5;
+  return clockRateDefaultByMod.get(acronym) || null;
+}
+
+function isCustomClockRateMod(mod) {
+  const acronym = String(mod?.acronym || mod || "").toUpperCase();
+  if (!clockRateModAcronyms.has(acronym)) return false;
+
+  const customSpeed = modSettingNumber(mod, customRateKeys);
+  if (customSpeed === null) return false;
+  if (acronym === "RA") return true;
+  return Math.abs(customSpeed - clockRateDefaultByMod.get(acronym)) > 0.001;
+}
+
+function unrankedScoreReason(score) {
+  if (score?.score_unranked_reason) return score.score_unranked_reason;
+
+  for (const mod of score?.normalized_mods || score?.mods || []) {
+    const acronym = String(mod?.acronym || mod || "").toUpperCase();
+    if (mod?.ranked === false) return "unranked_mod";
+    if (unrankedGameplayMods.has(acronym)) return acronym === "RX" ? "relax" : "unranked_mod";
+    if (acronym === "RA" || isCustomClockRateMod(mod)) return "custom_rate";
+  }
+
+  return "";
+}
+
+function unrankedReasonLabel(reason) {
+  if (reason === "relax") return t("label.unrankedRelax");
+  if (reason === "custom_rate") return t("label.unrankedCustomRate");
+  return t("label.unrankedMod");
+}
+
+function scoreClockRate(score) {
+  for (const mod of score?.normalized_mods || score?.mods || []) {
+    const speed = speedMultiplierForMod(mod);
+    if (speed) return speed;
+  }
+
+  const explicit = Number(score?.beatmap?.effective_clock_rate || 0);
+  return Number.isFinite(explicit) && explicit > 0 ? explicit : 1;
+}
+
+function effectiveBeatmapStats(score) {
+  const beatmap = score?.beatmap || {};
+  const rate = scoreClockRate(score);
+  const baseStars = Number(
+    beatmap.effective_difficulty_rating ||
+      beatmap.calculated_difficulty_rating ||
+      beatmap.difficulty_rating ||
+      beatmap.star_rating ||
+      beatmap.stars ||
+      0
+  );
+  const effectiveBpm = Number(beatmap.effective_bpm || 0);
+  const baseBpm = Number(beatmap.bpm || 0);
+  const effectiveLength = Number(beatmap.effective_total_length || 0);
+  const baseLength = Number(beatmap.total_length || beatmap.hit_length || 0);
+
+  return {
+    stars: Number.isFinite(baseStars) ? baseStars : 0,
+    bpm: Number.isFinite(effectiveBpm) && effectiveBpm > 0
+      ? effectiveBpm
+      : Number.isFinite(baseBpm) && baseBpm > 0
+        ? baseBpm * rate
+        : 0,
+    length: Number.isFinite(effectiveLength) && effectiveLength > 0
+      ? effectiveLength
+      : Number.isFinite(baseLength) && baseLength > 0
+        ? Math.round(baseLength / rate)
+        : 0,
+  };
+}
+
+function scoreStatusLabel(score) {
+  const reason = unrankedScoreReason(score);
+  if (reason) return t("label.unrankedMod");
+  return score?.beatmap?.status || "unknown";
 }
 
 function formatMultiplier(value) {
@@ -1035,6 +1127,8 @@ function storageLabel(score) {
 }
 
 function ppSourceLabel(score) {
+  const reason = unrankedScoreReason(score);
+  if (reason) return unrankedReasonLabel(reason);
   if (score.pp_source === "rosu-current") return t("label.ppSourceCalculated");
   if (score.pp_source === "matched-local") return t("label.ppSourceMatched");
   if (score.pp_source === "huismetbenen-live") return t("label.ppSourceHuis");
@@ -1469,13 +1563,14 @@ function renderSummary(data) {
 function renderScore(score, mode) {
   const beatmap = score.beatmap || {};
   const set = score.beatmapset || {};
+  const mapStats = effectiveBeatmapStats(score);
   const artist = set.artist || beatmap.artist || t("label.unknownArtist");
   const title = set.title || beatmap.title || t("label.unknownMap");
   const version = beatmap.version || "Difficulty";
-  const star = beatmap.difficulty_rating ? `${Number(beatmap.difficulty_rating).toFixed(2)}*` : "-";
-  const bpm = beatmap.bpm ? `${Math.round(beatmap.bpm)} BPM` : "-";
-  const length = secondsToTime(beatmap.total_length || beatmap.hit_length);
-  const status = beatmap.status || "unknown";
+  const star = mapStats.stars ? `${Number(mapStats.stars).toFixed(2)}*` : "-";
+  const bpm = mapStats.bpm ? `${Math.round(mapStats.bpm)} BPM` : "-";
+  const length = secondsToTime(mapStats.length);
+  const status = scoreStatusLabel(score);
   const scoreLink = scoreUrl(score, mode);
   const scoreLinkText = scoreLinkLabel(score);
   const mapLink = beatmapUrl(score);
@@ -1486,7 +1581,11 @@ function renderScore(score, mode) {
   const client = clientLabel(score);
   const sourceLabel = storageLabel(score);
   const ppLabel = ppSourceLabel(score);
-  const ppTitle = scorePpValue(score) > 0 ? ppLabel : t("label.ppNotStored");
+  const ppTitle = unrankedScoreReason(score)
+    ? ppLabel
+    : scorePpValue(score) > 0
+      ? ppLabel
+      : t("label.ppNotStored");
   const ppRank = score.pp_rank ? `<span class="pp-rank-badge">#${formatNumber(score.pp_rank)}</span>` : "";
   const detailKey = scoreDomKey(score);
 

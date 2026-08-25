@@ -493,12 +493,80 @@ function normalizeMods(mods) {
         return {
           acronym: cleanModAcronym(raw),
           settings: mod.settings || null,
+          ranked: mod.ranked,
         };
       }
 
       return { acronym: "", settings: null };
     })
     .filter((mod) => mod.acronym);
+}
+
+const clockRateDefaultByMod = new Map([
+  ["DT", 1.5],
+  ["NC", 1.5],
+  ["HT", 0.75],
+]);
+const clockRateModAcronyms = new Set([...clockRateDefaultByMod.keys(), "RA"]);
+
+const unrankedGameplayMods = new Set(["RX", "AP", "AT", "CN"]);
+const customRateKeys = [
+  "speed_change",
+  "speedChange",
+  "SpeedChange",
+  "clock_rate",
+  "clockRate",
+  "rate",
+  "speed",
+];
+
+function modSettingNumber(mod, keys) {
+  const settings = mod?.settings || {};
+  for (const key of keys) {
+    const value = Number(settings[key] ?? mod?.[key]);
+    if (Number.isFinite(value) && value > 0) return value;
+  }
+  return null;
+}
+
+function scoreMods(score) {
+  return score.normalized_mods || normalizeMods(score.mods);
+}
+
+function speedMultiplierForMod(mod) {
+  const acronym = String(mod?.acronym || mod || "").toUpperCase();
+  if (!clockRateModAcronyms.has(acronym)) return null;
+
+  const customSpeed = modSettingNumber(mod, customRateKeys);
+  if (customSpeed !== null) return customSpeed;
+  return clockRateDefaultByMod.get(acronym) || null;
+}
+
+function isCustomClockRateMod(mod) {
+  const acronym = String(mod?.acronym || mod || "").toUpperCase();
+  if (!clockRateModAcronyms.has(acronym)) return false;
+
+  const customSpeed = modSettingNumber(mod, customRateKeys);
+  if (customSpeed === null) return false;
+  if (acronym === "RA") return true;
+  return Math.abs(customSpeed - clockRateDefaultByMod.get(acronym)) > 0.001;
+}
+
+function unrankedScoreReason(score) {
+  if (score.score_unranked_reason) return score.score_unranked_reason;
+
+  for (const mod of scoreMods(score)) {
+    const acronym = String(mod?.acronym || mod || "").toUpperCase();
+    if (mod?.ranked === false) return "unranked_mod";
+    if (unrankedGameplayMods.has(acronym)) return acronym === "RX" ? "relax" : "unranked_mod";
+    if (acronym === "RA" || isCustomClockRateMod(mod)) return "custom_rate";
+  }
+
+  return "";
+}
+
+function scorePpEligible(score) {
+  return !unrankedScoreReason(score);
 }
 
 function parseSelectedMods(raw) {
@@ -540,6 +608,8 @@ function isPassed(score) {
 }
 
 function isRankedBeatmap(score, includeLoved) {
+  if (unrankedScoreReason(score)) return false;
+
   const beatmap = score.beatmap || {};
   const status = String(beatmap.status || beatmap.ranked_status || "").toLowerCase();
   const allowedStatuses = includeLoved
@@ -581,6 +651,7 @@ function compareScores(a, b, sort) {
 }
 
 function effectivePp(score) {
+  if (!scorePpEligible(score)) return 0;
   return Number(score.calculated_pp || score.pp || 0);
 }
 
@@ -636,6 +707,10 @@ function bestScorePerBeatmap(scores, bestMode = "score") {
 }
 
 function assignPpRanks(scores) {
+  for (const score of scores) {
+    delete score.pp_rank;
+  }
+
   const ranked = [...scores]
     .filter((score) => effectivePp(score) > 0)
     .sort((a, b) => compareScores(a, b, "pp"));
@@ -834,7 +909,7 @@ function ppCacheKey(mode, score) {
 
 async function hydrateScorePp(score, mode, cache) {
   const key = ppCacheKey(mode, score);
-  if (!key || effectivePp(score)) return { score, fetched: false };
+  if (!key || !scorePpEligible(score) || effectivePp(score)) return { score, fetched: false };
 
   const cached = cache[key];
   if (cached && cached.pp !== null && cached.pp !== undefined) {
@@ -877,7 +952,7 @@ async function hydrateVisiblePp(scores, mode, options = {}) {
   const cache = await loadPpCache();
   const max = Math.max(0, Number(options.max ?? 5));
   const candidates = scores
-    .filter((score) => !effectivePp(score) && ppCacheKey(mode, score))
+    .filter((score) => scorePpEligible(score) && !effectivePp(score) && ppCacheKey(mode, score))
     .slice(0, max);
   let fetched = 0;
   let filled = 0;
@@ -1153,11 +1228,12 @@ async function runStartupSync() {
     updateStartupSync({ newScores: history.savedNow });
 
     const ppCandidates = history.scores
+      .filter(scorePpEligible)
       .filter((score) => !effectivePp(score) && score.beatmap?.local_osu_path)
       .sort((a, b) => compareScores(a, b, "date"))
       .slice(0, 2_500);
 
-    let calculated = { attempted: 0, filled: 0, errors: [] };
+    let calculated = { attempted: 0, filled: 0, enriched: 0, errors: [] };
     if (ppCandidates.length) {
       const ppStageStartedAt = new Date().toISOString();
       updateStartupSync({
@@ -1174,7 +1250,7 @@ async function runStartupSync() {
           updateStartupSync({ ppDone: attempted, ppFilled: filled });
         },
       });
-      if (calculated.filled > 0) {
+      if (calculated.filled > 0 || calculated.enriched > 0) {
         updateStoredScores(syncUser, stored.mode, ppCandidates);
       }
     }
@@ -1338,6 +1414,11 @@ async function getHuisTopRanks(userId, mode) {
 
 function compactScore(score) {
   const normalizedMods = normalizeMods(score.mods);
+  const scoreForRules = {
+    ...score,
+    normalized_mods: normalizedMods,
+  };
+  const scoreUnrankedReason = unrankedScoreReason(scoreForRules) || null;
 
   return {
     storage_key: score.storage_key || scoreStorageKey(score),
@@ -1354,6 +1435,8 @@ function compactScore(score) {
     calculated_pp: score.calculated_pp || null,
     original_pp: score.original_pp || null,
     pp_rank: score.pp_rank || null,
+    score_unranked_reason: scoreUnrankedReason,
+    pp_ranked: !scoreUnrankedReason,
     client: inferClient(score),
     mods: score.mods,
     normalized_mods: normalizedMods,
@@ -1485,6 +1568,7 @@ function collectImprovementPpWorkSet(scores, improvements, maxScores = 2500) {
 
   return [...scores]
     .filter((score) => mapKeys.has(beatmapKey(score)))
+    .filter(scorePpEligible)
     .filter((score) => !effectivePp(score))
     .filter((score) => score.beatmap?.local_osu_path || score.legacy_score_id || score.id)
     .sort((a, b) => scoreTime(b) - scoreTime(a))
@@ -1599,6 +1683,7 @@ async function handleSearch(req, res) {
     .sort((a, b) => compareScores(a, b, "date"))
     .slice(0, 2000);
   const recentLocalPpWorkSet = filteredCandidates
+    .filter(scorePpEligible)
     .filter((score) => !effectivePp(score) && score.beatmap?.local_osu_path)
     .sort((a, b) => compareScores(a, b, "date"))
     .slice(0, 2500);
@@ -1631,10 +1716,10 @@ async function handleSearch(req, res) {
           backfill_until: ppBackfillUntil,
         }),
       })
-    : { attempted: 0, filled: 0, unavailable: false, errors: [] };
+    : { attempted: 0, filled: 0, enriched: 0, unavailable: false, errors: [] };
   const ppHydration = await hydrateVisiblePp(ppWorkSet, mode, { max: 0 });
 
-  if (ppHydration.filled > 0 || calculatedHydration.filled > 0) {
+  if (ppHydration.filled > 0 || calculatedHydration.filled > 0 || calculatedHydration.enriched > 0) {
     updateStoredScores(user, mode, ppWorkSet);
   }
 
@@ -1661,7 +1746,7 @@ async function handleSearch(req, res) {
     .sort((a, b) => compareScores(a, b, sort))
     .slice(0, finalLimit);
   let visiblePpHydration = { fetched: 0, filled: 0 };
-  let visibleCalculatedHydration = { attempted: 0, filled: 0, unavailable: false, errors: [] };
+  let visibleCalculatedHydration = { attempted: 0, filled: 0, enriched: 0, unavailable: false, errors: [] };
 
   const visiblePpWorkSet = mergeScoreWorkSets(filteredScores);
   if (visiblePpWorkSet.length) {
@@ -1684,7 +1769,7 @@ async function handleSearch(req, res) {
       : visibleCalculatedHydration;
     visiblePpHydration = await hydrateVisiblePp(visiblePpWorkSet, mode, { max: 5 });
 
-    if (visiblePpHydration.filled > 0 || visibleCalculatedHydration.filled > 0) {
+    if (visiblePpHydration.filled > 0 || visibleCalculatedHydration.filled > 0 || visibleCalculatedHydration.enriched > 0) {
       updateStoredScores(user, mode, visiblePpWorkSet);
       assignPpRanks(filteredCandidates);
       filteredCandidates = filterRankWindow(
@@ -1861,10 +1946,10 @@ async function handleBackfillMonth(req, res) {
           total: ppWorkSet.length,
         }),
       })
-    : { attempted: 0, filled: 0, unavailable: false, errors: [] };
+    : { attempted: 0, filled: 0, enriched: 0, unavailable: false, errors: [] };
   const ppHydration = await hydrateVisiblePp(ppWorkSet, mode, { max: 5 });
 
-  if (ppHydration.filled > 0 || calculatedHydration.filled > 0) {
+  if (ppHydration.filled > 0 || calculatedHydration.filled > 0 || calculatedHydration.enriched > 0) {
     updateStoredScores(user, mode, ppWorkSet);
   }
 
