@@ -35,6 +35,7 @@ const timeRun = document.querySelector("#timeRun");
 const timeDate = document.querySelector("#timeDate");
 const timeSlider = document.querySelector("#timeSlider");
 const timeSelectedDate = document.querySelector("#timeSelectedDate");
+const timeSourceLegend = document.querySelector("#timeSourceLegend");
 
 const selectedMods = new Set();
 const languageStorageKey = "osu-mod-score-finder-language";
@@ -366,6 +367,13 @@ const translations = {
     "time.sourceOsuTrack": "Quelle: osu!track Snapshot",
     "time.sourceLocal": "Quelle: lokale Rekonstruktion",
     "time.sourceMixed": "Quelle: gemischt",
+    "time.sourcesTitle": "Datenquellen",
+    "time.sourceApiShort": "osu!api",
+    "time.sourceTrackShort": "osu!track",
+    "time.sourceLocalShort": "lokal",
+    "time.sourceMixedShort": "gemischt",
+    "time.sourceUnavailable": "nicht aktiv",
+    "time.selectedSource": "Ausgewaehlter Tag",
     "time.bestPlay": "Bestes Play bis Datum",
     "time.topAtDate": "Staerkste bekannte Plays bis zu diesem Datum",
     "time.estimateNote": "Die PP werden mit dem normalen osu!-Gewichtungsmodell aus den bekannten Plays neu gestapelt. Andere Spieler werden nicht historisch zurueckgerechnet.",
@@ -724,6 +732,13 @@ const translations = {
     "time.sourceOsuTrack": "Source: osu!track snapshot",
     "time.sourceLocal": "Source: local reconstruction",
     "time.sourceMixed": "Source: mixed",
+    "time.sourcesTitle": "Data sources",
+    "time.sourceApiShort": "osu!api",
+    "time.sourceTrackShort": "osu!track",
+    "time.sourceLocalShort": "local",
+    "time.sourceMixedShort": "mixed",
+    "time.sourceUnavailable": "inactive",
+    "time.selectedSource": "Selected day",
     "time.bestPlay": "Best play by date",
     "time.topAtDate": "Strongest known plays up to this date",
     "time.estimateNote": "PP is restacked from known plays with the normal osu! weighting model. Other players are not historically reconstructed.",
@@ -3340,6 +3355,86 @@ function externalSnapshotUntil(dayKey) {
     .sort((a, b) => Date.parse(b.captured_at) - Date.parse(a.captured_at))[0] || null;
 }
 
+function externalSnapshotOnDay(dayKey) {
+  if (!dayKey) return null;
+  return timeTravelExternalSnapshots.find((snapshot) => berlinDayKeyFromValue(snapshot.captured_at) === dayKey) || null;
+}
+
+function sourceColor(source) {
+  if (source === "api") return "#67d8f2";
+  if (source === "osutrack") return "#ff4fa3";
+  if (source === "mixed") return "#ffd166";
+  return "#8aef6a";
+}
+
+function sourceShortLabel(source) {
+  if (source === "api") return t("time.sourceApiShort");
+  if (source === "osutrack") return t("time.sourceTrackShort");
+  if (source === "mixed") return t("time.sourceMixedShort");
+  return t("time.sourceLocalShort");
+}
+
+function timeTravelDaySource(dayKey) {
+  const isCurrent = isCurrentTimeTravelDay(dayKey) && Number(timeTravelUser?.statistics?.pp || 0) > 0;
+  if (isCurrent) return "api";
+  const hasExternal = Boolean(externalSnapshotOnDay(dayKey));
+  const hasLocal = timeTravelScores.some((score) => timeTravelDayFromScore(score) === dayKey);
+  if (hasExternal && hasLocal) return "mixed";
+  if (hasExternal) return "osutrack";
+  return "local";
+}
+
+function renderTimeSourceLegend(selectedDay = "") {
+  if (!timeSourceLegend) return;
+  const available = {
+    api: Boolean(timeTravelUser?.statistics?.pp),
+    osutrack: timeTravelExternalSnapshots.length > 0,
+    local: timeTravelScores.length > 0,
+    mixed: timeTravelExternalSnapshots.length > 0 && timeTravelScores.length > 0,
+  };
+  const selectedSource = selectedDay ? timeTravelDaySource(selectedDay) : "";
+  const sources = ["api", "osutrack", "local", "mixed"];
+  timeSourceLegend.innerHTML = `
+    <div class="time-source-title">${escapeHtml(t("time.sourcesTitle"))}</div>
+    <div class="time-source-chips">
+      ${sources.map((source) => `
+        <span
+          class="time-source-chip ${available[source] ? "is-active" : "is-inactive"} ${selectedSource === source ? "is-selected" : ""}"
+          style="--source-color: ${sourceColor(source)}"
+          title="${escapeHtml(available[source] ? timeSourceLabel(source) : t("time.sourceUnavailable"))}"
+        >
+          <b>${available[source] ? "✓" : "-"}</b>
+          ${escapeHtml(sourceShortLabel(source))}
+        </span>
+      `).join("")}
+    </div>
+    ${selectedSource ? `
+      <div class="time-source-selected" style="--source-color: ${sourceColor(selectedSource)}">
+        <span>${escapeHtml(t("time.selectedSource"))}</span>
+        <strong>${escapeHtml(sourceShortLabel(selectedSource))}</strong>
+      </div>
+    ` : ""}
+  `;
+}
+
+function updateTimeSliderSourceTrack() {
+  if (!timeSlider) return;
+  if (timeTravelDays.length <= 1) {
+    const color = timeTravelDays.length ? sourceColor(timeTravelDaySource(timeTravelDays[0])) : "rgba(148, 156, 176, 0.35)";
+    timeSlider.style.setProperty("--timeline-source-track", color);
+    return;
+  }
+
+  const lastIndex = timeTravelDays.length - 1;
+  const stops = timeTravelDays.flatMap((day, index) => {
+    const start = (index / lastIndex) * 100;
+    const end = ((index + 1) / lastIndex) * 100;
+    const color = sourceColor(timeTravelDaySource(day));
+    return [`${color} ${start.toFixed(3)}%`, `${color} ${Math.min(100, end).toFixed(3)}%`];
+  });
+  timeSlider.style.setProperty("--timeline-source-track", `linear-gradient(90deg, ${stops.join(", ")})`);
+}
+
 function buildTimeTravelStats(rawScores, bestScores, weightedPp, dayKey) {
   const currentStats = timeTravelUser?.statistics || {};
   const currentPp = Number(currentStats.pp || currentStats.pp_raw || 0);
@@ -3487,6 +3582,7 @@ function setTimeTravelDate(dayKey) {
   if (timeDate) timeDate.value = nextDay;
   if (timeSlider) timeSlider.value = String(nextIndex);
   if (timeSelectedDate) timeSelectedDate.textContent = formatDayKey(nextDay);
+  renderTimeSourceLegend(nextDay);
   renderTimeTravelResults(nextDay);
 }
 
@@ -3601,6 +3697,7 @@ async function runTimeTravel() {
       timeSlider.max = String(timeTravelDays.length - 1);
       timeSlider.disabled = false;
     }
+    updateTimeSliderSourceTrack();
     setTimeTravelDate(timeTravelDays[timeTravelDays.length - 1]);
   } catch (error) {
     if (timeTravelOutput) {
