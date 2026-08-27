@@ -2515,25 +2515,50 @@ select:focus {
   stroke: #ff6b86;
 }
 
+.skill-arrow-pink {
+  fill: #ff6b86;
+}
+
 .skill-link-violet {
   stroke: #b4a0ff;
+}
+
+.skill-arrow-violet {
+  fill: #b4a0ff;
 }
 
 .skill-link-blue {
   stroke: #9dccff;
 }
 
+.skill-arrow-blue {
+  fill: #9dccff;
+}
+
 .skill-link-cyan {
   stroke: #8cf4ff;
+}
+
+.skill-arrow-cyan {
+  fill: #8cf4ff;
 }
 
 .skill-link-green {
   stroke: #90ff99;
 }
 
+.skill-arrow-green {
+  fill: #90ff99;
+}
+
 .skill-link-yellow,
 .skill-link-cream {
   stroke: #fff1a5;
+}
+
+.skill-arrow-yellow,
+.skill-arrow-cream {
+  fill: #fff1a5;
 }
 
 .skill-graph-node {
@@ -2577,12 +2602,12 @@ select:focus {
 .skill-graph-node b {
   justify-self: center;
   width: fit-content;
-  min-width: 38px;
+  min-width: 64px;
   padding: 2px 7px;
   border-radius: 999px;
   background: rgba(5, 7, 12, 0.76);
   color: #fff;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 950;
 }
 
@@ -2612,6 +2637,59 @@ select:focus {
 
 .skill-tone-cream {
   background: linear-gradient(135deg, #fff1dc, #ffdcb5);
+}
+
+.skill-star-overview {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(148, 156, 176, 0.16);
+  border-radius: 8px;
+  background: rgba(7, 10, 17, 0.5);
+}
+
+.skill-star-overview header span {
+  color: var(--pink);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.skill-star-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.skill-star-bucket {
+  display: grid;
+  gap: 5px;
+  min-height: 86px;
+  padding: 10px;
+  border: 1px solid rgba(103, 216, 242, 0.22);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255, 79, 163, 0.12), rgba(103, 216, 242, 0.08));
+}
+
+.skill-star-bucket.empty {
+  border-color: rgba(148, 156, 176, 0.12);
+  background: rgba(17, 20, 28, 0.55);
+  opacity: 0.7;
+}
+
+.skill-star-bucket strong {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.skill-star-bucket span {
+  color: #67d8f2;
+  font-weight: 950;
+}
+
+.skill-star-bucket small {
+  color: var(--muted);
+  line-height: 1.35;
 }
 
 .skill-tree-grid {
@@ -2744,6 +2822,7 @@ select:focus {
   .compare-mod-row,
   .skill-summary-grid,
   .skill-tree-grid,
+  .skill-star-grid,
   .compare-signatures,
   .compare-score-columns,
   .map-compare-row {

@@ -41,6 +41,8 @@ const timeSourceLegend = document.querySelector("#timeSourceLegend");
 const skillPlayer = document.querySelector("#skillPlayer");
 const skillMode = document.querySelector("#skillMode");
 const skillRun = document.querySelector("#skillRun");
+const skillStarMinInput = document.querySelector("#skillStarMin");
+const skillStarMaxInput = document.querySelector("#skillStarMax");
 
 const selectedMods = new Set();
 const languageStorageKey = "osu-mod-score-finder-language";
@@ -389,6 +391,8 @@ const translations = {
     "skill.setup": "Setup",
     "skill.player": "Spieler analysieren",
     "skill.load": "Skill Tree laden",
+    "skill.starMin": "Min Sterne",
+    "skill.starMax": "Max Sterne",
     "skill.disclaimer": "Erste Beta: Der Tree nutzt gespeicherte Score-, Mod-, BPM-, AR-, OD-, CS-, Star-, Accuracy-, Miss- und Combo-Werte. Exakte Cursor-/Replay-Bewegung wird erst moeglich, wenn Replay-Decoding spaeter eingebaut wird.",
     "skill.placeholderTitle": "Skill-Tree Ergebnisbereich",
     "skill.placeholderText": "Lade einen Spieler, dann werden deine staerksten Skill-Bereiche, passende Maps und Trainingsziele sichtbar.",
@@ -405,6 +409,10 @@ const translations = {
     "skill.avgBpm": "Durchschnitt BPM",
     "skill.avgAccuracy": "Durchschnitt Accuracy",
     "skill.totalMisses": "Misses gesamt",
+    "skill.starRange": "Sternbereich",
+    "skill.starOverview": "Skill nach Sternen",
+    "skill.noRangeScores": "Keine gespeicherten Plays in dieser Stern-Range gefunden.",
+    "skill.scoreLabel": "Skill {value}/100",
     "skill.bestExample": "Bestes Beispiel",
     "skill.needsWork": "Hier verlierst du oft Punkte",
     "skill.aim": "Aim",
@@ -793,6 +801,8 @@ const translations = {
     "skill.setup": "Setup",
     "skill.player": "Analyze player",
     "skill.load": "Load Skill Tree",
+    "skill.starMin": "Min stars",
+    "skill.starMax": "Max stars",
     "skill.disclaimer": "First beta: the tree uses stored score, mod, BPM, AR, OD, CS, star, accuracy, miss, and combo values. Exact cursor/replay movement becomes possible later after replay decoding is added.",
     "skill.placeholderTitle": "Skill Tree result area",
     "skill.placeholderText": "Load a player to see your strongest skill areas, matching maps, and training targets.",
@@ -809,6 +819,10 @@ const translations = {
     "skill.avgBpm": "Average BPM",
     "skill.avgAccuracy": "Average accuracy",
     "skill.totalMisses": "Total misses",
+    "skill.starRange": "Star range",
+    "skill.starOverview": "Skill by star rating",
+    "skill.noRangeScores": "No stored plays found in this star range.",
+    "skill.scoreLabel": "Skill {value}/100",
     "skill.bestExample": "Best example",
     "skill.needsWork": "Where you often lose value",
     "skill.aim": "Aim",
@@ -3455,6 +3469,48 @@ function analyzeSkillTree(scores) {
   };
 }
 
+function starValue(score) {
+  return Number(effectiveBeatmapStats(score).stars || 0);
+}
+
+function filterScoresByStars(scores, minStars, maxStars) {
+  return scores.filter((score) => {
+    const stars = starValue(score);
+    return stars >= minStars && stars <= maxStars;
+  });
+}
+
+function readSkillStarRange() {
+  const min = Number.parseFloat(String(skillStarMinInput?.value || "0").replace(",", "."));
+  const max = Number.parseFloat(String(skillStarMaxInput?.value || "20").replace(",", "."));
+  const minStars = Number.isFinite(min) ? Math.max(0, min) : 0;
+  const maxStars = Number.isFinite(max) ? Math.max(minStars, max) : 20;
+  return { minStars, maxStars };
+}
+
+function skillStarBuckets(scores) {
+  const buckets = [
+    { label: "0.00 - 3.99*", min: 0, max: 3.99 },
+    { label: "4.00 - 4.99*", min: 4, max: 4.99 },
+    { label: "5.00 - 5.99*", min: 5, max: 5.99 },
+    { label: "6.00 - 6.99*", min: 6, max: 6.99 },
+    { label: "7.00 - 7.99*", min: 7, max: 7.99 },
+    { label: "8.00*+", min: 8, max: 20 },
+  ];
+
+  return buckets.map((bucket) => {
+    const bucketScores = filterScoresByStars(scores, bucket.min, bucket.max);
+    if (!bucketScores.length) return { ...bucket, count: 0, value: 0, strongest: "-" };
+    const analysis = analyzeSkillTree(bucketScores);
+    return {
+      ...bucket,
+      count: bucketScores.length,
+      value: Math.round(average(analysis.categories.map((category) => category.value))),
+      strongest: analysis.strongest?.label || "-",
+    };
+  });
+}
+
 function skillMix(categoryByKey, parts) {
   const totalWeight = parts.reduce((total, [, weight]) => total + weight, 0) || 1;
   return Math.round(parts.reduce((total, [key, weight]) => {
@@ -3479,7 +3535,7 @@ function skillGraphData(analysis) {
     { key: "reading", label: "reading", sub: "visual load", value: value("reading"), x: 51, y: 29, tone: "blue", major: true },
     { key: "pattern", label: "pattern processing", sub: "recognition", value: skillMix(map, [["reading", 1], ["rhythm", 1], ["aim", 1]]), x: 51, y: 47, tone: "blue", major: true },
     { key: "consistency", label: "consistency", sub: "repeatable play", value: value("consistency"), x: 51, y: 62, tone: "cyan" },
-    { key: "mindblock", label: "mindblock control", sub: "reset bad habits", value: skillMix(map, [["consistency", 2], ["focus", 1]]), x: 51, y: 72, tone: "cyan" },
+    { key: "mindblock", label: "preventing mindblock", sub: "reset bad habits", value: skillMix(map, [["consistency", 2], ["reading", 1]]), x: 51, y: 72, tone: "cyan" },
     { key: "endurance", label: "endurance", sub: "long maps", value: value("stamina"), x: 51, y: 82, tone: "cyan" },
     { key: "speed", label: "speed", sub: "tempo comfort", value: value("speed"), x: 51, y: 93, tone: "cream" },
     { key: "technique", label: "technique efficiency", sub: "low strain", value: skillMix(map, [["speed", 1], ["precision", 1], ["consistency", 1]]), x: 51, y: 101, tone: "cream" },
@@ -3499,12 +3555,14 @@ function skillGraphData(analysis) {
     ["fundamentals", "lowStars"], ["lowStars", "reading"], ["reading", "pattern"], ["pattern", "consistency"],
     ["tapping", "finger"], ["finger", "accuracy"], ["finger", "streaming"], ["finger", "tappingStamina"],
     ["tapping", "tappingSpeed"], ["tappingSpeed", "speed"], ["tappingStamina", "streaming"], ["tappingStamina", "endurance"],
-    ["sightreading", "rhythm"], ["rhythm", "accuracy"], ["rhythm", "pattern"], ["accuracy", "pattern"],
-    ["pattern", "sliderAim"], ["pattern", "focus"], ["pattern", "readingSpeed"], ["consistency", "mindblock"],
-    ["endurance", "nerve"], ["endurance", "aimStamina"], ["speed", "readingSpeed"], ["technique", "speed"],
-    ["focus", "nerve"], ["focus", "flowAim"], ["focus", "mindblock"], ["sliderAim", "cursor"],
-    ["cursor", "precision"], ["cursor", "aim"], ["cursor", "aimStamina"], ["flowAim", "aimStamina"],
-    ["aim", "aimSpeed"], ["aimSpeed", "speed"], ["aimStamina", "aimSpeed"],
+    ["tappingStamina", "technique"], ["streaming", "readingSpeed"], ["streaming", "consistency"],
+    ["sightreading", "rhythm"], ["rhythm", "sightreading"], ["rhythm", "accuracy"], ["rhythm", "pattern"], ["accuracy", "pattern"],
+    ["reading", "sightreading"], ["reading", "rhythm"], ["reading", "readingSpeed"], ["pattern", "sliderAim"], ["pattern", "focus"], ["pattern", "readingSpeed"],
+    ["pattern", "mindblock"], ["consistency", "mindblock"], ["consistency", "endurance"], ["mindblock", "focus"],
+    ["endurance", "nerve"], ["endurance", "aimStamina"], ["speed", "readingSpeed"], ["technique", "speed"], ["technique", "cursor"],
+    ["focus", "nerve"], ["focus", "flowAim"], ["focus", "mindblock"], ["sliderAim", "cursor"], ["sliderAim", "aim"],
+    ["cursor", "precision"], ["cursor", "aim"], ["cursor", "aimStamina"], ["precision", "aimStamina"], ["flowAim", "aimStamina"],
+    ["aim", "cursor"], ["aim", "aimSpeed"], ["aimSpeed", "speed"], ["aimStamina", "aimSpeed"],
   ];
 
   return { nodes, links };
@@ -3517,20 +3575,47 @@ function renderSkillGraph(analysis) {
     const from = nodeByKey.get(fromKey);
     const to = nodeByKey.get(toKey);
     if (!from || !to) return "";
-    return `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" class="skill-link skill-link-${escapeHtml(from.tone)}" />`;
+    return `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" class="skill-link skill-link-${escapeHtml(from.tone)}" marker-end="url(#skillArrow-${escapeHtml(from.tone)})" />`;
   };
   return `
     <section class="skill-graph" aria-label="osu skill graph">
       <svg class="skill-links" viewBox="0 0 100 108" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          ${["pink", "violet", "blue", "cyan", "green", "yellow", "cream"].map((tone) => `
+            <marker id="skillArrow-${tone}" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" class="skill-arrow skill-arrow-${tone}" />
+            </marker>
+          `).join("")}
+        </defs>
         ${graph.links.map(line).join("")}
       </svg>
       ${graph.nodes.map((node) => `
         <div class="skill-graph-node skill-tone-${escapeHtml(node.tone)}${node.major ? " major" : ""}" style="left: ${node.x}%; top: ${node.y}%">
           <strong>${escapeHtml(node.label)}</strong>
           <span>${escapeHtml(node.sub)}</span>
-          <b>${formatNumber(node.value)}</b>
+          <b>${escapeHtml(t("skill.scoreLabel", { value: formatNumber(node.value) }))}</b>
         </div>
       `).join("")}
+    </section>
+  `;
+}
+
+function renderSkillStarOverview(scores) {
+  const buckets = skillStarBuckets(scores);
+  return `
+    <section class="skill-star-overview">
+      <header>
+        <span>${escapeHtml(t("skill.starOverview"))}</span>
+      </header>
+      <div class="skill-star-grid">
+        ${buckets.map((bucket) => `
+          <div class="skill-star-bucket${bucket.count ? "" : " empty"}">
+            <strong>${escapeHtml(bucket.label)}</strong>
+            <span>${bucket.count ? escapeHtml(t("skill.scoreLabel", { value: formatNumber(bucket.value) })) : "-"}</span>
+            <small>${formatNumber(bucket.count)} ${escapeHtml(t("skill.playCount"))} - ${escapeHtml(bucket.strongest)}</small>
+          </div>
+        `).join("")}
+      </div>
     </section>
   `;
 }
@@ -3560,13 +3645,21 @@ function renderSkillTreeResults(data, mode) {
     return;
   }
 
-  const analysis = analyzeSkillTree(scores);
+  const { minStars, maxStars } = readSkillStarRange();
+  const rangeScores = filterScoresByStars(scores, minStars, maxStars);
+  if (!rangeScores.length) {
+    skillTreeOutput.innerHTML = `<div class="compare-empty">${escapeHtml(t("skill.noRangeScores"))}</div>`;
+    return;
+  }
+
+  const analysis = analyzeSkillTree(rangeScores);
   compareDetailScores = uniqueScores([...compareDetailScores, ...analysis.scores]);
   skillTreeOutput.innerHTML = `
     <div class="skill-tree-results">
       <section class="skill-summary-grid">
         ${[
           [t("skill.playCount"), formatNumber(analysis.scores.length)],
+          [t("skill.starRange"), `${formatFixed(minStars, 2)}* - ${formatFixed(maxStars, 2)}*`],
           [t("skill.strongest"), analysis.strongest?.label || "-"],
           [t("skill.weakest"), analysis.weakest?.label || "-"],
           [t("skill.avgStars"), `${formatFixed(analysis.avgStars, 2)}*`],
@@ -3575,6 +3668,8 @@ function renderSkillTreeResults(data, mode) {
           [t("skill.totalMisses"), formatNumber(analysis.totalMisses)],
         ].map(([label, value]) => renderPassStat(label, value)).join("")}
       </section>
+
+      ${renderSkillStarOverview(scores)}
 
       ${renderSkillGraph(analysis)}
 
