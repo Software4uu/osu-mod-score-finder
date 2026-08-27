@@ -2955,6 +2955,21 @@ function osuSigUrl(username, mode, type = "full") {
   return `/api/osu-sig?${params.toString()}`;
 }
 
+function remoteOsuSigUrl(username, mode, type = "full") {
+  const params = new URLSearchParams({
+    user: username,
+    mode: osuSigMode(mode),
+    lang: currentLanguage === "de" ? "en" : currentLanguage,
+    hue: "333",
+    animation: "false",
+  });
+  if (type === "skills") {
+    return `https://osu-sig.s23.moe/skills?${params.toString()}`;
+  }
+  params.set("skills", "true");
+  return `https://osu-sig.s23.moe/card?${params.toString()}`;
+}
+
 function sigUserKey(summary) {
   return String(summary?.user?.id || summary?.user?.username || "").trim();
 }
@@ -2964,11 +2979,13 @@ function sigImageTag(summary, mode, type) {
   const userKey = sigUserKey(summary);
   const label = type === "skills" ? t("compare.sigSkills") : t("compare.sigFullSkills");
   const src = osuSigUrl(userKey, mode, type);
+  const fallback = remoteOsuSigUrl(username || userKey, mode, type);
   return `
     <img
       class="compare-sig-image"
       src="${escapeHtml(src)}"
       data-src="${escapeHtml(src)}"
+      data-fallback-src="${escapeHtml(fallback)}"
       data-retry="0"
       alt="${escapeHtml(username)} osu-sig ${escapeHtml(label)}"
       loading="eager"
@@ -3868,18 +3885,32 @@ compareView?.addEventListener("error", (event) => {
   if (!(image instanceof HTMLImageElement) || !image.classList.contains("compare-sig-image")) return;
 
   const retry = Number(image.dataset.retry || 0);
+  const fallbackSrc = image.dataset.fallbackSrc || "";
+  if (retry === 0 && fallbackSrc && !image.src.startsWith("https://osu-sig.s23.moe/")) {
+    image.dataset.retry = "1";
+    const separator = fallbackSrc.includes("?") ? "&" : "?";
+    image.src = `${fallbackSrc}${separator}fallback=1&at=${Date.now()}`;
+    return;
+  }
+
   if (retry >= 3) {
     image.classList.add("is-unavailable");
     return;
   }
 
   image.dataset.retry = String(retry + 1);
-  const baseSrc = image.dataset.src || image.src;
+  const baseSrc = fallbackSrc || image.dataset.src || image.src;
   const separator = baseSrc.includes("?") ? "&" : "?";
   window.setTimeout(() => {
     image.classList.remove("is-unavailable");
     image.src = `${baseSrc}${separator}retry=${retry + 1}&at=${Date.now()}`;
   }, 900 + retry * 1400);
+}, true);
+
+compareView?.addEventListener("load", (event) => {
+  const image = event.target;
+  if (!(image instanceof HTMLImageElement) || !image.classList.contains("compare-sig-image")) return;
+  image.classList.remove("is-unavailable");
 }, true);
 
 modButtons.addEventListener("click", (event) => {
