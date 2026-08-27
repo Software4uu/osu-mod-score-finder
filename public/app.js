@@ -340,6 +340,7 @@ const translations = {
     "time.knownUntil": "Bekannte Scores bis",
     "time.estimatedPp": "Geschaetzte gewichtete PP",
     "time.knownPlays": "Bekannte Plays",
+    "time.uniqueMaps": "Beste Maps",
     "time.currentRank": "Aktueller Rank",
     "time.bestPlay": "Bestes Play bis Datum",
     "time.topAtDate": "Staerkste bekannte Plays bis zu diesem Datum",
@@ -674,6 +675,7 @@ const translations = {
     "time.knownUntil": "Known scores up to",
     "time.estimatedPp": "Estimated weighted PP",
     "time.knownPlays": "Known plays",
+    "time.uniqueMaps": "Best maps",
     "time.currentRank": "Current rank",
     "time.bestPlay": "Best play by date",
     "time.topAtDate": "Strongest known plays up to this date",
@@ -892,6 +894,23 @@ function dateToDayKey(date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function berlinDayKeyFromValue(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Berlin",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const getPart = (type) => parts.find((part) => part.type === type)?.value || "";
+  const year = getPart("year");
+  const month = getPart("month");
+  const day = getPart("day");
+  return year && month && day ? `${year}-${month}-${day}` : "";
 }
 
 function dayToMonthKey(dayKey) {
@@ -3173,14 +3192,20 @@ async function runMapCompare() {
 
 function timeTravelDayFromScore(score) {
   const timestamp = scoreTimeValue(score);
-  return timestamp ? dateToDayKey(new Date(timestamp)) : "";
+  return timestamp ? berlinDayKeyFromValue(timestamp) : "";
+}
+
+function rawTimeTravelScoresUntil(dayKey) {
+  if (!dayKey) return [];
+  return timeTravelScores.filter((score) => {
+    const scoreDay = timeTravelDayFromScore(score);
+    return scoreDay && scoreDay <= dayKey;
+  });
 }
 
 function knownScoresUntil(dayKey) {
-  const cutoff = Date.parse(`${dayKey}T23:59:59`);
-  if (!Number.isFinite(cutoff)) return [];
   return bestScorePerMapForDisplay(
-    timeTravelScores.filter((score) => scoreTimeValue(score) && scoreTimeValue(score) <= cutoff),
+    rawTimeTravelScoresUntil(dayKey),
     "pp",
   ).sort((a, b) => scorePpValue(b) - scorePpValue(a) || scoreTimeValue(b) - scoreTimeValue(a));
 }
@@ -3203,6 +3228,7 @@ function setTimeTravelDate(dayKey) {
 
 function renderTimeTravelResults(dayKey) {
   if (!timeTravelOutput) return;
+  const rawScores = rawTimeTravelScoresUntil(dayKey);
   const scores = knownScoresUntil(dayKey);
   const weightedPp = estimateWeightedPp(scores);
   const best = scores[0];
@@ -3227,6 +3253,10 @@ function renderTimeTravelResults(dayKey) {
         </div>
         <div>
           <span>${escapeHtml(t("time.knownPlays"))}</span>
+          <strong>${formatNumber(rawScores.length)}</strong>
+        </div>
+        <div>
+          <span>${escapeHtml(t("time.uniqueMaps"))}</span>
           <strong>${formatNumber(scores.length)}</strong>
         </div>
         <div>
@@ -3247,9 +3277,9 @@ function renderTimeTravelResults(dayKey) {
       <section class="compare-score-list time-travel-list">
         <header>
           <span>${escapeHtml(t("time.topAtDate"))}</span>
-          <strong>${formatNumber(Math.min(scores.length, 50))}</strong>
+          <strong>${formatNumber(scores.length)}</strong>
         </header>
-        ${scores.slice(0, 50).map((score, index) => renderCompareScoreCard(score, timeMode?.value || "osu", index)).join("")}
+        ${scores.map((score, index) => renderCompareScoreCard(score, timeMode?.value || "osu", index)).join("")}
       </section>
     </div>
   `;
@@ -3273,15 +3303,16 @@ async function runTimeTravel() {
 
   try {
     const data = await fetchCompareData(username, timeMode?.value || "osu", {
-      rankedOnly: "1",
+      rankedOnly: "0",
       includeLoved: "1",
+      includeUnrankedPasses: "1",
       bestPerMap: "0",
       limit: "500",
       rankMode: "none",
     });
     timeTravelUser = data.user || null;
-    timeTravelScores = uniqueScores(data.scores || [])
-      .filter((score) => scoreTimeValue(score) && scorePpValue(score) > 0)
+    timeTravelScores = uniqueScores(data.passScores || data.scores || [])
+      .filter((score) => scoreTimeValue(score))
       .sort((a, b) => scoreTimeValue(a) - scoreTimeValue(b));
     timeTravelDays = [...new Set(timeTravelScores.map(timeTravelDayFromScore).filter(Boolean))].sort();
 
