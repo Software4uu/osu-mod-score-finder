@@ -10,6 +10,8 @@ const calendar = document.querySelector("#calendar");
 const compareView = document.querySelector("#compareView");
 const timeTravelView = document.querySelector("#timeTravelView");
 const timeTravelOutput = document.querySelector("#timeTravelOutput");
+const skillTreeView = document.querySelector("#skillTreeView");
+const skillTreeOutput = document.querySelector("#skillTreeOutput");
 const detailsPanel = document.querySelector("#detailsPanel");
 const summary = document.querySelector("#summary");
 const submitButton = document.querySelector("#submitButton");
@@ -36,6 +38,9 @@ const timeDate = document.querySelector("#timeDate");
 const timeSlider = document.querySelector("#timeSlider");
 const timeSelectedDate = document.querySelector("#timeSelectedDate");
 const timeSourceLegend = document.querySelector("#timeSourceLegend");
+const skillPlayer = document.querySelector("#skillPlayer");
+const skillMode = document.querySelector("#skillMode");
+const skillRun = document.querySelector("#skillRun");
 
 const selectedMods = new Set();
 const languageStorageKey = "osu-mod-score-finder-language";
@@ -247,6 +252,7 @@ const translations = {
     "nav.home": "Hauptseite",
     "nav.compare": "Vergleich",
     "nav.timeTravel": "Time Travel",
+    "nav.skillTree": "Skill Tree",
     "compare.eyebrow": "Vergleich",
     "compare.title": "Spieler vergleichen",
     "compare.description": "Eine ruhige Arbeitsflaeche fuer direkte Spieler-Vergleiche: Top-200, Profilwerte, Mod-Fokus und Map-Kontext.",
@@ -331,7 +337,7 @@ const translations = {
     "time.setup": "Setup",
     "time.playerDate": "Spieler und Datum",
     "time.load": "Historie laden",
-    "time.disclaimer": "Hinweis: Diese Ansicht nutzt deine heute lokal/API-bekannten Scores. Der Rank ist eine vorsichtige Rekonstruktion gegen den aktuellen Datenstand, nicht die echte damalige globale Rangliste.",
+    "time.disclaimer": "Hinweis: Diese Ansicht nutzt deine heute lokal/API-bekannten Scores. Der Rank ist eine vorsichtige Rekonstruktion gegen den aktuellen Datenstand, nicht die echte damalige globale Rangliste. Bei sehr vielen lokalen Scores kann das Laden 8-10 Minuten dauern.",
     "time.timeline": "Zeitregler",
     "time.date": "Datum",
     "time.sliderText": "Nach dem Laden kannst du den Stand Tag fuer Tag zurueckdrehen.",
@@ -377,6 +383,44 @@ const translations = {
     "time.bestPlay": "Bestes Play bis Datum",
     "time.topAtDate": "Staerkste bekannte Plays bis zu diesem Datum",
     "time.estimateNote": "Die PP werden mit dem normalen osu!-Gewichtungsmodell aus den bekannten Plays neu gestapelt. Andere Spieler werden nicht historisch zurueckgerechnet.",
+    "skill.eyebrow": "Skill Tree",
+    "skill.title": "osu! Skill Tree",
+    "skill.description": "Baut aus deinen gespeicherten Plays eine Skill-Landkarte: Aim, Speed, Reading, Precision, Rhythm, Stamina und Consistency.",
+    "skill.setup": "Setup",
+    "skill.player": "Spieler analysieren",
+    "skill.load": "Skill Tree laden",
+    "skill.disclaimer": "Erste Beta: Der Tree nutzt gespeicherte Score-, Mod-, BPM-, AR-, OD-, CS-, Star-, Accuracy-, Miss- und Combo-Werte. Exakte Cursor-/Replay-Bewegung wird erst moeglich, wenn Replay-Decoding spaeter eingebaut wird.",
+    "skill.placeholderTitle": "Skill-Tree Ergebnisbereich",
+    "skill.placeholderText": "Lade einen Spieler, dann werden deine staerksten Skill-Bereiche, passende Maps und Trainingsziele sichtbar.",
+    "skill.loading": "Skill Tree wird geladen...",
+    "skill.noScores": "Keine gespeicherten Plays fuer den Skill Tree gefunden.",
+    "skill.overview": "Skill-Uebersicht",
+    "skill.strongest": "Staerkster Skill",
+    "skill.weakest": "Training lohnt sich",
+    "skill.maps": "Passende Maps",
+    "skill.recommendations": "Trainingsziele",
+    "skill.evidence": "Wertebasis",
+    "skill.playCount": "analysierte Plays",
+    "skill.avgStars": "Durchschnitt Sterne",
+    "skill.avgBpm": "Durchschnitt BPM",
+    "skill.avgAccuracy": "Durchschnitt Accuracy",
+    "skill.totalMisses": "Misses gesamt",
+    "skill.bestExample": "Bestes Beispiel",
+    "skill.needsWork": "Hier verlierst du oft Punkte",
+    "skill.aim": "Aim",
+    "skill.speed": "Speed",
+    "skill.reading": "Reading",
+    "skill.precision": "Precision",
+    "skill.rhythm": "Rhythm",
+    "skill.stamina": "Stamina",
+    "skill.consistency": "Consistency",
+    "skill.aimHint": "hohe Sterne, CS und Jump-/Aim-lastige Runs",
+    "skill.speedHint": "BPM, DT/NC/Rate-Adjust und schnelle Maps",
+    "skill.readingHint": "HD/FL, hoher AR und visuell anspruchsvolle Plays",
+    "skill.precisionHint": "OD, Accuracy und kleine Circle Size",
+    "skill.rhythmHint": "wechselnde BPM, laengere Patterns und Timing-Stabilitaet",
+    "skill.staminaHint": "lange Maps, hohe Combo und viele Objekte",
+    "skill.consistencyHint": "wenige Misses, hohe Accuracy und stabile Passes",
     "sync.title": "Automatischer Score-Sync",
     "sync.scheduled": "Der Hintergrund-Sync wird vorbereitet...",
     "sync.online": "Online-Scores werden geprueft: {done} von {total} API-Seiten",
@@ -612,6 +656,7 @@ const translations = {
     "nav.home": "Home",
     "nav.compare": "Compare",
     "nav.timeTravel": "Time Travel",
+    "nav.skillTree": "Skill Tree",
     "compare.eyebrow": "Compare",
     "compare.title": "Compare players",
     "compare.description": "A calm workspace for direct player comparisons: top 200, profile values, mod focus, and map context.",
@@ -696,7 +741,7 @@ const translations = {
     "time.setup": "Setup",
     "time.playerDate": "Player and date",
     "time.load": "Load history",
-    "time.disclaimer": "Note: this view uses scores known locally or through the API today. Rank is a cautious reconstruction against the current data state, not the real historical global ranking.",
+    "time.disclaimer": "Note: this view uses scores known locally or through the API today. Rank is a cautious reconstruction against the current data state, not the real historical global ranking. With many local scores, loading can take 8-10 minutes.",
     "time.timeline": "Timeline",
     "time.date": "Date",
     "time.sliderText": "After loading, you can rewind the known state day by day.",
@@ -742,6 +787,44 @@ const translations = {
     "time.bestPlay": "Best play by date",
     "time.topAtDate": "Strongest known plays up to this date",
     "time.estimateNote": "PP is restacked from known plays with the normal osu! weighting model. Other players are not historically reconstructed.",
+    "skill.eyebrow": "Skill Tree",
+    "skill.title": "osu! Skill Tree",
+    "skill.description": "Builds a skill map from stored plays: aim, speed, reading, precision, rhythm, stamina, and consistency.",
+    "skill.setup": "Setup",
+    "skill.player": "Analyze player",
+    "skill.load": "Load Skill Tree",
+    "skill.disclaimer": "First beta: the tree uses stored score, mod, BPM, AR, OD, CS, star, accuracy, miss, and combo values. Exact cursor/replay movement becomes possible later after replay decoding is added.",
+    "skill.placeholderTitle": "Skill Tree result area",
+    "skill.placeholderText": "Load a player to see your strongest skill areas, matching maps, and training targets.",
+    "skill.loading": "Loading Skill Tree...",
+    "skill.noScores": "No stored plays found for the Skill Tree.",
+    "skill.overview": "Skill overview",
+    "skill.strongest": "Strongest skill",
+    "skill.weakest": "Training target",
+    "skill.maps": "Matching maps",
+    "skill.recommendations": "Training targets",
+    "skill.evidence": "Evidence",
+    "skill.playCount": "analyzed plays",
+    "skill.avgStars": "Average stars",
+    "skill.avgBpm": "Average BPM",
+    "skill.avgAccuracy": "Average accuracy",
+    "skill.totalMisses": "Total misses",
+    "skill.bestExample": "Best example",
+    "skill.needsWork": "Where you often lose value",
+    "skill.aim": "Aim",
+    "skill.speed": "Speed",
+    "skill.reading": "Reading",
+    "skill.precision": "Precision",
+    "skill.rhythm": "Rhythm",
+    "skill.stamina": "Stamina",
+    "skill.consistency": "Consistency",
+    "skill.aimHint": "high stars, CS, and jump/aim-heavy runs",
+    "skill.speedHint": "BPM, DT/NC/Rate Adjust, and fast maps",
+    "skill.readingHint": "HD/FL, high AR, and visually demanding plays",
+    "skill.precisionHint": "OD, accuracy, and small circle size",
+    "skill.rhythmHint": "changing BPM, longer patterns, and timing stability",
+    "skill.staminaHint": "long maps, high combo, and many objects",
+    "skill.consistencyHint": "low misses, high accuracy, and stable passes",
     "sync.title": "Automatic score sync",
     "sync.scheduled": "Preparing the background sync...",
     "sync.online": "Checking online scores: {done} of {total} API pages",
@@ -3251,6 +3334,231 @@ function renderMapCompareResults(data) {
   `;
 }
 
+function clampPercent(value) {
+  return Math.max(0, Math.min(100, Number(value) || 0));
+}
+
+function scoreModsSet(score) {
+  const mods = (score.normalized_mods?.length ? score.normalized_mods : score.mods || [])
+    .map((mod) => String(mod.acronym || mod || "").toUpperCase())
+    .filter(Boolean);
+  return new Set(mods.length ? mods : ["NM"]);
+}
+
+function skillScoreFeatures(score) {
+  const stats = effectiveBeatmapStats(score);
+  const mods = scoreModsSet(score);
+  const acc = accuracyPercentValue(score);
+  const misses = Number(missCount(score) || 0);
+  const pp = passPpValue(score) || scorePpValue(score);
+  const combo = scoreMaxComboValue(score);
+  const length = Number(stats.length || 0);
+  return {
+    stats,
+    mods,
+    acc,
+    misses,
+    pp,
+    combo,
+    length,
+    stars: Number(stats.stars || 0),
+    bpm: Number(stats.bpm || 0),
+    ar: beatmapNumber(score, ["ar", "approach_rate"]),
+    od: beatmapNumber(score, ["accuracy", "od", "overall_difficulty"]),
+    cs: beatmapNumber(score, ["cs", "circle_size"]),
+  };
+}
+
+function skillCategoryValue(category, score) {
+  const feature = skillScoreFeatures(score);
+  const cleanBonus = Math.max(0, 1 - feature.misses / 18);
+  const accBonus = Math.max(0, (feature.acc - 80) / 20);
+  const ppBonus = Math.min(1, feature.pp / 450);
+  const highStar = Math.min(1, feature.stars / 8.5);
+  const modBonus = (mods) => mods.some((mod) => feature.mods.has(mod)) ? 1 : 0;
+
+  if (category.key === "aim") {
+    return clampPercent((highStar * 42) + (Math.min(1, feature.cs / 5) * 18) + (ppBonus * 18) + (accBonus * 12) + (cleanBonus * 10));
+  }
+  if (category.key === "speed") {
+    return clampPercent((Math.min(1, feature.bpm / 260) * 38) + (modBonus(["DT", "NC", "RA", "AS"]) * 18) + (highStar * 18) + (ppBonus * 14) + (cleanBonus * 12));
+  }
+  if (category.key === "reading") {
+    return clampPercent((Math.min(1, feature.ar / 10.7) * 30) + (modBonus(["HD", "FL", "BL", "HDHR", "HDDT"]) * 22) + (highStar * 18) + (accBonus * 16) + (cleanBonus * 14));
+  }
+  if (category.key === "precision") {
+    return clampPercent((Math.min(1, feature.od / 10.5) * 34) + (Math.min(1, feature.cs / 5.2) * 18) + (accBonus * 24) + (cleanBonus * 14) + (ppBonus * 10));
+  }
+  if (category.key === "rhythm") {
+    const rhythmBpm = feature.bpm >= 150 && feature.bpm <= 230 ? 1 : Math.max(0, 1 - Math.abs(feature.bpm - 190) / 160);
+    return clampPercent((rhythmBpm * 28) + (highStar * 22) + (Math.min(1, feature.length / 210) * 14) + (accBonus * 20) + (cleanBonus * 16));
+  }
+  if (category.key === "stamina") {
+    return clampPercent((Math.min(1, feature.length / 300) * 34) + (Math.min(1, feature.combo / 1200) * 18) + (highStar * 16) + (ppBonus * 14) + (cleanBonus * 18));
+  }
+  return clampPercent((accBonus * 38) + (cleanBonus * 34) + (Math.min(1, feature.combo / 900) * 12) + (ppBonus * 10) + (highStar * 6));
+}
+
+function skillCategories() {
+  return [
+    { key: "aim", label: t("skill.aim"), hint: t("skill.aimHint") },
+    { key: "speed", label: t("skill.speed"), hint: t("skill.speedHint") },
+    { key: "reading", label: t("skill.reading"), hint: t("skill.readingHint") },
+    { key: "precision", label: t("skill.precision"), hint: t("skill.precisionHint") },
+    { key: "rhythm", label: t("skill.rhythm"), hint: t("skill.rhythmHint") },
+    { key: "stamina", label: t("skill.stamina"), hint: t("skill.staminaHint") },
+    { key: "consistency", label: t("skill.consistency"), hint: t("skill.consistencyHint") },
+  ];
+}
+
+function scoreDifficultyLine(score) {
+  const stats = effectiveBeatmapStats(score);
+  const ar = beatmapNumber(score, ["ar", "approach_rate"]);
+  const od = beatmapNumber(score, ["accuracy", "od", "overall_difficulty"]);
+  const cs = beatmapNumber(score, ["cs", "circle_size"]);
+  return `${formatStars(stats.stars)} - ${formatNumber(Math.round(stats.bpm))} BPM - AR ${formatDecimal(ar, 2)} - OD ${formatDecimal(od, 2)} - CS ${formatDecimal(cs, 2)}`;
+}
+
+function analyzeSkillTree(scores) {
+  const bestScores = bestScorePerMapForDisplay(scores, "pp").slice(0, 500);
+  const categories = skillCategories().map((category) => {
+    const ranked = bestScores
+      .map((score) => ({ score, value: skillCategoryValue(category, score) }))
+      .sort((a, b) => b.value - a.value || passPpValue(b.score) - passPpValue(a.score));
+    const top = ranked.slice(0, 25);
+    return {
+      ...category,
+      value: Math.round(average(top.map((item) => item.value))),
+      maps: ranked.slice(0, 5),
+      training: ranked
+        .filter((item) => missCount(item.score) > 0 || accuracyPercentValue(item.score) < 96)
+        .slice(0, 4),
+    };
+  }).sort((a, b) => b.value - a.value);
+
+  return {
+    scores: bestScores,
+    categories,
+    strongest: categories[0],
+    weakest: [...categories].sort((a, b) => a.value - b.value)[0],
+    avgStars: average(bestScores.map((score) => effectiveBeatmapStats(score).stars)),
+    avgBpm: average(bestScores.map((score) => effectiveBeatmapStats(score).bpm)),
+    avgAccuracy: average(bestScores.map(accuracyPercentValue)),
+    totalMisses: bestScores.reduce((total, score) => total + missCount(score), 0),
+  };
+}
+
+function renderSkillMiniScore(item, mode) {
+  const score = item.score;
+  return `
+    <button class="skill-map-row" type="button" data-score-key="${escapeHtml(scoreDomKey(score))}">
+      <span>
+        <strong>${escapeHtml(score.beatmapset?.title || score.beatmap?.title || "Unknown map")}</strong>
+        <small>${escapeHtml(score.beatmap?.version || "")}</small>
+      </span>
+      <span>${formatPp(passPpValue(score) || scorePpValue(score))}</span>
+      <span>${formatAccuracy(accuracyPercentValue(score))}</span>
+      <span>${formatNumber(missCount(score))} Miss</span>
+      <small>${escapeHtml(scoreDifficultyLine(score))}</small>
+    </button>
+  `;
+}
+
+function renderSkillTreeResults(data, mode) {
+  if (!skillTreeOutput) return;
+  const scores = uniqueScores(data.passScores || data.scores || allScoresFromData(data))
+    .filter((score) => scoreTimeValue(score) || scorePpValue(score) || passPpValue(score));
+  if (!scores.length) {
+    skillTreeOutput.innerHTML = `<div class="compare-empty">${escapeHtml(t("skill.noScores"))}</div>`;
+    return;
+  }
+
+  const analysis = analyzeSkillTree(scores);
+  compareDetailScores = uniqueScores([...compareDetailScores, ...analysis.scores]);
+  skillTreeOutput.innerHTML = `
+    <div class="skill-tree-results">
+      <section class="skill-summary-grid">
+        ${[
+          [t("skill.playCount"), formatNumber(analysis.scores.length)],
+          [t("skill.strongest"), analysis.strongest?.label || "-"],
+          [t("skill.weakest"), analysis.weakest?.label || "-"],
+          [t("skill.avgStars"), `${formatDecimal(analysis.avgStars, 2)}*`],
+          [t("skill.avgBpm"), `${formatNumber(Math.round(analysis.avgBpm))} BPM`],
+          [t("skill.avgAccuracy"), formatAccuracy(analysis.avgAccuracy)],
+          [t("skill.totalMisses"), formatNumber(analysis.totalMisses)],
+        ].map(([label, value]) => renderPassStat(label, value)).join("")}
+      </section>
+
+      <section class="skill-tree-grid">
+        ${analysis.categories.map((category) => `
+          <article class="skill-node">
+            <div class="skill-node-head">
+              <span>${escapeHtml(category.label)}</span>
+              <strong>${formatNumber(category.value)}/100</strong>
+            </div>
+            <div class="skill-node-bar"><i style="width: ${category.value}%"></i></div>
+            <p>${escapeHtml(category.hint)}</p>
+            <div class="skill-node-maps">
+              <strong>${escapeHtml(t("skill.maps"))}</strong>
+              ${category.maps.slice(0, 3).map((item) => renderSkillMiniScore(item, mode)).join("")}
+            </div>
+          </article>
+        `).join("")}
+      </section>
+
+      <section class="compare-score-list skill-training-list">
+        <header>
+          <span>${escapeHtml(t("skill.recommendations"))}</span>
+          <strong>${escapeHtml(analysis.weakest?.label || "-")}</strong>
+        </header>
+        ${(analysis.weakest?.training?.length ? analysis.weakest.training : analysis.weakest?.maps || [])
+          .map((item, index) => renderCompareScoreCard(item.score, mode, index))
+          .join("")}
+      </section>
+    </div>
+  `;
+}
+
+async function runSkillTree() {
+  const username = skillPlayer?.value.trim() || document.querySelector("#username")?.value.trim() || comparePlayerA?.value.trim() || "";
+  if (!username) {
+    if (skillTreeOutput) skillTreeOutput.innerHTML = `<div class="compare-empty">${escapeHtml(t("compare.needOnePlayer"))}</div>`;
+    return;
+  }
+
+  if (skillTreeOutput) {
+    skillTreeOutput.innerHTML = `
+      <div class="compare-loading">
+        <strong>${escapeHtml(t("skill.loading"))}</strong>
+        <span>${escapeHtml(t("compare.loadDetail"))}</span>
+      </div>
+    `;
+  }
+
+  try {
+    const mode = skillMode?.value || "osu";
+    const data = await fetchCompareData(username, mode, {
+      rankedOnly: "0",
+      includeLoved: "1",
+      includeUnrankedPasses: "1",
+      bestPerMap: "0",
+      limit: "500",
+      rankMode: "none",
+    });
+    if (skillPlayer) skillPlayer.value = data.user?.username || username;
+    renderSkillTreeResults(data, mode);
+  } catch (error) {
+    if (skillTreeOutput) {
+      skillTreeOutput.innerHTML = `
+        <div class="error-box">
+          <strong>${escapeHtml(t("compare.failed"))}</strong>
+          <span>${escapeHtml(error.message || String(error))}</span>
+        </div>
+      `;
+    }
+  }
+}
+
 async function runVsCompare() {
   const leftName = comparePlayerA?.value.trim() || "";
   const rightName = comparePlayerB?.value.trim() || "";
@@ -3754,10 +4062,11 @@ function setMenuOpen(open) {
 }
 
 function setActiveSection(section) {
-  const nextSection = section === "compare" ? "compare" : section === "time" ? "time" : "home";
+  const nextSection = section === "compare" ? "compare" : section === "time" ? "time" : section === "skillTree" ? "skillTree" : "home";
   document.body.dataset.activeSection = nextSection;
   compareView?.classList.toggle("hidden", nextSection !== "compare");
   timeTravelView?.classList.toggle("hidden", nextSection !== "time");
+  skillTreeView?.classList.toggle("hidden", nextSection !== "skillTree");
 
   const showHome = nextSection === "home";
   form.classList.toggle("hidden", !showHome);
@@ -3786,6 +4095,11 @@ sideMenu?.addEventListener("click", (event) => {
   if (button.dataset.section === "time") {
     if (timePlayer && !timePlayer.value) timePlayer.value = document.querySelector("#username")?.value.trim() || comparePlayerA?.value.trim() || "";
     if (timeMode) timeMode.value = compareMode?.value || document.querySelector("#mode")?.value || "osu";
+  }
+
+  if (button.dataset.section === "skillTree") {
+    if (skillPlayer && !skillPlayer.value) skillPlayer.value = document.querySelector("#username")?.value.trim() || comparePlayerA?.value.trim() || timePlayer?.value.trim() || "";
+    if (skillMode) skillMode.value = document.querySelector("#mode")?.value || compareMode?.value || timeMode?.value || "osu";
   }
 
   setActiveSection(button.dataset.section);
@@ -3878,6 +4192,21 @@ timeTravelView?.addEventListener("keydown", (event) => {
   if (!input) return;
   event.preventDefault();
   void runTimeTravel();
+});
+
+skillRun?.addEventListener("click", () => void runSkillTree());
+
+skillTreeView?.addEventListener("click", (event) => {
+  const detailButton = event.target.closest("button[data-score-key]");
+  if (detailButton) renderMapDetails(detailButton.dataset.scoreKey);
+});
+
+skillTreeView?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  const input = event.target.closest("input");
+  if (!input) return;
+  event.preventDefault();
+  void runSkillTree();
 });
 
 compareView?.addEventListener("error", (event) => {

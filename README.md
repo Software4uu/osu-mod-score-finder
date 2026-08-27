@@ -61,9 +61,24 @@ http://localhost:5173/callback
 - Calendar tab with a month grid, played days, and all stored scores for a selected day
 - Calendar PP range filter plus orange highlight for the day with the month's top PP play
 - Map detail view with all stored tries on the same map difficulty
-- Time Travel reconstructs older profile states from local scores and labels every data source clearly
+- Time Travel reconstructs older profile states from local scores and labels every data source clearly; with very large local databases the first load can take 8-10 minutes
 - Optional osu!track history snapshots are used for historical PP, rank, accuracy, score, play count, hit count, and grade-count values when available
+- Skill Tree view that turns stored plays into personal skill areas such as aim, speed, reading, precision, rhythm, stamina, and consistency
 - Built-in GitHub update check that can start the local updater without touching `.env`, `data/`, local score databases, or osu! folders
+
+## Skill Tree
+
+The Skill Tree is a first beta for turning stored scores into a player-specific skill map. It reads the local score database plus known beatmap data and groups plays into categories:
+
+- `Aim`: star rating, circle size, PP, accuracy, and clean passes
+- `Speed`: BPM, DT/NC/rate-adjust style mods, star rating, PP, and misses
+- `Reading`: HD/FL, high approach rate, star rating, accuracy, and clean passes
+- `Precision`: OD, accuracy, circle size, and low-miss performance
+- `Rhythm`: BPM range, map length, accuracy, and consistency
+- `Stamina`: longer maps, high combo, star rating, and clean execution
+- `Consistency`: low misses, stable accuracy, combo, and repeatable results
+
+Each skill node shows a 0-100 estimate, matching maps, and training targets where misses or lower accuracy suggest room to improve. The current version does not yet decode replay cursor movement, so jump angles, exact cursor flow, slider breaks, and miss-position analysis are estimated from stored score and beatmap metadata. Exact movement-based analysis is planned for a later replay engine.
 
 ## Time Travel data sources
 
@@ -170,9 +185,24 @@ http://localhost:5173/callback
 - Kalender-Tab mit Monatsraster, gespielten Tagen und allen gespeicherten Scores eines Tages
 - Kalender-PP-Range-Filter plus orange Markierung fuer den Tag mit dem Top-PP-Play des Monats
 - Map-Detailansicht mit allen gespeicherten Tries auf derselben Difficulty
-- Time Travel rekonstruiert alte Profilstaende aus lokalen Scores und zeigt pro Wert die Datenquelle an
+- Time Travel rekonstruiert alte Profilstaende aus lokalen Scores und zeigt pro Wert die Datenquelle an; bei sehr grossen lokalen Datenbanken kann der erste Ladevorgang 8-10 Minuten dauern
 - Optionale osu!track-History-Snapshots werden fuer historische PP-, Rank-, Accuracy-, Score-, Playcount-, Hitcount- und Grade-Count-Werte genutzt, wenn vorhanden
+- Skill-Tree-Ansicht, die gespeicherte Plays in persoenliche Skill-Bereiche wie Aim, Speed, Reading, Precision, Rhythm, Stamina und Consistency aufteilt
 - Eingebauter GitHub-Update-Check, der den lokalen Updater starten kann, ohne `.env`, `data/`, lokale Score-Datenbanken oder osu!-Ordner anzufassen
+
+## Skill Tree
+
+Der Skill Tree ist eine erste Beta, um gespeicherte Scores in eine persoenliche Skill-Landkarte zu verwandeln. Er nutzt die lokale Score-Datenbank plus bekannte Beatmap-Werte und sortiert Plays in Kategorien:
+
+- `Aim`: Sterne, Circle Size, PP, Accuracy und saubere Passes
+- `Speed`: BPM, DT/NC/Rate-Adjust-aehnliche Mods, Sterne, PP und Misses
+- `Reading`: HD/FL, hohe Approach Rate, Sterne, Accuracy und saubere Passes
+- `Precision`: OD, Accuracy, Circle Size und Low-Miss-Performance
+- `Rhythm`: BPM-Bereich, Map-Laenge, Accuracy und Stabilitaet
+- `Stamina`: laengere Maps, hohe Combo, Sterne und saubere Ausfuehrung
+- `Consistency`: wenige Misses, stabile Accuracy, Combo und wiederholbare Ergebnisse
+
+Jeder Skill-Knoten zeigt eine Schaetzung von 0-100, passende Maps und Trainingsziele, bei denen Misses oder niedrigere Accuracy auf Verbesserungspotenzial hindeuten. Die aktuelle Version dekodiert noch keine Replay-Cursorbewegung. Jump-Winkel, exakter Cursor-Flow, Slider-Breaks und Miss-Positionen werden deshalb noch aus Score- und Beatmap-Metadaten angenaehert. Eine exakte bewegungsbasierte Analyse ist fuer eine spaetere Replay Engine geplant.
 
 ## Starten
 

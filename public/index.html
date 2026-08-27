@@ -44,6 +44,7 @@
           <button class="side-menu-item active" type="button" data-section="home" data-i18n="nav.home">Hauptseite</button>
           <button class="side-menu-item" type="button" data-section="compare" data-i18n="nav.compare">Vergleich</button>
           <button class="side-menu-item" type="button" data-section="time" data-i18n="nav.timeTravel">Time Travel</button>
+          <button class="side-menu-item" type="button" data-section="skillTree" data-i18n="nav.skillTree">Skill Tree</button>
         </aside>
         <div id="menuBackdrop" class="menu-backdrop"></div>
 
@@ -427,6 +428,53 @@
             <div>
               <strong data-i18n="time.placeholderTitle">Time-Travel Ergebnisbereich</strong>
               <p data-i18n="time.placeholderText">Lade einen Spieler, dann erscheinen hier geschaetzte PP, bekannte Plays und die staerksten Scores bis zum gewaehlten Datum.</p>
+            </div>
+          </section>
+        </section>
+
+        <section id="skillTreeView" class="compare-view hidden" aria-live="polite">
+          <div class="compare-hero">
+            <div>
+              <p class="eyebrow" data-i18n="skill.eyebrow">Skill Tree</p>
+              <h2 data-i18n="skill.title">osu! Skill Tree</h2>
+              <p data-i18n="skill.description">
+                Baut aus deinen gespeicherten Plays eine Skill-Landkarte: Aim, Speed, Reading, Precision, Rhythm, Stamina und Consistency.
+              </p>
+            </div>
+          </div>
+
+          <section class="compare-panel">
+            <div class="compare-panel-head">
+              <span data-i18n="skill.setup">Setup</span>
+              <strong data-i18n="skill.player">Spieler analysieren</strong>
+            </div>
+            <div class="compare-player-fields">
+              <label class="field">
+                <span data-i18n="compare.player">Spieler</span>
+                <input id="skillPlayer" type="search" data-i18n-placeholder="compare.placeholderA" placeholder="z. B. marcy02" />
+              </label>
+              <label class="field">
+                <span data-i18n="compare.gameMode">Game mode</span>
+                <select id="skillMode">
+                  <option value="osu">osu!standard</option>
+                  <option value="taiko">taiko</option>
+                  <option value="fruits">catch</option>
+                  <option value="mania">mania</option>
+                </select>
+              </label>
+            </div>
+            <div class="compare-actions">
+              <button id="skillRun" class="primary-button" type="button" data-i18n="skill.load">Skill Tree laden</button>
+            </div>
+            <p class="compare-muted" data-i18n="skill.disclaimer">
+              Erste Beta: Der Tree nutzt gespeicherte Score-, Mod-, BPM-, AR-, OD-, CS-, Star-, Accuracy-, Miss- und Combo-Werte. Exakte Cursor-/Replay-Bewegung wird erst moeglich, wenn Replay-Decoding spaeter eingebaut wird.
+            </p>
+          </section>
+
+          <section id="skillTreeOutput" class="compare-placeholder">
+            <div>
+              <strong data-i18n="skill.placeholderTitle">Skill-Tree Ergebnisbereich</strong>
+              <p data-i18n="skill.placeholderText">Lade einen Spieler, dann werden deine staerksten Skill-Bereiche, passende Maps und Trainingsziele sichtbar.</p>
             </div>
           </section>
         </section>
