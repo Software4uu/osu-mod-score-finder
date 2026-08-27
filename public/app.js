@@ -387,7 +387,7 @@ const translations = {
     "time.estimateNote": "Die PP werden mit dem normalen osu!-Gewichtungsmodell aus den bekannten Plays neu gestapelt. Andere Spieler werden nicht historisch zurueckgerechnet.",
     "skill.eyebrow": "Skill Tree",
     "skill.title": "osu! Skill Tree",
-    "skill.description": "Baut aus deinen gespeicherten Plays eine Skill-Landkarte: Aim, Speed, Reading, Precision, Rhythm, Stamina und Consistency.",
+    "skill.description": "Baut aus deinen gespeicherten Plays eine Skill-Landkarte: Aim, Raw Speed, Speed Control, Reading, Low-AR/EZ, Precision, Rhythm, Stamina und Consistency.",
     "skill.setup": "Setup",
     "skill.player": "Spieler analysieren",
     "skill.load": "Skill Tree laden",
@@ -416,14 +416,18 @@ const translations = {
     "skill.bestExample": "Bestes Beispiel",
     "skill.needsWork": "Hier verlierst du oft Punkte",
     "skill.aim": "Aim",
-    "skill.speed": "Speed",
+    "skill.speed": "Raw Speed",
+    "skill.speedControl": "Speed Control",
+    "skill.lowAr": "Low-AR / EZ",
     "skill.reading": "Reading",
     "skill.precision": "Precision",
     "skill.rhythm": "Rhythm",
     "skill.stamina": "Stamina",
     "skill.consistency": "Consistency",
     "skill.aimHint": "hohe Sterne, CS und Jump-/Aim-lastige Runs",
-    "skill.speedHint": "BPM, DT/NC/Rate-Adjust und schnelle Maps",
+    "skill.speedHint": "effektive BPM, DT/NC/Rate-Adjust und schnelle Maps",
+    "skill.speedControlHint": "wie sauber schnelle Maps gehalten werden: Accuracy, Misses und Combo",
+    "skill.lowArHint": "EZ, AR unter 8.0 und langsamere visuelle Reads",
     "skill.readingHint": "HD/FL, hoher AR und visuell anspruchsvolle Plays",
     "skill.precisionHint": "OD, Accuracy und kleine Circle Size",
     "skill.rhythmHint": "wechselnde BPM, laengere Patterns und Timing-Stabilitaet",
@@ -797,7 +801,7 @@ const translations = {
     "time.estimateNote": "PP is restacked from known plays with the normal osu! weighting model. Other players are not historically reconstructed.",
     "skill.eyebrow": "Skill Tree",
     "skill.title": "osu! Skill Tree",
-    "skill.description": "Builds a skill map from stored plays: aim, speed, reading, precision, rhythm, stamina, and consistency.",
+    "skill.description": "Builds a skill map from stored plays: aim, raw speed, speed control, reading, low AR/EZ, precision, rhythm, stamina, and consistency.",
     "skill.setup": "Setup",
     "skill.player": "Analyze player",
     "skill.load": "Load Skill Tree",
@@ -826,14 +830,18 @@ const translations = {
     "skill.bestExample": "Best example",
     "skill.needsWork": "Where you often lose value",
     "skill.aim": "Aim",
-    "skill.speed": "Speed",
+    "skill.speed": "Raw Speed",
+    "skill.speedControl": "Speed Control",
+    "skill.lowAr": "Low AR / EZ",
     "skill.reading": "Reading",
     "skill.precision": "Precision",
     "skill.rhythm": "Rhythm",
     "skill.stamina": "Stamina",
     "skill.consistency": "Consistency",
     "skill.aimHint": "high stars, CS, and jump/aim-heavy runs",
-    "skill.speedHint": "BPM, DT/NC/Rate Adjust, and fast maps",
+    "skill.speedHint": "effective BPM, DT/NC/Rate Adjust, and fast maps",
+    "skill.speedControlHint": "how cleanly fast maps are held: accuracy, misses, and combo",
+    "skill.lowArHint": "EZ, AR below 8.0, and slower visual reads",
     "skill.readingHint": "HD/FL, high AR, and visually demanding plays",
     "skill.precisionHint": "OD, accuracy, and small circle size",
     "skill.rhythmHint": "changing BPM, longer patterns, and timing stability",
@@ -3363,6 +3371,35 @@ function scoreModsSet(score) {
   return new Set(mods.length ? mods : ["NM"]);
 }
 
+function skillModObjects(score) {
+  return score.normalized_mods?.length ? score.normalized_mods : score.mods || [];
+}
+
+function skillAdjustedDifficulty(score, kind) {
+  const keysByKind = {
+    ar: ["approach_rate", "ApproachRate", "ar", "AR"],
+    od: ["overall_difficulty", "OverallDifficulty", "accuracy", "od", "OD"],
+    cs: ["circle_size", "CircleSize", "cs", "CS"],
+  };
+  const baseKeys = kind === "od"
+    ? ["accuracy", "od", "overall_difficulty"]
+    : kind === "cs"
+      ? ["cs", "circle_size"]
+      : ["ar", "approach_rate"];
+  let value = beatmapNumber(score, baseKeys);
+  const mods = skillModObjects(score);
+
+  for (const mod of mods) {
+    const acronym = String(mod?.acronym || mod || "").toUpperCase();
+    const adjusted = modSettingNumber(mod, keysByKind[kind] || []);
+    if (adjusted !== null) value = adjusted;
+    if (acronym === "HR") value *= kind === "cs" ? 1.3 : 1.4;
+    if (acronym === "EZ") value *= 0.5;
+  }
+
+  return Math.max(0, Math.min(11, value || 0));
+}
+
 function skillScoreFeatures(score) {
   const stats = effectiveBeatmapStats(score);
   const mods = scoreModsSet(score);
@@ -3381,9 +3418,10 @@ function skillScoreFeatures(score) {
     length,
     stars: Number(stats.stars || 0),
     bpm: Number(stats.bpm || 0),
-    ar: beatmapNumber(score, ["ar", "approach_rate"]),
-    od: beatmapNumber(score, ["accuracy", "od", "overall_difficulty"]),
-    cs: beatmapNumber(score, ["cs", "circle_size"]),
+    ar: skillAdjustedDifficulty(score, "ar"),
+    od: skillAdjustedDifficulty(score, "od"),
+    cs: skillAdjustedDifficulty(score, "cs"),
+    hitTotal: scoreHitTotal(score),
   };
 }
 
@@ -3394,15 +3432,28 @@ function skillCategoryValue(category, score) {
   const ppBonus = Math.min(1, feature.pp / 450);
   const highStar = Math.min(1, feature.stars / 8.5);
   const modBonus = (mods) => mods.some((mod) => feature.mods.has(mod)) ? 1 : 0;
+  const rawSpeed = clampPercent((Math.max(0, feature.bpm - 155) / 155 * 76) + (highStar * 16) + (feature.bpm >= 235 ? 8 : 0));
+  const speedCleanliness = clampPercent((accBonus * 46) + (cleanBonus * 34) + (Math.min(1, feature.combo / 900) * 12) + (ppBonus * 8));
+  const lowArLoad = Math.max(0, (8 - feature.ar) / 5);
+  const ezBonus = modBonus(["EZ"]) ? 1 : 0;
 
   if (category.key === "aim") {
     return clampPercent((highStar * 42) + (Math.min(1, feature.cs / 5) * 18) + (ppBonus * 18) + (accBonus * 12) + (cleanBonus * 10));
   }
   if (category.key === "speed") {
-    return clampPercent((Math.min(1, feature.bpm / 260) * 38) + (modBonus(["DT", "NC", "RA", "AS"]) * 18) + (highStar * 18) + (ppBonus * 14) + (cleanBonus * 12));
+    return rawSpeed;
+  }
+  if (category.key === "speedControl") {
+    return clampPercent((rawSpeed * 0.45) + (speedCleanliness * 0.55));
   }
   if (category.key === "reading") {
-    return clampPercent((Math.min(1, feature.ar / 10.7) * 30) + (modBonus(["HD", "FL", "BL", "HDHR", "HDDT"]) * 22) + (highStar * 18) + (accBonus * 16) + (cleanBonus * 14));
+    const highArLoad = feature.ar > 0 ? Math.max(0, (feature.ar - 8) / 2.7) : 0;
+    return clampPercent((Math.min(1, highArLoad) * 28) + (modBonus(["HD", "FL", "BL", "HDHR", "HDDT"]) * 20) + (highStar * 20) + (accBonus * 16) + (cleanBonus * 16));
+  }
+  if (category.key === "lowAr") {
+    if (feature.ar <= 0) return 0;
+    if (lowArLoad <= 0 && !ezBonus) return 0;
+    return clampPercent((Math.min(1, lowArLoad) * 38) + (ezBonus * 24) + (highStar * 12) + (accBonus * 14) + (cleanBonus * 12));
   }
   if (category.key === "precision") {
     return clampPercent((Math.min(1, feature.od / 10.5) * 34) + (Math.min(1, feature.cs / 5.2) * 18) + (accBonus * 24) + (cleanBonus * 14) + (ppBonus * 10));
@@ -3420,8 +3471,10 @@ function skillCategoryValue(category, score) {
 function skillCategories() {
   return [
     { key: "aim", label: t("skill.aim"), hint: t("skill.aimHint") },
-    { key: "speed", label: t("skill.speed"), hint: t("skill.speedHint") },
+    { key: "speed", label: t("skill.speed"), hint: t("skill.speedHint"), sampleSize: 10 },
+    { key: "speedControl", label: t("skill.speedControl"), hint: t("skill.speedControlHint"), sampleSize: 15 },
     { key: "reading", label: t("skill.reading"), hint: t("skill.readingHint") },
+    { key: "lowAr", label: t("skill.lowAr"), hint: t("skill.lowArHint"), sampleSize: 15 },
     { key: "precision", label: t("skill.precision"), hint: t("skill.precisionHint") },
     { key: "rhythm", label: t("skill.rhythm"), hint: t("skill.rhythmHint") },
     { key: "stamina", label: t("skill.stamina"), hint: t("skill.staminaHint") },
@@ -3431,9 +3484,9 @@ function skillCategories() {
 
 function scoreDifficultyLine(score) {
   const stats = effectiveBeatmapStats(score);
-  const ar = beatmapNumber(score, ["ar", "approach_rate"]);
-  const od = beatmapNumber(score, ["accuracy", "od", "overall_difficulty"]);
-  const cs = beatmapNumber(score, ["cs", "circle_size"]);
+  const ar = skillAdjustedDifficulty(score, "ar");
+  const od = skillAdjustedDifficulty(score, "od");
+  const cs = skillAdjustedDifficulty(score, "cs");
   return `${formatStars(stats.stars)} - ${formatNumber(Math.round(stats.bpm))} BPM - AR ${formatFixed(ar, 2)} - OD ${formatFixed(od, 2)} - CS ${formatFixed(cs, 2)}`;
 }
 
@@ -3442,8 +3495,9 @@ function analyzeSkillTree(scores) {
   const categories = skillCategories().map((category) => {
     const ranked = bestScores
       .map((score) => ({ score, value: skillCategoryValue(category, score) }))
+      .filter((item) => item.value > 0)
       .sort((a, b) => b.value - a.value || passPpValue(b.score) - passPpValue(a.score));
-    const top = ranked.slice(0, 25);
+    const top = ranked.slice(0, category.sampleSize || 25);
     return {
       ...category,
       value: Math.round(average(top.map((item) => item.value))),
@@ -3480,6 +3534,16 @@ function filterScoresByStars(scores, minStars, maxStars) {
   });
 }
 
+function filterScoresByStarBucket(scores, minStars, maxStars, includeUpperBound = false) {
+  return scores.filter((score) => {
+    const stars = starValue(score);
+    if (!Number.isFinite(stars) || stars <= 0) return false;
+    return includeUpperBound
+      ? stars >= minStars && stars <= maxStars
+      : stars >= minStars && stars < maxStars;
+  });
+}
+
 function readSkillStarRange() {
   const min = Number.parseFloat(String(skillStarMinInput?.value || "0").replace(",", "."));
   const max = Number.parseFloat(String(skillStarMaxInput?.value || "20").replace(",", "."));
@@ -3489,17 +3553,22 @@ function readSkillStarRange() {
 }
 
 function skillStarBuckets(scores) {
-  const buckets = [
-    { label: "0.00 - 3.99*", min: 0, max: 3.99 },
-    { label: "4.00 - 4.99*", min: 4, max: 4.99 },
-    { label: "5.00 - 5.99*", min: 5, max: 5.99 },
-    { label: "6.00 - 6.99*", min: 6, max: 6.99 },
-    { label: "7.00 - 7.99*", min: 7, max: 7.99 },
-    { label: "8.00*+", min: 8, max: 20 },
-  ];
+  const starValues = scores
+    .map(starValue)
+    .filter((stars) => Number.isFinite(stars) && stars > 0);
+  const highestPassedStar = Math.max(2, Math.ceil(Math.max(...starValues, 0)));
+  const buckets = [];
+  for (let min = 1; min < highestPassedStar; min += 1) {
+    buckets.push({
+      label: `${formatFixed(min, 2)} - ${formatFixed(min + 1, 2)}*`,
+      min,
+      max: min + 1,
+      includeUpperBound: min + 1 >= highestPassedStar,
+    });
+  }
 
   return buckets.map((bucket) => {
-    const bucketScores = filterScoresByStars(scores, bucket.min, bucket.max);
+    const bucketScores = filterScoresByStarBucket(scores, bucket.min, bucket.max, bucket.includeUpperBound);
     if (!bucketScores.length) return { ...bucket, count: 0, value: 0, strongest: "-" };
     const analysis = analyzeSkillTree(bucketScores);
     return {
@@ -3524,21 +3593,22 @@ function skillGraphData(analysis) {
   const nodes = [
     { key: "fundamentals", label: "fundamentals", sub: "circles / sliders", value: skillMix(map, [["consistency", 2], ["precision", 1]]), x: 50, y: 4, tone: "blue" },
     { key: "lowStars", label: "low star maps", sub: "base control", value: skillMix(map, [["consistency", 2], ["reading", 1]]), x: 50, y: 14, tone: "blue" },
-    { key: "tapping", label: "tapping", sub: "click control", value: value("speed"), x: 7, y: 34, tone: "pink", major: true },
-    { key: "finger", label: "finger control", sub: "clean inputs", value: skillMix(map, [["speed", 1], ["precision", 1], ["consistency", 1]]), x: 24, y: 34, tone: "pink" },
-    { key: "tappingSpeed", label: "tapping speed", sub: "raw BPM", value: skillMix(map, [["speed", 3], ["stamina", 1]]), x: 10, y: 86, tone: "pink" },
-    { key: "tappingStamina", label: "tapping stamina", sub: "hold speed", value: skillMix(map, [["stamina", 2], ["speed", 1]]), x: 27, y: 72, tone: "pink" },
-    { key: "streaming", label: "streaming", sub: "speed + rhythm", value: skillMix(map, [["speed", 1], ["rhythm", 1], ["stamina", 1]]), x: 38, y: 58, tone: "pink" },
-    { key: "sightreading", label: "sightreading", sub: "first read", value: skillMix(map, [["reading", 2], ["consistency", 1]]), x: 36, y: 24, tone: "violet" },
+    { key: "tapping", label: "tapping", sub: "click control", value: value("speedControl"), x: 7, y: 34, tone: "pink", major: true },
+    { key: "finger", label: "finger control", sub: "clean inputs", value: skillMix(map, [["speedControl", 1], ["precision", 1], ["consistency", 1]]), x: 24, y: 34, tone: "pink" },
+    { key: "tappingSpeed", label: "tapping speed", sub: "raw BPM", value: skillMix(map, [["speed", 4], ["speedControl", 1]]), x: 10, y: 86, tone: "pink" },
+    { key: "tappingStamina", label: "tapping stamina", sub: "hold speed", value: skillMix(map, [["stamina", 2], ["speedControl", 1]]), x: 27, y: 72, tone: "pink" },
+    { key: "streaming", label: "streaming", sub: "speed + rhythm", value: skillMix(map, [["speed", 1], ["speedControl", 1], ["rhythm", 1], ["stamina", 1]]), x: 38, y: 58, tone: "pink" },
+    { key: "sightreading", label: "sightreading", sub: "first read", value: skillMix(map, [["reading", 2], ["lowAr", 1], ["consistency", 1]]), x: 36, y: 24, tone: "violet" },
     { key: "rhythm", label: "rhythm sense", sub: "timing feel", value: value("rhythm"), x: 36, y: 36, tone: "violet" },
     { key: "accuracy", label: "accuracy", sub: "hit precision", value: value("precision"), x: 36, y: 47, tone: "violet" },
-    { key: "reading", label: "reading", sub: "visual load", value: value("reading"), x: 51, y: 29, tone: "blue", major: true },
-    { key: "pattern", label: "pattern processing", sub: "recognition", value: skillMix(map, [["reading", 1], ["rhythm", 1], ["aim", 1]]), x: 51, y: 47, tone: "blue", major: true },
+    { key: "lowArReading", label: "low AR / EZ", sub: "slow reads", value: value("lowAr"), x: 51, y: 21, tone: "blue" },
+    { key: "reading", label: "reading", sub: "visual load", value: value("reading"), x: 51, y: 31, tone: "blue", major: true },
+    { key: "pattern", label: "pattern processing", sub: "recognition", value: skillMix(map, [["reading", 1], ["lowAr", 1], ["rhythm", 1], ["aim", 1]]), x: 51, y: 47, tone: "blue", major: true },
     { key: "consistency", label: "consistency", sub: "repeatable play", value: value("consistency"), x: 51, y: 62, tone: "cyan" },
     { key: "mindblock", label: "preventing mindblock", sub: "reset bad habits", value: skillMix(map, [["consistency", 2], ["reading", 1]]), x: 51, y: 72, tone: "cyan" },
     { key: "endurance", label: "endurance", sub: "long maps", value: value("stamina"), x: 51, y: 82, tone: "cyan" },
-    { key: "speed", label: "speed", sub: "tempo comfort", value: value("speed"), x: 51, y: 93, tone: "cream" },
-    { key: "technique", label: "technique efficiency", sub: "low strain", value: skillMix(map, [["speed", 1], ["precision", 1], ["consistency", 1]]), x: 51, y: 101, tone: "cream" },
+    { key: "speed", label: "raw speed", sub: "tempo ceiling", value: value("speed"), x: 51, y: 93, tone: "cream" },
+    { key: "technique", label: "technique efficiency", sub: "low strain", value: skillMix(map, [["speedControl", 1], ["precision", 1], ["consistency", 1]]), x: 51, y: 101, tone: "cream" },
     { key: "readingSpeed", label: "reading speed", sub: "fast AR/BPM", value: skillMix(map, [["reading", 2], ["speed", 1]]), x: 51, y: 91, tone: "green" },
     { key: "focus", label: "focus", sub: "attention", value: skillMix(map, [["consistency", 2], ["precision", 1], ["reading", 1]]), x: 65, y: 62, tone: "green" },
     { key: "nerve", label: "nerve control", sub: "closeout", value: skillMix(map, [["consistency", 2], ["stamina", 1]]), x: 65, y: 73, tone: "green" },
@@ -3552,12 +3622,12 @@ function skillGraphData(analysis) {
   ];
 
   const links = [
-    ["fundamentals", "lowStars"], ["lowStars", "reading"], ["reading", "pattern"], ["pattern", "consistency"],
+    ["fundamentals", "lowStars"], ["lowStars", "lowArReading"], ["lowArReading", "reading"], ["reading", "pattern"], ["pattern", "consistency"],
     ["tapping", "finger"], ["finger", "accuracy"], ["finger", "streaming"], ["finger", "tappingStamina"],
     ["tapping", "tappingSpeed"], ["tappingSpeed", "speed"], ["tappingStamina", "streaming"], ["tappingStamina", "endurance"],
     ["tappingStamina", "technique"], ["streaming", "readingSpeed"], ["streaming", "consistency"],
     ["sightreading", "rhythm"], ["rhythm", "sightreading"], ["rhythm", "accuracy"], ["rhythm", "pattern"], ["accuracy", "pattern"],
-    ["reading", "sightreading"], ["reading", "rhythm"], ["reading", "readingSpeed"], ["pattern", "sliderAim"], ["pattern", "focus"], ["pattern", "readingSpeed"],
+    ["reading", "sightreading"], ["reading", "rhythm"], ["reading", "readingSpeed"], ["lowArReading", "sightreading"], ["pattern", "sliderAim"], ["pattern", "focus"], ["pattern", "readingSpeed"],
     ["pattern", "mindblock"], ["consistency", "mindblock"], ["consistency", "endurance"], ["mindblock", "focus"],
     ["endurance", "nerve"], ["endurance", "aimStamina"], ["speed", "readingSpeed"], ["technique", "speed"], ["technique", "cursor"],
     ["focus", "nerve"], ["focus", "flowAim"], ["focus", "mindblock"], ["sliderAim", "cursor"], ["sliderAim", "aim"],

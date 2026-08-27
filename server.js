@@ -353,9 +353,12 @@ async function readPackageInfo() {
 }
 
 async function githubJson(url) {
-  const response = await fetch(url, {
+  const requestUrl = new URL(url);
+  requestUrl.searchParams.set("_", String(Date.now()));
+  const response = await fetch(requestUrl, {
     headers: {
       accept: "application/vnd.github+json",
+      "cache-control": "no-cache",
       "user-agent": "osu-mod-score-finder-beta",
     },
     signal: AbortSignal.timeout(7000),

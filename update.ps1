@@ -8,7 +8,8 @@ Set-StrictMode -Version Latest
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $DataDir = Join-Path $Root "data"
 $LogPath = Join-Path $DataDir "update.log"
-$RepoZipUrl = "https://github.com/Software4uu/osu-mod-score-finder/archive/refs/heads/main.zip"
+$RepoZipBaseUrl = "https://github.com/Software4uu/osu-mod-score-finder/archive/refs/heads/main.zip"
+$RemotePackageUrl = "https://raw.githubusercontent.com/Software4uu/osu-mod-score-finder/main/package.json"
 $TempRoot = Join-Path ([IO.Path]::GetTempPath()) ("osu-mod-score-finder-update-" + [guid]::NewGuid().ToString("N"))
 
 function Get-SetupLanguage {
@@ -23,6 +24,21 @@ function Get-SetupLanguage {
 }
 
 $Language = Get-SetupLanguage
+
+function Get-PackageVersion {
+  param([Parameter(Mandatory = $true)][string]$PackagePath)
+
+  if (-not (Test-Path -LiteralPath $PackagePath)) {
+    return ""
+  }
+
+  try {
+    $package = Get-Content -LiteralPath $PackagePath -Raw | ConvertFrom-Json
+    return [string]$package.version
+  } catch {
+    return ""
+  }
+}
 
 function Write-Step {
   param(
@@ -146,6 +162,18 @@ function Install-ProjectDependencies {
   }
 }
 
+function Get-RemoteVersion {
+  try {
+    $uri = $RemotePackageUrl + "?cacheBust=" + [uri]::EscapeDataString((Get-Date).ToUniversalTime().Ticks.ToString())
+    $packageText = Invoke-WebRequest -UseBasicParsing -Uri $uri -Headers @{ "Cache-Control" = "no-cache" } | Select-Object -ExpandProperty Content
+    $package = $packageText | ConvertFrom-Json
+    return [string]$package.version
+  } catch {
+    Write-Step -English "Could not read the remote version before updating. Continuing with file replacement." -German "Remote-Version konnte vor dem Update nicht gelesen werden. Dateiersetzung laeuft trotzdem weiter."
+    return ""
+  }
+}
+
 function Stop-AppBeforeUpdate {
   $port = Get-AppPort
   Stop-AppServer -Port $port
@@ -262,6 +290,15 @@ Set-Content -LiteralPath $LogPath -Value ("[" + (Get-Date -Format "yyyy-MM-dd HH
 Assert-ProjectRoot
 
 try {
+  $packagePath = Join-Path $Root "package.json"
+  $beforeVersion = Get-PackageVersion -PackagePath $packagePath
+  $expectedVersion = Get-RemoteVersion
+  if ($expectedVersion) {
+    Write-Step -English "Latest GitHub version is $expectedVersion. Installed version is $beforeVersion." -German "Aktuelle GitHub-Version ist $expectedVersion. Installierte Version ist $beforeVersion."
+  } else {
+    Write-Step -English "Installed version is $beforeVersion." -German "Installierte Version ist $beforeVersion."
+  }
+
   Stop-AppBeforeUpdate
 
   $gitCommand = Get-Command git -ErrorAction SilentlyContinue
@@ -281,8 +318,9 @@ try {
     New-Item -ItemType Directory -Path $TempRoot -Force | Out-Null
     $zipPath = Join-Path $TempRoot "source.zip"
     $extractPath = Join-Path $TempRoot "source"
+    $repoZipUrl = $RepoZipBaseUrl + "?cacheBust=" + [uri]::EscapeDataString((Get-Date).ToUniversalTime().Ticks.ToString())
 
-    Invoke-WebRequest -UseBasicParsing -Uri $RepoZipUrl -OutFile $zipPath
+    Invoke-WebRequest -UseBasicParsing -Uri $repoZipUrl -OutFile $zipPath -Headers @{ "Cache-Control" = "no-cache" }
     Expand-Archive -LiteralPath $zipPath -DestinationPath $extractPath -Force
 
     $sourceRoot = Get-ChildItem -LiteralPath $extractPath -Directory | Select-Object -First 1
@@ -321,6 +359,16 @@ try {
   }
 
   Install-ProjectDependencies
+
+  $afterVersion = Get-PackageVersion -PackagePath $packagePath
+  if ($expectedVersion -and $afterVersion -ne $expectedVersion) {
+    throw "Update verification failed. Expected version $expectedVersion, but installed version is $afterVersion."
+  }
+  if ($afterVersion -and $afterVersion -ne $beforeVersion) {
+    Write-Step -English "Version check passed: $beforeVersion -> $afterVersion." -German "Versionspruefung erfolgreich: $beforeVersion -> $afterVersion."
+  } elseif ($afterVersion) {
+    Write-Step -English "Version check passed: already on $afterVersion." -German "Versionspruefung erfolgreich: bereits auf $afterVersion."
+  }
 
   if ($SkipAppRestart) {
     Write-Step -English "Update finished. The launcher will start the app in this CMD window." -German "Update fertig. Der Starter startet die App in diesem CMD-Fenster."
