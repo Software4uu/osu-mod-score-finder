@@ -974,6 +974,10 @@ function formatStars(value) {
   return Number(value || 0) > 0 ? `${Number(value).toFixed(2)}*` : "-";
 }
 
+function formatFixed(value, digits = 2) {
+  return Number(value || 0).toFixed(digits);
+}
+
 function formatAccuracy(value) {
   if (value === null || value === undefined) return "-";
   const percent = value > 1 ? value : value * 100;
@@ -3416,7 +3420,7 @@ function scoreDifficultyLine(score) {
   const ar = beatmapNumber(score, ["ar", "approach_rate"]);
   const od = beatmapNumber(score, ["accuracy", "od", "overall_difficulty"]);
   const cs = beatmapNumber(score, ["cs", "circle_size"]);
-  return `${formatStars(stats.stars)} - ${formatNumber(Math.round(stats.bpm))} BPM - AR ${formatDecimal(ar, 2)} - OD ${formatDecimal(od, 2)} - CS ${formatDecimal(cs, 2)}`;
+  return `${formatStars(stats.stars)} - ${formatNumber(Math.round(stats.bpm))} BPM - AR ${formatFixed(ar, 2)} - OD ${formatFixed(od, 2)} - CS ${formatFixed(cs, 2)}`;
 }
 
 function analyzeSkillTree(scores) {
@@ -3436,9 +3440,12 @@ function analyzeSkillTree(scores) {
     };
   }).sort((a, b) => b.value - a.value);
 
+  const categoryByKey = new Map(categories.map((category) => [category.key, category]));
+
   return {
     scores: bestScores,
     categories,
+    categoryByKey,
     strongest: categories[0],
     weakest: [...categories].sort((a, b) => a.value - b.value)[0],
     avgStars: average(bestScores.map((score) => effectiveBeatmapStats(score).stars)),
@@ -3446,6 +3453,86 @@ function analyzeSkillTree(scores) {
     avgAccuracy: average(bestScores.map(accuracyPercentValue)),
     totalMisses: bestScores.reduce((total, score) => total + missCount(score), 0),
   };
+}
+
+function skillMix(categoryByKey, parts) {
+  const totalWeight = parts.reduce((total, [, weight]) => total + weight, 0) || 1;
+  return Math.round(parts.reduce((total, [key, weight]) => {
+    return total + ((categoryByKey.get(key)?.value || 0) * weight);
+  }, 0) / totalWeight);
+}
+
+function skillGraphData(analysis) {
+  const map = analysis.categoryByKey;
+  const value = (key) => Math.round(map.get(key)?.value || 0);
+  const nodes = [
+    { key: "fundamentals", label: "fundamentals", sub: "circles / sliders", value: skillMix(map, [["consistency", 2], ["precision", 1]]), x: 50, y: 4, tone: "blue" },
+    { key: "lowStars", label: "low star maps", sub: "base control", value: skillMix(map, [["consistency", 2], ["reading", 1]]), x: 50, y: 14, tone: "blue" },
+    { key: "tapping", label: "tapping", sub: "click control", value: value("speed"), x: 7, y: 34, tone: "pink", major: true },
+    { key: "finger", label: "finger control", sub: "clean inputs", value: skillMix(map, [["speed", 1], ["precision", 1], ["consistency", 1]]), x: 24, y: 34, tone: "pink" },
+    { key: "tappingSpeed", label: "tapping speed", sub: "raw BPM", value: skillMix(map, [["speed", 3], ["stamina", 1]]), x: 10, y: 86, tone: "pink" },
+    { key: "tappingStamina", label: "tapping stamina", sub: "hold speed", value: skillMix(map, [["stamina", 2], ["speed", 1]]), x: 27, y: 72, tone: "pink" },
+    { key: "streaming", label: "streaming", sub: "speed + rhythm", value: skillMix(map, [["speed", 1], ["rhythm", 1], ["stamina", 1]]), x: 38, y: 58, tone: "pink" },
+    { key: "sightreading", label: "sightreading", sub: "first read", value: skillMix(map, [["reading", 2], ["consistency", 1]]), x: 36, y: 24, tone: "violet" },
+    { key: "rhythm", label: "rhythm sense", sub: "timing feel", value: value("rhythm"), x: 36, y: 36, tone: "violet" },
+    { key: "accuracy", label: "accuracy", sub: "hit precision", value: value("precision"), x: 36, y: 47, tone: "violet" },
+    { key: "reading", label: "reading", sub: "visual load", value: value("reading"), x: 51, y: 29, tone: "blue", major: true },
+    { key: "pattern", label: "pattern processing", sub: "recognition", value: skillMix(map, [["reading", 1], ["rhythm", 1], ["aim", 1]]), x: 51, y: 47, tone: "blue", major: true },
+    { key: "consistency", label: "consistency", sub: "repeatable play", value: value("consistency"), x: 51, y: 62, tone: "cyan" },
+    { key: "mindblock", label: "mindblock control", sub: "reset bad habits", value: skillMix(map, [["consistency", 2], ["focus", 1]]), x: 51, y: 72, tone: "cyan" },
+    { key: "endurance", label: "endurance", sub: "long maps", value: value("stamina"), x: 51, y: 82, tone: "cyan" },
+    { key: "speed", label: "speed", sub: "tempo comfort", value: value("speed"), x: 51, y: 93, tone: "cream" },
+    { key: "technique", label: "technique efficiency", sub: "low strain", value: skillMix(map, [["speed", 1], ["precision", 1], ["consistency", 1]]), x: 51, y: 101, tone: "cream" },
+    { key: "readingSpeed", label: "reading speed", sub: "fast AR/BPM", value: skillMix(map, [["reading", 2], ["speed", 1]]), x: 51, y: 91, tone: "green" },
+    { key: "focus", label: "focus", sub: "attention", value: skillMix(map, [["consistency", 2], ["precision", 1], ["reading", 1]]), x: 65, y: 62, tone: "green" },
+    { key: "nerve", label: "nerve control", sub: "closeout", value: skillMix(map, [["consistency", 2], ["stamina", 1]]), x: 65, y: 73, tone: "green" },
+    { key: "flowAim", label: "flow aim", sub: "moving aim", value: skillMix(map, [["aim", 1], ["rhythm", 1], ["stamina", 1]]), x: 65, y: 84, tone: "green" },
+    { key: "sliderAim", label: "slider aim", sub: "slider control", value: skillMix(map, [["aim", 1], ["precision", 1], ["reading", 1]]), x: 66, y: 33, tone: "green" },
+    { key: "cursor", label: "cursor control", sub: "movement", value: skillMix(map, [["aim", 2], ["precision", 1]]), x: 78, y: 43, tone: "yellow" },
+    { key: "precision", label: "precision", sub: "exact aim", value: value("precision"), x: 82, y: 60, tone: "yellow" },
+    { key: "aimStamina", label: "aim stamina", sub: "long aim", value: skillMix(map, [["aim", 1], ["stamina", 1]]), x: 82, y: 78, tone: "yellow" },
+    { key: "aimSpeed", label: "aim speed", sub: "fast jumps", value: skillMix(map, [["aim", 2], ["speed", 1]]), x: 82, y: 92, tone: "yellow" },
+    { key: "aim", label: "aim", sub: "main aim skill", value: value("aim"), x: 93, y: 43, tone: "yellow", major: true },
+  ];
+
+  const links = [
+    ["fundamentals", "lowStars"], ["lowStars", "reading"], ["reading", "pattern"], ["pattern", "consistency"],
+    ["tapping", "finger"], ["finger", "accuracy"], ["finger", "streaming"], ["finger", "tappingStamina"],
+    ["tapping", "tappingSpeed"], ["tappingSpeed", "speed"], ["tappingStamina", "streaming"], ["tappingStamina", "endurance"],
+    ["sightreading", "rhythm"], ["rhythm", "accuracy"], ["rhythm", "pattern"], ["accuracy", "pattern"],
+    ["pattern", "sliderAim"], ["pattern", "focus"], ["pattern", "readingSpeed"], ["consistency", "mindblock"],
+    ["endurance", "nerve"], ["endurance", "aimStamina"], ["speed", "readingSpeed"], ["technique", "speed"],
+    ["focus", "nerve"], ["focus", "flowAim"], ["focus", "mindblock"], ["sliderAim", "cursor"],
+    ["cursor", "precision"], ["cursor", "aim"], ["cursor", "aimStamina"], ["flowAim", "aimStamina"],
+    ["aim", "aimSpeed"], ["aimSpeed", "speed"], ["aimStamina", "aimSpeed"],
+  ];
+
+  return { nodes, links };
+}
+
+function renderSkillGraph(analysis) {
+  const graph = skillGraphData(analysis);
+  const nodeByKey = new Map(graph.nodes.map((node) => [node.key, node]));
+  const line = ([fromKey, toKey]) => {
+    const from = nodeByKey.get(fromKey);
+    const to = nodeByKey.get(toKey);
+    if (!from || !to) return "";
+    return `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" class="skill-link skill-link-${escapeHtml(from.tone)}" />`;
+  };
+  return `
+    <section class="skill-graph" aria-label="osu skill graph">
+      <svg class="skill-links" viewBox="0 0 100 108" preserveAspectRatio="none" aria-hidden="true">
+        ${graph.links.map(line).join("")}
+      </svg>
+      ${graph.nodes.map((node) => `
+        <div class="skill-graph-node skill-tone-${escapeHtml(node.tone)}${node.major ? " major" : ""}" style="left: ${node.x}%; top: ${node.y}%">
+          <strong>${escapeHtml(node.label)}</strong>
+          <span>${escapeHtml(node.sub)}</span>
+          <b>${formatNumber(node.value)}</b>
+        </div>
+      `).join("")}
+    </section>
+  `;
 }
 
 function renderSkillMiniScore(item, mode) {
@@ -3482,12 +3569,14 @@ function renderSkillTreeResults(data, mode) {
           [t("skill.playCount"), formatNumber(analysis.scores.length)],
           [t("skill.strongest"), analysis.strongest?.label || "-"],
           [t("skill.weakest"), analysis.weakest?.label || "-"],
-          [t("skill.avgStars"), `${formatDecimal(analysis.avgStars, 2)}*`],
+          [t("skill.avgStars"), `${formatFixed(analysis.avgStars, 2)}*`],
           [t("skill.avgBpm"), `${formatNumber(Math.round(analysis.avgBpm))} BPM`],
           [t("skill.avgAccuracy"), formatAccuracy(analysis.avgAccuracy)],
           [t("skill.totalMisses"), formatNumber(analysis.totalMisses)],
         ].map(([label, value]) => renderPassStat(label, value)).join("")}
       </section>
+
+      ${renderSkillGraph(analysis)}
 
       <section class="skill-tree-grid">
         ${analysis.categories.map((category) => `

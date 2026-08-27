@@ -78,7 +78,7 @@ The Skill Tree is a first beta for turning stored scores into a player-specific 
 - `Stamina`: longer maps, high combo, star rating, and clean execution
 - `Consistency`: low misses, stable accuracy, combo, and repeatable results
 
-Each skill node shows a 0-100 estimate, matching maps, and training targets where misses or lower accuracy suggest room to improve. The current version does not yet decode replay cursor movement, so jump angles, exact cursor flow, slider breaks, and miss-position analysis are estimated from stored score and beatmap metadata. Exact movement-based analysis is planned for a later replay engine.
+The view renders these areas as a connected skill graph inspired by osu! skill-tree concepts: tapping, finger control, reading, pattern processing, focus, cursor control, aim, speed, stamina, and related subskills are shown as connected nodes. Each node shows a 0-100 estimate, and the lower sections show matching maps plus training targets where misses or lower accuracy suggest room to improve. The current version does not yet decode replay cursor movement, so jump angles, exact cursor flow, slider breaks, and miss-position analysis are estimated from stored score and beatmap metadata. Exact movement-based analysis is planned for a later replay engine.
 
 ## Time Travel data sources
 
@@ -202,7 +202,7 @@ Der Skill Tree ist eine erste Beta, um gespeicherte Scores in eine persoenliche 
 - `Stamina`: laengere Maps, hohe Combo, Sterne und saubere Ausfuehrung
 - `Consistency`: wenige Misses, stabile Accuracy, Combo und wiederholbare Ergebnisse
 
-Jeder Skill-Knoten zeigt eine Schaetzung von 0-100, passende Maps und Trainingsziele, bei denen Misses oder niedrigere Accuracy auf Verbesserungspotenzial hindeuten. Die aktuelle Version dekodiert noch keine Replay-Cursorbewegung. Jump-Winkel, exakter Cursor-Flow, Slider-Breaks und Miss-Positionen werden deshalb noch aus Score- und Beatmap-Metadaten angenaehert. Eine exakte bewegungsbasierte Analyse ist fuer eine spaetere Replay Engine geplant.
+Die Ansicht rendert diese Bereiche als verbundenen Skill-Graphen, angelehnt an osu!-Skill-Tree-Konzepte: Tapping, Finger Control, Reading, Pattern Processing, Focus, Cursor Control, Aim, Speed, Stamina und verwandte Unter-Skills werden als verbundene Knoten angezeigt. Jeder Knoten zeigt eine Schaetzung von 0-100, und die unteren Bereiche zeigen passende Maps plus Trainingsziele, bei denen Misses oder niedrigere Accuracy auf Verbesserungspotenzial hindeuten. Die aktuelle Version dekodiert noch keine Replay-Cursorbewegung. Jump-Winkel, exakter Cursor-Flow, Slider-Breaks und Miss-Positionen werden deshalb noch aus Score- und Beatmap-Metadaten angenaehert. Eine exakte bewegungsbasierte Analyse ist fuer eine spaetere Replay Engine geplant.
 
 ## Starten
 
