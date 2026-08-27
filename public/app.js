@@ -8,6 +8,8 @@ const passes = document.querySelector("#passes");
 const improvements = document.querySelector("#improvements");
 const calendar = document.querySelector("#calendar");
 const compareView = document.querySelector("#compareView");
+const timeTravelView = document.querySelector("#timeTravelView");
+const timeTravelOutput = document.querySelector("#timeTravelOutput");
 const detailsPanel = document.querySelector("#detailsPanel");
 const summary = document.querySelector("#summary");
 const submitButton = document.querySelector("#submitButton");
@@ -27,6 +29,12 @@ const compareReset = document.querySelector("#compareReset");
 const mapComparePlayerA = document.querySelector("#mapComparePlayerA");
 const mapCompareMode = document.querySelector("#mapCompareMode");
 const mapCompareRun = document.querySelector("#mapCompareRun");
+const timePlayer = document.querySelector("#timePlayer");
+const timeMode = document.querySelector("#timeMode");
+const timeRun = document.querySelector("#timeRun");
+const timeDate = document.querySelector("#timeDate");
+const timeSlider = document.querySelector("#timeSlider");
+const timeSelectedDate = document.querySelector("#timeSelectedDate");
 
 const selectedMods = new Set();
 const languageStorageKey = "osu-mod-score-finder-language";
@@ -49,6 +57,9 @@ let latestUpdateInfo = null;
 let startupSyncTimer = null;
 let latestStartupSync = null;
 let compareDetailScores = [];
+let timeTravelScores = [];
+let timeTravelUser = null;
+let timeTravelDays = [];
 
 document.body.dataset.activeView = activeView;
 document.body.dataset.activeSection = "home";
@@ -233,6 +244,7 @@ const translations = {
     "nav.menu": "Menue",
     "nav.home": "Hauptseite",
     "nav.compare": "Vergleich",
+    "nav.timeTravel": "Time Travel",
     "compare.eyebrow": "Vergleich",
     "compare.title": "Spieler vergleichen",
     "compare.description": "Eine ruhige Arbeitsflaeche fuer direkte Spieler-Vergleiche: Top-200, Profilwerte, Mod-Fokus und Map-Kontext.",
@@ -249,20 +261,17 @@ const translations = {
     "compare.analysisTitle": "Was du hier siehst",
     "compare.analysisText": "VS laedt pro Spieler bis zu 200 gespeicherte/bekannte Passes, zeigt klickbare Score-Karten und bindet externe osu-sig Profilkarten als schnelle Skill-Vorschau ein.",
     "compare.mapMode": "Map Compare",
-    "compare.mapSetup": "Rangumfeld vorbereiten",
+    "compare.mapSetup": "Maps vergleichen",
     "compare.runMaps": "Maps laden",
-    "compare.mapText": "Zeigt die geladenen Maps eines Spielers und oeffnet pro Difficulty die passende Leaderboard-Ansicht. Exakte Nachbarn werden spaeter gecacht, damit keine API-Limits explodieren.",
-    "compare.rankArea": "Rangumfeld",
-    "compare.rankTitle": "Leaderboard-Nachbarn",
-    "compare.neighbors": "Nachbarn anzeigen",
-    "compare.neighbors5": "5 ueber / 5 unter",
-    "compare.neighbors10": "10 ueber / 10 unter",
-    "compare.neighbors25": "25 ueber / 25 unter",
+    "compare.mapText": "Zeigt die geladenen Maps eines Spielers und oeffnet pro Difficulty die passende Leaderboard-Ansicht.",
+    "compare.rankArea": "Map-Auswahl",
+    "compare.rankTitle": "Status-Filter",
     "compare.mapScope": "Map-Auswahl",
-    "compare.scopeAll": "geladene Spieler-Maps",
-    "compare.scopeRanked": "nur ranked/approved",
-    "compare.scopeLoved": "ranked + loved",
-    "compare.rankText": "Spaeter gecacht, damit Leaderboard-Abfragen nicht in API-Limits laufen.",
+    "compare.mapScopeTitle": "Status-Filter",
+    "compare.scopeRanked": "ranked",
+    "compare.scopeLoved": "loved",
+    "compare.scopeBoth": "ranked + loved",
+    "compare.rankText": "Zeigt nur Maps aus dem gewaehlten Statusbereich. Die Leaderboard-Ansicht oeffnet die passende osu!-Rangliste pro Difficulty.",
     "compare.cardProfile": "Profilwerte",
     "compare.cardProfileTitle": "PP, Rank, Playcount, Accuracy",
     "compare.cardProfileText": "Direkter Kopf-an-Kopf Vergleich der sichtbaren Profilwerte.",
@@ -278,7 +287,7 @@ const translations = {
     "compare.vsPlaceholderTitle": "VS Ergebnisbereich",
     "compare.vsPlaceholderText": "Hier landen die geladenen Top-Passes beider Spieler, Profilwerte und die wichtigsten Unterschiede.",
     "compare.mapPlaceholderTitle": "Map-Compare Ergebnisbereich",
-    "compare.mapPlaceholderText": "Hier landen die geladenen Maps eines Spielers und spaeter die Spieler ueber und unter deinem Rang.",
+    "compare.mapPlaceholderText": "Hier landen die geladenen Maps eines Spielers mit Ranglistenwerten, Details und Leaderboard-Link.",
     "compare.failed": "Vergleich fehlgeschlagen",
     "compare.loadDetail": "Bitte kurz warten, die lokale Datenbank und erreichbare API-Daten werden abgefragt.",
     "compare.noMods": "Keine Mods gefunden.",
@@ -286,14 +295,19 @@ const translations = {
     "compare.noMaps": "Keine Maps in dieser Auswahl gefunden.",
     "compare.vsLoading": "VS Vergleich wird geladen...",
     "compare.mapLoading": "Map Compare wird geladen...",
-    "compare.mapLoadingDetail": "Ein Spieler wird mit bis zu 200 Scores geladen. Leaderboard-Nachbarn werden nicht automatisch massenhaft abgefragt, damit kein API-Limit ausgeloest wird.",
+    "compare.mapLoadingDetail": "Ein Spieler wird mit bis zu 200 Scores geladen und danach nach dem gewaehlten Map-Status gefiltert.",
     "compare.needTwoPlayers": "Bitte beide Spielernamen eintragen.",
     "compare.needOnePlayer": "Bitte einen Spielernamen eintragen.",
     "compare.loadedMaps": "Geladene Maps",
     "compare.shown": "angezeigt",
-    "compare.rankWindow": "Rangumfeld",
-    "compare.rankPrepared": "ueber / unter vorbereitet",
+    "compare.mapStatus": "Map-Status",
+    "compare.rankWindow": "Map-Status",
+    "compare.rankPrepared": "gefiltert",
     "compare.openLeaderboard": "Leaderboard oeffnen",
+    "compare.position": "Position",
+    "compare.totalScore": "Score",
+    "compare.hitResults": "Hits",
+    "compare.time": "Zeit",
     "compare.modA": "Mod-Verteilung Spieler A",
     "compare.modB": "Mod-Verteilung Spieler B",
     "compare.osuSigStdOnly": "osu-sig Skills sind nur fuer osu!standard verfuegbar.",
@@ -309,6 +323,27 @@ const translations = {
     "compare.metricAvgCs": "Durchschnitts-CS",
     "compare.sigFullSkills": "Full with Skills",
     "compare.sigSkills": "Skills",
+    "time.eyebrow": "Time Travel",
+    "time.title": "Score-Historie zurueckdrehen",
+    "time.description": "Schaetzt anhand deiner gespeicherten Plays, wie dein PP-Stand bis zu einem Datum ausgesehen haette.",
+    "time.setup": "Setup",
+    "time.playerDate": "Spieler und Datum",
+    "time.load": "Historie laden",
+    "time.disclaimer": "Hinweis: Diese Ansicht nutzt deine heute lokal/API-bekannten Scores. Der Rank ist eine vorsichtige Rekonstruktion gegen den aktuellen Datenstand, nicht die echte damalige globale Rangliste.",
+    "time.timeline": "Zeitregler",
+    "time.date": "Datum",
+    "time.sliderText": "Nach dem Laden kannst du den Stand Tag fuer Tag zurueckdrehen.",
+    "time.placeholderTitle": "Time-Travel Ergebnisbereich",
+    "time.placeholderText": "Lade einen Spieler, dann erscheinen hier geschaetzte PP, bekannte Plays und die staerksten Scores bis zum gewaehlten Datum.",
+    "time.loading": "Time Travel wird geladen...",
+    "time.noScores": "Keine gespeicherten Scores fuer diese Rueckrechnung gefunden.",
+    "time.knownUntil": "Bekannte Scores bis",
+    "time.estimatedPp": "Geschaetzte gewichtete PP",
+    "time.knownPlays": "Bekannte Plays",
+    "time.currentRank": "Aktueller Rank",
+    "time.bestPlay": "Bestes Play bis Datum",
+    "time.topAtDate": "Staerkste bekannte Plays bis zu diesem Datum",
+    "time.estimateNote": "Die PP werden mit dem normalen osu!-Gewichtungsmodell aus den bekannten Plays neu gestapelt. Andere Spieler werden nicht historisch zurueckgerechnet.",
     "sync.title": "Automatischer Score-Sync",
     "sync.scheduled": "Der Hintergrund-Sync wird vorbereitet...",
     "sync.online": "Online-Scores werden geprueft: {done} von {total} API-Seiten",
@@ -543,6 +578,7 @@ const translations = {
     "nav.menu": "Menu",
     "nav.home": "Home",
     "nav.compare": "Compare",
+    "nav.timeTravel": "Time Travel",
     "compare.eyebrow": "Compare",
     "compare.title": "Compare players",
     "compare.description": "A calm workspace for direct player comparisons: top 200, profile values, mod focus, and map context.",
@@ -559,20 +595,17 @@ const translations = {
     "compare.analysisTitle": "What this shows",
     "compare.analysisText": "VS loads up to 200 stored or known passes per player, shows clickable score cards, and embeds external osu-sig profile cards as a quick skill preview.",
     "compare.mapMode": "Map Compare",
-    "compare.mapSetup": "Prepare rank window",
+    "compare.mapSetup": "Compare maps",
     "compare.runMaps": "Load maps",
-    "compare.mapText": "Shows one player's loaded maps and opens the matching leaderboard for each difficulty. Exact neighbours will be cached later to avoid exploding API limits.",
-    "compare.rankArea": "Rank window",
-    "compare.rankTitle": "Leaderboard neighbours",
-    "compare.neighbors": "Show neighbours",
-    "compare.neighbors5": "5 above / 5 below",
-    "compare.neighbors10": "10 above / 10 below",
-    "compare.neighbors25": "25 above / 25 below",
+    "compare.mapText": "Shows one player's loaded maps and opens the matching leaderboard for each difficulty.",
+    "compare.rankArea": "Map selection",
+    "compare.rankTitle": "Status filter",
     "compare.mapScope": "Map selection",
-    "compare.scopeAll": "loaded player maps",
-    "compare.scopeRanked": "ranked/approved only",
-    "compare.scopeLoved": "ranked + loved",
-    "compare.rankText": "Cached later so leaderboard requests do not run into API limits.",
+    "compare.mapScopeTitle": "Status filter",
+    "compare.scopeRanked": "ranked",
+    "compare.scopeLoved": "loved",
+    "compare.scopeBoth": "ranked + loved",
+    "compare.rankText": "Shows only maps from the selected status group. The leaderboard action opens the matching osu! ranking for that difficulty.",
     "compare.cardProfile": "Profile values",
     "compare.cardProfileTitle": "PP, rank, playcount, accuracy",
     "compare.cardProfileText": "Direct head-to-head comparison of visible profile values.",
@@ -588,7 +621,7 @@ const translations = {
     "compare.vsPlaceholderTitle": "VS result area",
     "compare.vsPlaceholderText": "Loaded top passes, profile values, and the most important differences will appear here.",
     "compare.mapPlaceholderTitle": "Map Compare result area",
-    "compare.mapPlaceholderText": "One player's loaded maps appear here, with above/below rank neighbours added later.",
+    "compare.mapPlaceholderText": "One player's loaded maps appear here with leaderboard-style values, details, and leaderboard links.",
     "compare.failed": "Comparison failed",
     "compare.loadDetail": "Please wait while the local database and reachable API data are checked.",
     "compare.noMods": "No mods found.",
@@ -596,14 +629,19 @@ const translations = {
     "compare.noMaps": "No maps found for this selection.",
     "compare.vsLoading": "Loading VS comparison...",
     "compare.mapLoading": "Loading Map Compare...",
-    "compare.mapLoadingDetail": "One player is loaded with up to 200 scores. Leaderboard neighbours are not fetched in bulk yet, so the API limit stays calm.",
+    "compare.mapLoadingDetail": "One player is loaded with up to 200 scores and then filtered by the selected map status.",
     "compare.needTwoPlayers": "Please enter both player names.",
     "compare.needOnePlayer": "Please enter a player name.",
     "compare.loadedMaps": "Loaded maps",
     "compare.shown": "shown",
-    "compare.rankWindow": "Rank window",
-    "compare.rankPrepared": "above / below prepared",
+    "compare.mapStatus": "Map status",
+    "compare.rankWindow": "Map status",
+    "compare.rankPrepared": "filtered",
     "compare.openLeaderboard": "Open leaderboard",
+    "compare.position": "Position",
+    "compare.totalScore": "Score",
+    "compare.hitResults": "Hits",
+    "compare.time": "Time",
     "compare.modA": "Mod distribution player A",
     "compare.modB": "Mod distribution player B",
     "compare.osuSigStdOnly": "osu-sig skills are only available for osu!standard.",
@@ -619,6 +657,27 @@ const translations = {
     "compare.metricAvgCs": "Average CS",
     "compare.sigFullSkills": "Full with Skills",
     "compare.sigSkills": "Skills",
+    "time.eyebrow": "Time Travel",
+    "time.title": "Rewind score history",
+    "time.description": "Estimates what your PP state could have looked like up to a selected date based on stored plays.",
+    "time.setup": "Setup",
+    "time.playerDate": "Player and date",
+    "time.load": "Load history",
+    "time.disclaimer": "Note: this view uses scores known locally or through the API today. Rank is a cautious reconstruction against the current data state, not the real historical global ranking.",
+    "time.timeline": "Timeline",
+    "time.date": "Date",
+    "time.sliderText": "After loading, you can rewind the known state day by day.",
+    "time.placeholderTitle": "Time Travel result area",
+    "time.placeholderText": "Load a player to see estimated PP, known plays, and the strongest scores up to the selected date.",
+    "time.loading": "Loading Time Travel...",
+    "time.noScores": "No stored scores found for this reconstruction.",
+    "time.knownUntil": "Known scores up to",
+    "time.estimatedPp": "Estimated weighted PP",
+    "time.knownPlays": "Known plays",
+    "time.currentRank": "Current rank",
+    "time.bestPlay": "Best play by date",
+    "time.topAtDate": "Strongest known plays up to this date",
+    "time.estimateNote": "PP is restacked from known plays with the normal osu! weighting model. Other players are not historically reconstructed.",
     "sync.title": "Automatic score sync",
     "sync.scheduled": "Preparing the background sync...",
     "sync.online": "Checking online scores: {done} of {total} API pages",
@@ -1194,6 +1253,11 @@ function missCount(score) {
   return stats.miss || stats.count_miss || 0;
 }
 
+function scoreHitStat(score, key) {
+  const stats = score.statistics || {};
+  return Number(stats[key] ?? stats[`count_${key}`] ?? 0) || 0;
+}
+
 function modSettingNumber(mod, keys) {
   const settings = mod?.settings || {};
   for (const key of keys) {
@@ -1295,6 +1359,13 @@ function isRankedScoreForDisplay(score, includeLoved = false) {
   const ranked = Number(score?.beatmap?.ranked);
   if (!Number.isNaN(ranked)) return includeLoved ? [1, 2, 4].includes(ranked) : [1, 2].includes(ranked);
   return false;
+}
+
+function isLovedScoreForDisplay(score) {
+  if (unrankedScoreReason(score)) return false;
+  const status = String(score?.beatmap?.status || "").toLowerCase();
+  if (status === "loved") return true;
+  return Number(score?.beatmap?.ranked) === 4;
 }
 
 function formatMultiplier(value) {
@@ -2855,8 +2926,53 @@ function renderModDistribution(summary) {
   `;
 }
 
+function renderCompareScoreCard(score, mode, index) {
+  const beatmap = score.beatmap || {};
+  const set = score.beatmapset || {};
+  const mapStats = effectiveBeatmapStats(score);
+  const artist = set.artist || beatmap.artist || t("label.unknownArtist");
+  const title = set.title || beatmap.title || t("label.unknownMap");
+  const version = beatmap.version || "Difficulty";
+  const cover = coverUrl(score);
+  const coverHtml = cover
+    ? `<img class="compare-score-cover" src="${escapeHtml(cover)}" alt="" loading="lazy" />`
+    : '<div class="compare-score-cover cover-fallback"></div>';
+  const ppValue = scorePpValue(score);
+  const detailKey = scoreDomKey(score);
+
+  return `
+    <article class="compare-score-card" data-score-key="${escapeHtml(detailKey)}">
+      ${coverHtml}
+      <div class="compare-score-main">
+        <div class="compare-score-title">
+          <span class="pp-rank-badge">#${formatNumber(index + 1)}</span>
+          <span class="rank-badge">${escapeHtml(score.rank || "")}</span>
+          <a href="${escapeHtml(beatmapUrl(score))}" target="_blank" rel="noreferrer">${escapeHtml(artist)} - ${escapeHtml(title)}</a>
+        </div>
+        <small>${escapeHtml(version)}</small>
+        <div class="mods">${renderMods(score)}</div>
+        <div class="compare-score-meta">
+          <span>${formatStars(mapStats.stars)}</span>
+          <span>${Math.round(mapStats.bpm || 0) || "-"} BPM</span>
+          <span>${formatDate(score.ended_at || score.created_at)}</span>
+          <span>${formatNumber(score.max_combo)}x</span>
+          <span>${missCount(score)} ${t("label.miss")}</span>
+        </div>
+        <div class="compare-score-actions">
+          <a href="${escapeHtml(scoreUrl(score, mode))}" target="_blank" rel="noreferrer">${escapeHtml(scoreLinkLabel(score))}</a>
+          <button class="detail-button" type="button" data-score-key="${escapeHtml(detailKey)}">${escapeHtml(t("button.details"))}</button>
+        </div>
+      </div>
+      <div class="compare-score-side">
+        <strong>${formatPp(ppValue)}</strong>
+        <span>${formatAccuracy(score.accuracy)}</span>
+      </div>
+    </article>
+  `;
+}
+
 function renderCompareScores(title, summary, mode) {
-  const scores = summary.scores.slice(0, 200).map((score) => renderScore(score, mode)).join("");
+  const scores = summary.scores.slice(0, 200).map((score, index) => renderCompareScoreCard(score, mode, index)).join("");
   return `
     <section class="compare-score-list">
       <header>
@@ -2950,14 +3066,13 @@ function renderMapCompareResults(data) {
   if (!output) return;
 
   const mode = data.meta?.mode || mapCompareGameMode();
-  const scope = document.querySelector("#mapCompareScope")?.value || "all";
+  const scope = document.querySelector("#mapCompareScope")?.value || "both";
   const allRows = (data.scores || []).filter((score) => {
     if (scope === "ranked") return isRankedScoreForDisplay(score, false);
-    if (scope === "loved") return isRankedScoreForDisplay(score, true);
-    return true;
+    if (scope === "loved") return isLovedScoreForDisplay(score);
+    return isRankedScoreForDisplay(score, true);
   });
   const rows = allRows.slice(0, 200);
-  const neighbors = document.querySelector("#mapCompareNeighbors")?.value || "5";
   compareDetailScores = rows;
   output.innerHTML = `
     <div class="compare-results">
@@ -2967,28 +3082,43 @@ function renderMapCompareResults(data) {
           <strong>${formatNumber(rows.length)} ${escapeHtml(t("compare.shown"))}</strong>
         </div>
         <div>
-          <span>${escapeHtml(t("compare.rankWindow"))}</span>
-          <strong>${escapeHtml(neighbors)} ${escapeHtml(t("compare.rankPrepared"))}</strong>
+          <span>${escapeHtml(t("compare.mapStatus"))}</span>
+          <strong>${escapeHtml(t(`compare.scope${scope === "both" ? "Both" : scope[0].toUpperCase() + scope.slice(1)}`))}</strong>
         </div>
       </div>
       <div class="map-compare-table">
         ${
           rows.length
-            ? rows.map((score) => {
+            ? rows.map((score, index) => {
                 const set = score.beatmapset || {};
                 const beatmap = score.beatmap || {};
                 const ppValue = scorePpValue(score);
                 const leaderboardUrl = beatmap?.id
                   ? `https://osu.ppy.sh/beatmaps/${encodeURIComponent(beatmap.id)}`
                   : beatmapUrl(score);
+                const great = scoreHitStat(score, "great");
+                const ok = scoreHitStat(score, "ok");
+                const meh = scoreHitStat(score, "meh");
+                const miss = missCount(score);
                 return `
                   <div class="map-compare-row">
-                    <div>
-                      <strong>${escapeHtml(set.artist || beatmap.artist || "?")} - ${escapeHtml(set.title || beatmap.title || "?")}</strong>
-                      <small>${escapeHtml(beatmap.version || "Difficulty")}</small>
+                    <div class="map-compare-title">
+                      <span class="pp-rank-badge">#${formatNumber(index + 1)}</span>
+                      <span class="rank-badge">${escapeHtml(score.rank || "")}</span>
+                      <div>
+                        <strong>${escapeHtml(set.artist || beatmap.artist || "?")} - ${escapeHtml(set.title || beatmap.title || "?")}</strong>
+                        <small>${escapeHtml(beatmap.version || "Difficulty")}</small>
+                      </div>
                     </div>
-                    <span>${formatPp(ppValue)} · ${formatAccuracy(score.accuracy)}</span>
-                    <span>${formatNumber(score.max_combo)}x · ${missCount(score)} ${t("label.miss")}</span>
+                    <div class="map-compare-stats">
+                      <span><small>${escapeHtml(t("compare.totalScore"))}</small><b>${formatNumber(score.score)}</b></span>
+                      <span><small>${escapeHtml(t("label.accuracy"))}</small><b>${formatAccuracy(score.accuracy)}</b></span>
+                      <span><small>${escapeHtml(t("label.combo"))}</small><b>${formatNumber(score.max_combo)}x</b></span>
+                      <span><small>${escapeHtml(t("compare.hitResults"))}</small><b>${formatNumber(great)} / ${formatNumber(ok)} / ${formatNumber(meh)} / ${formatNumber(miss)}</b></span>
+                      <span><small>PP</small><b>${formatPp(ppValue)}</b></span>
+                      <span><small>${escapeHtml(t("compare.time"))}</small><b>${formatDate(score.ended_at || score.created_at)}</b></span>
+                      <span><small>Mods</small><b>${renderMods(score)}</b></span>
+                    </div>
                     <div class="map-compare-actions">
                       <button class="detail-button" type="button" data-score-key="${escapeHtml(scoreDomKey(score))}">${escapeHtml(t("button.details"))}</button>
                       <a href="${escapeHtml(leaderboardUrl)}" target="_blank" rel="noreferrer">${escapeHtml(t("compare.openLeaderboard"))}</a>
@@ -3030,14 +3160,156 @@ async function runMapCompare() {
 
   setCompareLoading("maps", t("compare.mapLoading"), t("compare.mapLoadingDetail"));
   try {
-    const scope = document.querySelector("#mapCompareScope")?.value || "all";
+    const scope = document.querySelector("#mapCompareScope")?.value || "both";
     const data = await fetchCompareData(leftName, mapCompareGameMode(), {
-      rankedOnly: scope === "all" ? "0" : "1",
-      includeLoved: scope === "loved" ? "1" : "0",
+      rankedOnly: "1",
+      includeLoved: scope === "ranked" ? "0" : "1",
     });
     renderMapCompareResults(data);
   } catch (error) {
     setCompareError("maps", error);
+  }
+}
+
+function timeTravelDayFromScore(score) {
+  const timestamp = scoreTimeValue(score);
+  return timestamp ? dateToDayKey(new Date(timestamp)) : "";
+}
+
+function knownScoresUntil(dayKey) {
+  const cutoff = Date.parse(`${dayKey}T23:59:59`);
+  if (!Number.isFinite(cutoff)) return [];
+  return bestScorePerMapForDisplay(
+    timeTravelScores.filter((score) => scoreTimeValue(score) && scoreTimeValue(score) <= cutoff),
+    "pp",
+  ).sort((a, b) => scorePpValue(b) - scorePpValue(a) || scoreTimeValue(b) - scoreTimeValue(a));
+}
+
+function estimateWeightedPp(scores) {
+  return scores.reduce((total, score, index) => total + scorePpValue(score) * Math.pow(0.95, index), 0);
+}
+
+function setTimeTravelDate(dayKey) {
+  if (!dayKey || !timeTravelDays.length) return;
+  const index = timeTravelDays.indexOf(dayKey);
+  const clampedIndex = index >= 0 ? index : timeTravelDays.findLastIndex((day) => day <= dayKey);
+  const nextIndex = Math.max(0, Math.min(timeTravelDays.length - 1, clampedIndex));
+  const nextDay = timeTravelDays[nextIndex];
+  if (timeDate) timeDate.value = nextDay;
+  if (timeSlider) timeSlider.value = String(nextIndex);
+  if (timeSelectedDate) timeSelectedDate.textContent = formatDayKey(nextDay);
+  renderTimeTravelResults(nextDay);
+}
+
+function renderTimeTravelResults(dayKey) {
+  if (!timeTravelOutput) return;
+  const scores = knownScoresUntil(dayKey);
+  const weightedPp = estimateWeightedPp(scores);
+  const best = scores[0];
+  const globalRank = timeTravelUser?.statistics?.global_rank || timeTravelUser?.global_rank || null;
+  compareDetailScores = uniqueScores([...compareDetailScores, ...scores]);
+
+  if (!scores.length) {
+    timeTravelOutput.innerHTML = `<div class="compare-empty">${escapeHtml(t("time.noScores"))}</div>`;
+    return;
+  }
+
+  timeTravelOutput.innerHTML = `
+    <div class="compare-results">
+      <div class="compare-result-head time-result-head">
+        <div>
+          <span>${escapeHtml(t("time.knownUntil"))}</span>
+          <strong>${escapeHtml(formatDayKey(dayKey))}</strong>
+        </div>
+        <div>
+          <span>${escapeHtml(t("time.estimatedPp"))}</span>
+          <strong>${formatPp(weightedPp)}</strong>
+        </div>
+        <div>
+          <span>${escapeHtml(t("time.knownPlays"))}</span>
+          <strong>${formatNumber(scores.length)}</strong>
+        </div>
+        <div>
+          <span>${escapeHtml(t("time.currentRank"))}</span>
+          <strong>${globalRank ? `#${formatNumber(globalRank)}` : "-"}</strong>
+        </div>
+      </div>
+      <div class="compare-result-head">
+        <div>
+          <span>${escapeHtml(t("time.bestPlay"))}</span>
+          <strong>${best ? formatPp(scorePpValue(best)) : "-"}</strong>
+        </div>
+        <div>
+          <span>${escapeHtml(t("time.estimateNote"))}</span>
+          <strong>${escapeHtml(timeTravelUser?.username || "-")}</strong>
+        </div>
+      </div>
+      <section class="compare-score-list time-travel-list">
+        <header>
+          <span>${escapeHtml(t("time.topAtDate"))}</span>
+          <strong>${formatNumber(Math.min(scores.length, 50))}</strong>
+        </header>
+        ${scores.slice(0, 50).map((score, index) => renderCompareScoreCard(score, timeMode?.value || "osu", index)).join("")}
+      </section>
+    </div>
+  `;
+}
+
+async function runTimeTravel() {
+  const username = timePlayer?.value.trim() || document.querySelector("#username")?.value.trim() || comparePlayerA?.value.trim() || "";
+  if (!username) {
+    if (timeTravelOutput) timeTravelOutput.innerHTML = `<div class="compare-empty">${escapeHtml(t("compare.needOnePlayer"))}</div>`;
+    return;
+  }
+
+  if (timeTravelOutput) {
+    timeTravelOutput.innerHTML = `
+      <div class="compare-loading">
+        <strong>${escapeHtml(t("time.loading"))}</strong>
+        <span>${escapeHtml(t("compare.loadDetail"))}</span>
+      </div>
+    `;
+  }
+
+  try {
+    const data = await fetchCompareData(username, timeMode?.value || "osu", {
+      rankedOnly: "1",
+      includeLoved: "1",
+      bestPerMap: "0",
+      limit: "500",
+      rankMode: "none",
+    });
+    timeTravelUser = data.user || null;
+    timeTravelScores = uniqueScores(data.scores || [])
+      .filter((score) => scoreTimeValue(score) && scorePpValue(score) > 0)
+      .sort((a, b) => scoreTimeValue(a) - scoreTimeValue(b));
+    timeTravelDays = [...new Set(timeTravelScores.map(timeTravelDayFromScore).filter(Boolean))].sort();
+
+    if (!timeTravelDays.length) {
+      if (timeTravelOutput) timeTravelOutput.innerHTML = `<div class="compare-empty">${escapeHtml(t("time.noScores"))}</div>`;
+      return;
+    }
+
+    if (timePlayer) timePlayer.value = data.user?.username || username;
+    if (timeDate) {
+      timeDate.min = timeTravelDays[0];
+      timeDate.max = timeTravelDays[timeTravelDays.length - 1];
+    }
+    if (timeSlider) {
+      timeSlider.min = "0";
+      timeSlider.max = String(timeTravelDays.length - 1);
+      timeSlider.disabled = false;
+    }
+    setTimeTravelDate(timeTravelDays[timeTravelDays.length - 1]);
+  } catch (error) {
+    if (timeTravelOutput) {
+      timeTravelOutput.innerHTML = `
+        <div class="error-box">
+          <strong>${escapeHtml(t("compare.failed"))}</strong>
+          <span>${escapeHtml(error.message || String(error))}</span>
+        </div>
+      `;
+    }
   }
 }
 
@@ -3047,9 +3319,10 @@ function setMenuOpen(open) {
 }
 
 function setActiveSection(section) {
-  const nextSection = section === "compare" ? "compare" : "home";
+  const nextSection = section === "compare" ? "compare" : section === "time" ? "time" : "home";
   document.body.dataset.activeSection = nextSection;
   compareView?.classList.toggle("hidden", nextSection !== "compare");
+  timeTravelView?.classList.toggle("hidden", nextSection !== "time");
 
   const showHome = nextSection === "home";
   form.classList.toggle("hidden", !showHome);
@@ -3073,6 +3346,11 @@ sideMenu?.addEventListener("click", (event) => {
 
   for (const item of sideMenu.querySelectorAll("[data-section]")) {
     item.classList.toggle("active", item === button);
+  }
+
+  if (button.dataset.section === "time") {
+    if (timePlayer && !timePlayer.value) timePlayer.value = document.querySelector("#username")?.value.trim() || comparePlayerA?.value.trim() || "";
+    if (timeMode) timeMode.value = compareMode?.value || document.querySelector("#mode")?.value || "osu";
   }
 
   setActiveSection(button.dataset.section);
@@ -3142,6 +3420,29 @@ compareView?.addEventListener("keydown", (event) => {
   } else {
     void runVsCompare();
   }
+});
+
+timeRun?.addEventListener("click", () => void runTimeTravel());
+
+timeDate?.addEventListener("change", () => setTimeTravelDate(timeDate.value));
+
+timeSlider?.addEventListener("input", () => {
+  const index = Number(timeSlider.value);
+  const day = timeTravelDays[index];
+  if (day) setTimeTravelDate(day);
+});
+
+timeTravelView?.addEventListener("click", (event) => {
+  const detailButton = event.target.closest("button[data-score-key]");
+  if (detailButton) renderMapDetails(detailButton.dataset.scoreKey);
+});
+
+timeTravelView?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  const input = event.target.closest("input");
+  if (!input) return;
+  event.preventDefault();
+  void runTimeTravel();
 });
 
 modButtons.addEventListener("click", (event) => {

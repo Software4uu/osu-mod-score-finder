@@ -43,6 +43,7 @@
           </div>
           <button class="side-menu-item active" type="button" data-section="home" data-i18n="nav.home">Hauptseite</button>
           <button class="side-menu-item" type="button" data-section="compare" data-i18n="nav.compare">Vergleich</button>
+          <button class="side-menu-item" type="button" data-section="time" data-i18n="nav.timeTravel">Time Travel</button>
         </aside>
         <div id="menuBackdrop" class="menu-backdrop"></div>
 
@@ -274,7 +275,7 @@
             <section class="compare-panel compare-input-panel">
               <div class="compare-panel-head">
                 <span data-i18n="compare.mapMode">Map Compare</span>
-                <strong data-i18n="compare.mapSetup">Rangumfeld vorbereiten</strong>
+                <strong data-i18n="compare.mapSetup">Maps vergleichen</strong>
               </div>
               <div class="compare-player-fields">
                 <label class="field">
@@ -302,29 +303,21 @@
 
             <section class="compare-panel compare-map-options">
               <div class="compare-panel-head">
-                <span data-i18n="compare.rankArea">Rangumfeld</span>
-                <strong data-i18n="compare.rankTitle">Leaderboard-Nachbarn</strong>
+                <span data-i18n="compare.mapScope">Map-Auswahl</span>
+                <strong data-i18n="compare.mapScopeTitle">Status-Filter</strong>
               </div>
               <div class="compare-player-fields">
                 <label class="field">
-                  <span data-i18n="compare.neighbors">Nachbarn anzeigen</span>
-                  <select id="mapCompareNeighbors">
-                    <option value="5" data-i18n="compare.neighbors5">5 ueber / 5 unter</option>
-                    <option value="10" data-i18n="compare.neighbors10">10 ueber / 10 unter</option>
-                    <option value="25" data-i18n="compare.neighbors25">25 ueber / 25 unter</option>
-                  </select>
-                </label>
-                <label class="field">
                   <span data-i18n="compare.mapScope">Map-Auswahl</span>
                   <select id="mapCompareScope">
-                    <option value="all" data-i18n="compare.scopeAll">geladene Spieler-Maps</option>
-                    <option value="ranked" data-i18n="compare.scopeRanked">nur ranked/approved</option>
-                    <option value="loved" data-i18n="compare.scopeLoved">ranked + loved</option>
+                    <option value="ranked" data-i18n="compare.scopeRanked">ranked</option>
+                    <option value="loved" data-i18n="compare.scopeLoved">loved</option>
+                    <option value="both" data-i18n="compare.scopeBoth" selected>ranked + loved</option>
                   </select>
                 </label>
               </div>
               <p class="compare-muted" data-i18n="compare.rankText">
-                Spaeter gecacht, damit Leaderboard-Abfragen nicht in API-Limits laufen.
+                Zeigt nur Maps aus dem gewaehlten Statusbereich. Die Leaderboard-Ansicht oeffnet die passende osu!-Rangliste pro Difficulty.
               </p>
             </section>
           </div>
@@ -369,6 +362,70 @@
                 Hier landen spaeter gemeinsame Maps, direkte Score-Unterschiede und optional
                 die X Spieler ueber und unter deinem Rang.
               </p>
+            </div>
+          </section>
+        </section>
+
+        <section id="timeTravelView" class="compare-view hidden" aria-live="polite">
+          <div class="compare-hero">
+            <div>
+              <p class="eyebrow" data-i18n="time.eyebrow">Time Travel</p>
+              <h2 data-i18n="time.title">Score-Historie zurueckdrehen</h2>
+              <p data-i18n="time.description">
+                Schaetzt anhand deiner gespeicherten Plays, wie dein PP-Stand bis zu einem Datum ausgesehen haette.
+              </p>
+            </div>
+          </div>
+
+          <div class="compare-grid time-travel-grid">
+            <section class="compare-panel">
+              <div class="compare-panel-head">
+                <span data-i18n="time.setup">Setup</span>
+                <strong data-i18n="time.playerDate">Spieler und Datum</strong>
+              </div>
+              <div class="compare-player-fields">
+                <label class="field">
+                  <span data-i18n="compare.player">Spieler</span>
+                  <input id="timePlayer" type="search" data-i18n-placeholder="compare.placeholderA" placeholder="z. B. marcy02" />
+                </label>
+                <label class="field">
+                  <span data-i18n="compare.gameMode">Game mode</span>
+                  <select id="timeMode">
+                    <option value="osu">osu!standard</option>
+                    <option value="taiko">taiko</option>
+                    <option value="fruits">catch</option>
+                    <option value="mania">mania</option>
+                  </select>
+                </label>
+              </div>
+              <div class="compare-actions">
+                <button id="timeRun" class="primary-button" type="button" data-i18n="time.load">Historie laden</button>
+              </div>
+              <p class="compare-muted" data-i18n="time.disclaimer">
+                Hinweis: Diese Ansicht nutzt deine heute lokal/API-bekannten Scores. Der Rank ist eine vorsichtige Rekonstruktion gegen den aktuellen Datenstand, nicht die echte damalige globale Rangliste.
+              </p>
+            </section>
+
+            <section class="compare-panel">
+              <div class="compare-panel-head">
+                <span data-i18n="time.timeline">Zeitregler</span>
+                <strong id="timeSelectedDate">-</strong>
+              </div>
+              <label class="field">
+                <span data-i18n="time.date">Datum</span>
+                <input id="timeDate" type="date" />
+              </label>
+              <input id="timeSlider" class="time-slider" type="range" min="0" max="0" value="0" disabled />
+              <p class="compare-muted" data-i18n="time.sliderText">
+                Nach dem Laden kannst du den Stand Tag fuer Tag zurueckdrehen.
+              </p>
+            </section>
+          </div>
+
+          <section id="timeTravelOutput" class="compare-placeholder">
+            <div>
+              <strong data-i18n="time.placeholderTitle">Time-Travel Ergebnisbereich</strong>
+              <p data-i18n="time.placeholderText">Lade einen Spieler, dann erscheinen hier geschaetzte PP, bekannte Plays und die staerksten Scores bis zum gewaehlten Datum.</p>
             </div>
           </section>
         </section>
