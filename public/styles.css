@@ -2033,6 +2033,113 @@ select:focus {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.time-profile-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: 14px;
+  border: 1px solid rgba(255, 79, 163, 0.18);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 79, 163, 0.08), transparent 42%),
+    rgba(7, 10, 17, 0.48);
+  padding: 14px;
+}
+
+.time-rank-panel,
+.time-score-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.time-rank-panel h3,
+.time-score-panel h3 {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--pink);
+  font-size: 0.8rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.time-rank-panel {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: start;
+}
+
+.time-score-panel {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.time-metric {
+  display: grid;
+  gap: 3px;
+  min-height: 72px;
+  border: 1px solid rgba(148, 156, 176, 0.16);
+  border-radius: 8px;
+  background: rgba(7, 10, 17, 0.58);
+  padding: 10px 12px;
+}
+
+.time-metric span,
+.time-metric small {
+  color: var(--muted);
+}
+
+.time-metric span {
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.time-metric strong {
+  color: var(--text);
+  font-size: 1.22rem;
+  font-weight: 950;
+}
+
+.time-grade-row {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  gap: 9px;
+  align-items: center;
+  min-height: 72px;
+  border: 1px solid rgba(148, 156, 176, 0.16);
+  border-radius: 8px;
+  background: rgba(7, 10, 17, 0.58);
+  padding: 10px 12px;
+}
+
+.time-grade-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 74px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(103, 216, 242, 0.16);
+  color: var(--text);
+  font-weight: 950;
+}
+
+.time-grade-pill small {
+  color: var(--text);
+}
+
+.grade-xh,
+.grade-x {
+  background: linear-gradient(90deg, rgba(255, 79, 163, 0.72), rgba(255, 209, 102, 0.62));
+}
+
+.grade-sh,
+.grade-s {
+  background: rgba(103, 216, 242, 0.34);
+}
+
+.grade-a {
+  background: rgba(138, 239, 106, 0.32);
+}
+
 .time-travel-list {
   max-height: none;
   overflow: visible;
@@ -2258,7 +2365,10 @@ select:focus {
   }
 
   .time-travel-grid,
-  .time-result-head {
+  .time-result-head,
+  .time-profile-panel,
+  .time-rank-panel,
+  .time-score-panel {
     grid-template-columns: 1fr;
   }
 

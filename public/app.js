@@ -342,6 +342,24 @@ const translations = {
     "time.knownPlays": "Bekannte Plays",
     "time.uniqueMaps": "Beste Maps",
     "time.currentRank": "Aktueller Rank",
+    "time.estimatedRank": "Geschaetzter Rank",
+    "time.estimatedCountryRank": "Geschaetzter nationaler Rank",
+    "time.profileEstimate": "Rekonstruierte Profilwerte",
+    "time.scoreEstimate": "Lokale Score-Werte",
+    "time.medals": "Medaillen",
+    "time.profilePp": "PP",
+    "time.playtime": "Gesamtspielzeit",
+    "time.rankChart": "Rank-Verlauf",
+    "time.rankedScore": "Punktzahl auf Ranglisten",
+    "time.hitAccuracy": "Genauigkeit",
+    "time.playCount": "Anzahl Spiele",
+    "time.totalScore": "Gesamtpunktzahl",
+    "time.totalHits": "Anzahl Treffer",
+    "time.hitsPerPlay": "Treffer pro Spiel",
+    "time.maxCombo": "Hoechste Combo",
+    "time.replaysWatched": "Angesehene Replays",
+    "time.currentOnly": "heutiger Profilwert",
+    "time.estimated": "geschaetzt",
     "time.bestPlay": "Bestes Play bis Datum",
     "time.topAtDate": "Staerkste bekannte Plays bis zu diesem Datum",
     "time.estimateNote": "Die PP werden mit dem normalen osu!-Gewichtungsmodell aus den bekannten Plays neu gestapelt. Andere Spieler werden nicht historisch zurueckgerechnet.",
@@ -677,6 +695,24 @@ const translations = {
     "time.knownPlays": "Known plays",
     "time.uniqueMaps": "Best maps",
     "time.currentRank": "Current rank",
+    "time.estimatedRank": "Estimated rank",
+    "time.estimatedCountryRank": "Estimated country rank",
+    "time.profileEstimate": "Reconstructed profile values",
+    "time.scoreEstimate": "Local score values",
+    "time.medals": "Medals",
+    "time.profilePp": "PP",
+    "time.playtime": "Total playtime",
+    "time.rankChart": "Rank history",
+    "time.rankedScore": "Ranked score",
+    "time.hitAccuracy": "Accuracy",
+    "time.playCount": "Play count",
+    "time.totalScore": "Total score",
+    "time.totalHits": "Total hits",
+    "time.hitsPerPlay": "Hits per play",
+    "time.maxCombo": "Highest combo",
+    "time.replaysWatched": "Replays watched",
+    "time.currentOnly": "current profile value",
+    "time.estimated": "estimated",
     "time.bestPlay": "Best play by date",
     "time.topAtDate": "Strongest known plays up to this date",
     "time.estimateNote": "PP is restacked from known plays with the normal osu! weighting model. Other players are not historically reconstructed.",
@@ -3214,6 +3250,127 @@ function estimateWeightedPp(scores) {
   return scores.reduce((total, score, index) => total + scorePpValue(score) * Math.pow(0.95, index), 0);
 }
 
+function scoreTotalValue(score) {
+  return Number(score?.score ?? score?.total_score ?? score?.legacy_total_score ?? 0) || 0;
+}
+
+function scoreMaxComboValue(score) {
+  return Number(score?.max_combo ?? score?.maximum_combo ?? 0) || 0;
+}
+
+function scoreHitTotal(score) {
+  const stats = score?.statistics || {};
+  const osuKeys = ["great", "ok", "meh", "miss"];
+  const legacyKeys = ["count_300", "count_100", "count_50", "count_miss"];
+  const osuTotal = osuKeys.reduce((total, key) => total + (Number(stats[key]) || 0), 0);
+  if (osuTotal > 0) return osuTotal;
+  return legacyKeys.reduce((total, key) => total + (Number(stats[key]) || 0), 0);
+}
+
+function formatTimeTravelDuration(totalSeconds) {
+  const seconds = Math.max(0, Math.round(Number(totalSeconds) || 0));
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+function estimateHistoricalRank(currentRank, currentPp, historicalPp) {
+  const rank = Number(currentRank || 0);
+  const current = Number(currentPp || 0);
+  const historical = Number(historicalPp || 0);
+  if (!rank || !current || !historical) return 0;
+  if (historical >= current) return Math.max(1, Math.round(rank * (current / historical)));
+  return Math.max(rank, Math.round(rank * Math.pow(current / historical, 2.15)));
+}
+
+function buildTimeTravelStats(rawScores, bestScores, weightedPp) {
+  const currentStats = timeTravelUser?.statistics || {};
+  const currentPp = Number(currentStats.pp || currentStats.pp_raw || 0);
+  const accuracyValues = rawScores.map(accuracyPercentValue).filter((value) => Number.isFinite(value) && value > 0);
+  const totalHits = rawScores.reduce((total, score) => total + scoreHitTotal(score), 0);
+  const totalPlaytime = rawScores.reduce((total, score) => {
+    const stats = effectiveBeatmapStats(score);
+    return total + (Number(stats.length) || 0);
+  }, 0);
+  const gradeCounts = rawScores.reduce((counts, score) => {
+    const rank = String(score.rank || "").toUpperCase();
+    if (["XH", "X", "SH", "S", "A"].includes(rank)) counts[rank] = (counts[rank] || 0) + 1;
+    return counts;
+  }, { XH: 0, X: 0, SH: 0, S: 0, A: 0 });
+
+  return {
+    estimatedGlobalRank: estimateHistoricalRank(currentStats.global_rank, currentPp, weightedPp),
+    estimatedCountryRank: estimateHistoricalRank(currentStats.country_rank, currentPp, weightedPp),
+    currentGlobalRank: Number(currentStats.global_rank || 0),
+    currentCountryRank: Number(currentStats.country_rank || 0),
+    medals: Number(timeTravelUser?.user_achievements?.length || currentStats.medals || 0),
+    weightedPp,
+    totalPlaytime,
+    gradeCounts,
+    rankedScore: bestScores.reduce((total, score) => total + scoreTotalValue(score), 0),
+    hitAccuracy: accuracyValues.length ? average(accuracyValues) : 0,
+    playCount: rawScores.length,
+    totalScore: rawScores.reduce((total, score) => total + scoreTotalValue(score), 0),
+    totalHits,
+    hitsPerPlay: rawScores.length ? totalHits / rawScores.length : 0,
+    maxCombo: rawScores.reduce((best, score) => Math.max(best, scoreMaxComboValue(score)), 0),
+    replaysWatched: Number(currentStats.replays_watched_by_others || currentStats.replays_watched || 0),
+  };
+}
+
+function renderGradePills(counts) {
+  return ["XH", "X", "SH", "S", "A"]
+    .map((grade) => `
+      <span class="time-grade-pill grade-${grade.toLowerCase()}">
+        <b>${escapeHtml(grade === "XH" ? "SSH" : grade === "X" ? "SS" : grade)}</b>
+        <small>${formatNumber(counts?.[grade] || 0)}</small>
+      </span>
+    `)
+    .join("");
+}
+
+function renderTimeTravelMetric(label, value, note = "") {
+  return `
+    <div class="time-metric">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      ${note ? `<small>${escapeHtml(note)}</small>` : ""}
+    </div>
+  `;
+}
+
+function renderTimeTravelProfile(stats) {
+  const rankValue = stats.estimatedGlobalRank ? `#${formatNumber(stats.estimatedGlobalRank)}` : "-";
+  const countryRankValue = stats.estimatedCountryRank ? `#${formatNumber(stats.estimatedCountryRank)}` : "-";
+  return `
+    <section class="time-profile-panel">
+      <div class="time-rank-panel">
+        <h3>${escapeHtml(t("time.profileEstimate"))}</h3>
+        ${renderTimeTravelMetric(t("time.estimatedRank"), rankValue, t("time.estimated"))}
+        ${renderTimeTravelMetric(t("time.estimatedCountryRank"), countryRankValue, t("time.estimated"))}
+        ${renderTimeTravelMetric(t("time.medals"), formatNumber(stats.medals), t("time.currentOnly"))}
+        ${renderTimeTravelMetric(t("time.profilePp"), formatPp(stats.weightedPp), t("time.estimated"))}
+        ${renderTimeTravelMetric(t("time.playtime"), formatTimeTravelDuration(stats.totalPlaytime), t("time.estimated"))}
+        <div class="time-grade-row">${renderGradePills(stats.gradeCounts)}</div>
+      </div>
+      <div class="time-score-panel">
+        <h3>${escapeHtml(t("time.scoreEstimate"))}</h3>
+        ${renderTimeTravelMetric(t("time.rankedScore"), formatNumber(stats.rankedScore), t("time.estimated"))}
+        ${renderTimeTravelMetric(t("time.hitAccuracy"), stats.hitAccuracy ? formatAccuracy(stats.hitAccuracy) : "-", t("time.estimated"))}
+        ${renderTimeTravelMetric(t("time.playCount"), formatNumber(stats.playCount), t("time.estimated"))}
+        ${renderTimeTravelMetric(t("time.totalScore"), formatNumber(stats.totalScore), t("time.estimated"))}
+        ${renderTimeTravelMetric(t("time.totalHits"), formatNumber(stats.totalHits), t("time.estimated"))}
+        ${renderTimeTravelMetric(t("time.hitsPerPlay"), formatNumber(Math.round(stats.hitsPerPlay)), t("time.estimated"))}
+        ${renderTimeTravelMetric(t("time.maxCombo"), stats.maxCombo ? `${formatNumber(stats.maxCombo)}x` : "-", t("time.estimated"))}
+        ${renderTimeTravelMetric(t("time.replaysWatched"), formatNumber(stats.replaysWatched), t("time.currentOnly"))}
+      </div>
+    </section>
+  `;
+}
+
 function setTimeTravelDate(dayKey) {
   if (!dayKey || !timeTravelDays.length) return;
   const index = timeTravelDays.indexOf(dayKey);
@@ -3232,7 +3389,7 @@ function renderTimeTravelResults(dayKey) {
   const scores = knownScoresUntil(dayKey);
   const weightedPp = estimateWeightedPp(scores);
   const best = scores[0];
-  const globalRank = timeTravelUser?.statistics?.global_rank || timeTravelUser?.global_rank || null;
+  const rebuiltStats = buildTimeTravelStats(rawScores, scores, weightedPp);
   compareDetailScores = uniqueScores([...compareDetailScores, ...scores]);
 
   if (!scores.length) {
@@ -3260,8 +3417,8 @@ function renderTimeTravelResults(dayKey) {
           <strong>${formatNumber(scores.length)}</strong>
         </div>
         <div>
-          <span>${escapeHtml(t("time.currentRank"))}</span>
-          <strong>${globalRank ? `#${formatNumber(globalRank)}` : "-"}</strong>
+          <span>${escapeHtml(t("time.estimatedRank"))}</span>
+          <strong>${rebuiltStats.estimatedGlobalRank ? `#${formatNumber(rebuiltStats.estimatedGlobalRank)}` : "-"}</strong>
         </div>
       </div>
       <div class="compare-result-head">
@@ -3274,6 +3431,7 @@ function renderTimeTravelResults(dayKey) {
           <strong>${escapeHtml(timeTravelUser?.username || "-")}</strong>
         </div>
       </div>
+      ${renderTimeTravelProfile(rebuiltStats)}
       <section class="compare-score-list time-travel-list">
         <header>
           <span>${escapeHtml(t("time.topAtDate"))}</span>
