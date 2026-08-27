@@ -4005,8 +4005,6 @@ function renderSkillTreeResults(data, mode) {
 
       ${renderSkillStarOverview(scores)}
 
-      ${renderSkillTrainingPlanner(analysis, mode)}
-
       ${renderSkillGraph(analysis)}
 
       <section class="skill-tree-grid">
@@ -4026,15 +4024,7 @@ function renderSkillTreeResults(data, mode) {
         `).join("")}
       </section>
 
-      <section class="compare-score-list skill-training-list">
-        <header>
-          <span>${escapeHtml(t("skill.recommendations"))}</span>
-          <strong>${escapeHtml(analysis.weakest?.label || "-")}</strong>
-        </header>
-        ${(analysis.weakest?.training?.length ? analysis.weakest.training : analysis.weakest?.maps || [])
-          .map((item, index) => renderCompareScoreCard(item.score, mode, index))
-          .join("")}
-      </section>
+      ${renderSkillTrainingPlanner(analysis, mode)}
     </div>
   `;
 }
