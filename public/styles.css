@@ -2692,6 +2692,167 @@ select:focus {
   line-height: 1.35;
 }
 
+.training-planner {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(255, 79, 163, 0.22);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 79, 163, 0.1), rgba(7, 10, 17, 0.74) 46%),
+    rgba(7, 10, 17, 0.72);
+}
+
+.training-planner > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.training-planner > header div {
+  display: grid;
+  gap: 3px;
+}
+
+.training-planner > header span,
+.training-map-plan h3,
+.training-goals-list h3 {
+  margin: 0;
+  color: var(--pink);
+  font-size: 0.78rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.training-planner > header strong {
+  color: var(--text);
+  font-size: 1.35rem;
+  font-weight: 950;
+}
+
+.training-planner > header p {
+  max-width: 560px;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.training-planner-controls {
+  display: grid;
+  grid-template-columns: minmax(210px, 1.3fr) repeat(3, minmax(120px, 0.8fr)) auto auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.training-planner-controls .compact {
+  min-height: 42px;
+  padding-block: 10px;
+}
+
+.training-plan-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.training-map-plan {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.training-map-plan section,
+.training-goals-list {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.training-plan-score {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 0.75fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(148, 156, 176, 0.16);
+  border-radius: 8px;
+  background: rgba(10, 13, 21, 0.78);
+}
+
+.training-plan-score > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.training-plan-score strong,
+.training-plan-score b {
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.training-plan-score small {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.training-status-pill {
+  width: fit-content;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
+.training-status-pill.ready {
+  border: 1px solid rgba(134, 239, 139, 0.42);
+  background: rgba(134, 239, 139, 0.12);
+  color: #86ef8b;
+}
+
+.training-status-pill.needsPrep {
+  border: 1px solid rgba(255, 206, 86, 0.42);
+  background: rgba(255, 206, 86, 0.12);
+  color: #ffce56;
+}
+
+.training-goals-list {
+  padding-top: 2px;
+}
+
+.training-goal-pill {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid rgba(148, 156, 176, 0.16);
+  border-radius: 7px;
+  background: rgba(17, 20, 28, 0.62);
+}
+
+.training-goal-pill span {
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.training-goal-pill strong {
+  color: #67d8f2;
+}
+
+.training-goal-pill small {
+  color: var(--muted);
+}
+
 .skill-tree-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2820,12 +2981,15 @@ select:focus {
   .compare-player-fields,
   .compare-result-head,
   .compare-mod-row,
-  .skill-summary-grid,
-  .skill-tree-grid,
-  .skill-star-grid,
-  .compare-signatures,
-  .compare-score-columns,
-  .map-compare-row {
+    .skill-summary-grid,
+    .skill-tree-grid,
+    .skill-star-grid,
+    .training-planner-controls,
+    .training-plan-summary,
+    .training-map-plan,
+    .compare-signatures,
+    .compare-score-columns,
+    .map-compare-row {
     grid-template-columns: 1fr;
   }
 

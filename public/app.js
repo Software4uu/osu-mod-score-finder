@@ -69,6 +69,14 @@ let timeTravelScores = [];
 let timeTravelUser = null;
 let timeTravelDays = [];
 let timeTravelExternalSnapshots = [];
+let latestSkillTreeData = null;
+let latestSkillTreeMode = "osu";
+let skillTrainingState = {
+  skillKey: "weakest",
+  goalType: "pp",
+  targetPp: "300",
+  targetRank: "",
+};
 
 document.body.dataset.activeView = activeView;
 document.body.dataset.activeSection = "home";
@@ -415,6 +423,29 @@ const translations = {
     "skill.scoreLabel": "Skill {value}/100",
     "skill.bestExample": "Bestes Beispiel",
     "skill.needsWork": "Hier verlierst du oft Punkte",
+    "skill.trainingPlanner": "Trainingsplaner",
+    "skill.trainingSkill": "Was willst du ueben?",
+    "skill.goalType": "Zieltyp",
+    "skill.goalPp": "Ziel-PP",
+    "skill.goalRank": "Ziel-Rang",
+    "skill.goalPpOption": "PP-Ziel",
+    "skill.goalRankOption": "Rank-Ziel",
+    "skill.updatePlan": "Plan anzeigen",
+    "skill.saveGoal": "Ziel speichern",
+    "skill.savedGoals": "Gespeicherte Ziele",
+    "skill.targetMaps": "Zielmaps",
+    "skill.prepMaps": "Vorbereitungs-Maps",
+    "skill.ready": "bereit",
+    "skill.needsPrep": "erst vorbereiten",
+    "skill.trainingSummary": "Plan-Zusammenfassung",
+    "skill.targetCount": "Zielmaps",
+    "skill.prepCount": "Vorbereitung",
+    "skill.readyCount": "bereit",
+    "skill.noTrainingMaps": "Keine passenden Trainingsmaps in deinen gespeicherten Plays gefunden.",
+    "skill.noSavedGoals": "Noch keine Trainingsziele gespeichert.",
+    "skill.externalNote": "Diese Beta nutzt lokale/gespeicherte Plays. Ungespielte externe PP-Maps werden erst sichtbar, wenn eine stabile osu-pps/API-Anbindung vorhanden ist.",
+    "skill.goalSaved": "Trainingsziel gespeichert.",
+    "skill.ppProxyNote": "Rank-Ziele werden aktuell als PP-nahe Trainingsrichtung behandelt, weil historische Rank-Schwellen nicht vollstaendig verfuegbar sind.",
     "skill.aim": "Aim",
     "skill.speed": "Raw Speed",
     "skill.speedControl": "Speed Control",
@@ -829,6 +860,29 @@ const translations = {
     "skill.scoreLabel": "Skill {value}/100",
     "skill.bestExample": "Best example",
     "skill.needsWork": "Where you often lose value",
+    "skill.trainingPlanner": "Training planner",
+    "skill.trainingSkill": "What do you want to practice?",
+    "skill.goalType": "Goal type",
+    "skill.goalPp": "Target PP",
+    "skill.goalRank": "Target rank",
+    "skill.goalPpOption": "PP goal",
+    "skill.goalRankOption": "Rank goal",
+    "skill.updatePlan": "Show plan",
+    "skill.saveGoal": "Save goal",
+    "skill.savedGoals": "Saved goals",
+    "skill.targetMaps": "Target maps",
+    "skill.prepMaps": "Prep maps",
+    "skill.ready": "ready",
+    "skill.needsPrep": "prep first",
+    "skill.trainingSummary": "Plan summary",
+    "skill.targetCount": "Target maps",
+    "skill.prepCount": "Prep maps",
+    "skill.readyCount": "ready",
+    "skill.noTrainingMaps": "No matching training maps found in your stored plays.",
+    "skill.noSavedGoals": "No saved training goals yet.",
+    "skill.externalNote": "This beta uses local/stored plays. Unplayed external PP maps become visible once a stable osu-pps/API integration is available.",
+    "skill.goalSaved": "Training goal saved.",
+    "skill.ppProxyNote": "Rank goals are currently treated as a PP-oriented training direction because complete historical rank thresholds are not available.",
     "skill.aim": "Aim",
     "skill.speed": "Raw Speed",
     "skill.speedControl": "Speed Control",
@@ -3706,8 +3760,218 @@ function renderSkillMiniScore(item, mode) {
   `;
 }
 
+const trainingGoalsStorageKey = "performance-finder-training-goals-v1";
+
+function readTrainingGoals() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(trainingGoalsStorageKey) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeTrainingGoals(goals) {
+  localStorage.setItem(trainingGoalsStorageKey, JSON.stringify(goals.slice(0, 80)));
+}
+
+function trainingGoalMatches(goal, username, mode) {
+  return String(goal.username || "").toLowerCase() === String(username || "").toLowerCase() &&
+    String(goal.mode || "osu") === String(mode || "osu");
+}
+
+function selectedTrainingCategory(analysis) {
+  const key = skillTrainingState.skillKey === "weakest"
+    ? analysis.weakest?.key
+    : skillTrainingState.skillKey;
+  return analysis.categories.find((category) => category.key === key) || analysis.weakest || analysis.categories[0];
+}
+
+function trainingReadiness(score) {
+  const acc = accuracyPercentValue(score);
+  const misses = missCount(score);
+  if (acc >= 95 && misses <= 2) return "ready";
+  return "needsPrep";
+}
+
+function trainingScoreLabel(score) {
+  const pp = passPpValue(score) || scorePpValue(score);
+  const stars = starValue(score);
+  return `${formatPp(pp)} - ${formatAccuracy(accuracyPercentValue(score))} - ${formatStars(stars)} - ${formatNumber(missCount(score))} Miss`;
+}
+
+function buildTrainingPlan(analysis) {
+  const category = selectedTrainingCategory(analysis);
+  const all = analysis.scores || [];
+  const targetPp = Number.parseFloat(String(skillTrainingState.targetPp || "").replace(",", "."));
+  const usableTargetPp = Number.isFinite(targetPp) && targetPp > 0 ? targetPp : 0;
+  const relevant = all
+    .map((score) => ({
+      score,
+      value: skillCategoryValue(category, score),
+      pp: passPpValue(score) || scorePpValue(score),
+      stars: starValue(score),
+    }))
+    .filter((item) => item.value > 18 && item.stars > 0);
+
+  const targetMaps = relevant
+    .map((item) => {
+      const targetDistance = usableTargetPp
+        ? Math.max(0, 1 - Math.abs(item.pp - usableTargetPp) / Math.max(usableTargetPp, 1))
+        : Math.min(1, item.pp / Math.max(analysis.strongest?.maps?.[0]?.score ? passPpValue(analysis.strongest.maps[0].score) : 300, 1));
+      const weaknessSignal = (accuracyPercentValue(item.score) < 95 ? 12 : 0) + Math.min(14, missCount(item.score) * 2);
+      const score = (item.value * 0.48) + (targetDistance * 34) + weaknessSignal + Math.min(10, item.stars);
+      return { ...item, plannerScore: score };
+    })
+    .filter((item) => !usableTargetPp || item.pp >= usableTargetPp * 0.55 || item.value >= 70)
+    .sort((a, b) => b.plannerScore - a.plannerScore || b.pp - a.pp)
+    .slice(0, 5);
+
+  const targetKeys = new Set(targetMaps.map((item) => mapDomKey(item.score)));
+  const prepMaps = targetMaps.flatMap((target) => {
+    const targetStars = target.stars;
+    return relevant
+      .filter((item) => {
+        if (targetKeys.has(mapDomKey(item.score))) return false;
+        return item.stars >= targetStars - 0.85 && item.stars <= targetStars - 0.25;
+      })
+      .sort((a, b) => {
+        const readyA = trainingReadiness(a.score) === "ready" ? 1 : 0;
+        const readyB = trainingReadiness(b.score) === "ready" ? 1 : 0;
+        return readyA - readyB || b.value - a.value || b.pp - a.pp;
+      })
+      .slice(0, 3)
+      .map((item) => ({ ...item, target }));
+  });
+
+  const uniquePrep = [];
+  const seenPrep = new Set();
+  for (const item of prepMaps) {
+    const key = mapDomKey(item.score);
+    if (seenPrep.has(key)) continue;
+    seenPrep.add(key);
+    uniquePrep.push(item);
+  }
+
+  return {
+    category,
+    targetMaps,
+    prepMaps: uniquePrep.slice(0, 8),
+    readyCount: uniquePrep.filter((item) => trainingReadiness(item.score) === "ready").length,
+    needsPrepCount: uniquePrep.filter((item) => trainingReadiness(item.score) !== "ready").length,
+  };
+}
+
+function renderTrainingGoal(goal) {
+  const goalValue = goal.goalType === "rank"
+    ? `#${escapeHtml(goal.targetRank || "-")}`
+    : formatPp(Number(goal.targetPp || 0));
+  return `
+    <div class="training-goal-pill">
+      <span>${escapeHtml(goal.skillLabel || goal.skillKey || "-")}</span>
+      <strong>${goalValue}</strong>
+      <small>${escapeHtml(formatDate(goal.createdAt))}</small>
+    </div>
+  `;
+}
+
+function renderTrainingPlanScore(item, mode, index) {
+  const state = trainingReadiness(item.score);
+  return `
+    <article class="training-plan-score">
+      <div>
+        <span class="training-status-pill ${state}">${escapeHtml(t(`skill.${state}`))}</span>
+        <strong>${escapeHtml(item.score.beatmapset?.title || item.score.beatmap?.title || "Unknown map")}</strong>
+        <small>${escapeHtml(item.score.beatmap?.version || "")}</small>
+      </div>
+      <div>
+        <b>${escapeHtml(trainingScoreLabel(item.score))}</b>
+        <small>${escapeHtml(scoreDifficultyLine(item.score))}</small>
+      </div>
+      <button class="detail-button" type="button" data-score-key="${escapeHtml(scoreDomKey(item.score))}">${escapeHtml(t("button.details"))}</button>
+    </article>
+  `;
+}
+
+function renderSkillTrainingPlanner(analysis, mode) {
+  const username = skillPlayer?.value.trim() || "";
+  const selected = selectedTrainingCategory(analysis);
+  const plan = buildTrainingPlan(analysis);
+  const goals = readTrainingGoals().filter((goal) => trainingGoalMatches(goal, username, mode));
+  const categories = [
+    { key: "weakest", label: `${t("skill.weakest")}: ${analysis.weakest?.label || "-"}` },
+    ...analysis.categories.map((category) => ({ key: category.key, label: category.label })),
+  ];
+
+  return `
+    <section class="training-planner">
+      <header>
+        <div>
+          <span>${escapeHtml(t("skill.trainingPlanner"))}</span>
+          <strong>${escapeHtml(selected?.label || "-")}</strong>
+        </div>
+        <p>${escapeHtml(t("skill.externalNote"))}</p>
+      </header>
+      <div class="training-planner-controls">
+        <label class="field">
+          <span>${escapeHtml(t("skill.trainingSkill"))}</span>
+          <select id="skillTrainingSkill">
+            ${categories.map((category) => `
+              <option value="${escapeHtml(category.key)}"${skillTrainingState.skillKey === category.key ? " selected" : ""}>${escapeHtml(category.label)}</option>
+            `).join("")}
+          </select>
+        </label>
+        <label class="field">
+          <span>${escapeHtml(t("skill.goalType"))}</span>
+          <select id="skillGoalType">
+            <option value="pp"${skillTrainingState.goalType === "pp" ? " selected" : ""}>${escapeHtml(t("skill.goalPpOption"))}</option>
+            <option value="rank"${skillTrainingState.goalType === "rank" ? " selected" : ""}>${escapeHtml(t("skill.goalRankOption"))}</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>${escapeHtml(t("skill.goalPp"))}</span>
+          <input id="skillGoalPp" type="number" min="0" step="1" value="${escapeHtml(skillTrainingState.targetPp)}" />
+        </label>
+        <label class="field">
+          <span>${escapeHtml(t("skill.goalRank"))}</span>
+          <input id="skillGoalRank" type="number" min="1" step="1" value="${escapeHtml(skillTrainingState.targetRank)}" />
+        </label>
+        <button class="ghost-button" type="button" data-skill-training="refresh">${escapeHtml(t("skill.updatePlan"))}</button>
+        <button class="primary-button compact" type="button" data-skill-training="save">${escapeHtml(t("skill.saveGoal"))}</button>
+      </div>
+      ${skillTrainingState.goalType === "rank" ? `<p class="compare-muted">${escapeHtml(t("skill.ppProxyNote"))}</p>` : ""}
+      <div class="training-plan-summary">
+        ${renderPassStat(t("skill.targetCount"), formatNumber(plan.targetMaps.length))}
+        ${renderPassStat(t("skill.prepCount"), formatNumber(plan.prepMaps.length))}
+        ${renderPassStat(t("skill.readyCount"), formatNumber(plan.readyCount))}
+        ${renderPassStat(t("skill.needsPrep"), formatNumber(plan.needsPrepCount))}
+      </div>
+      <div class="training-map-plan">
+        <section>
+          <h3>${escapeHtml(t("skill.targetMaps"))}</h3>
+          ${plan.targetMaps.length
+            ? plan.targetMaps.map((item, index) => renderCompareScoreCard(item.score, mode, index)).join("")
+            : `<div class="compare-empty">${escapeHtml(t("skill.noTrainingMaps"))}</div>`}
+        </section>
+        <section>
+          <h3>${escapeHtml(t("skill.prepMaps"))}</h3>
+          ${plan.prepMaps.length
+            ? plan.prepMaps.map((item, index) => renderTrainingPlanScore(item, mode, index)).join("")
+            : `<div class="compare-empty">${escapeHtml(t("skill.noTrainingMaps"))}</div>`}
+        </section>
+      </div>
+      <section class="training-goals-list">
+        <h3>${escapeHtml(t("skill.savedGoals"))}</h3>
+        ${goals.length ? goals.map(renderTrainingGoal).join("") : `<div class="compare-empty">${escapeHtml(t("skill.noSavedGoals"))}</div>`}
+      </section>
+    </section>
+  `;
+}
+
 function renderSkillTreeResults(data, mode) {
   if (!skillTreeOutput) return;
+  latestSkillTreeData = data;
+  latestSkillTreeMode = mode;
   const scores = uniqueScores(data.passScores || data.scores || allScoresFromData(data))
     .filter((score) => scoreTimeValue(score) || scorePpValue(score) || passPpValue(score));
   if (!scores.length) {
@@ -3740,6 +4004,8 @@ function renderSkillTreeResults(data, mode) {
       </section>
 
       ${renderSkillStarOverview(scores)}
+
+      ${renderSkillTrainingPlanner(analysis, mode)}
 
       ${renderSkillGraph(analysis)}
 
@@ -4451,8 +4717,53 @@ timeTravelView?.addEventListener("keydown", (event) => {
 skillRun?.addEventListener("click", () => void runSkillTree());
 
 skillTreeView?.addEventListener("click", (event) => {
+  const trainingButton = event.target.closest("button[data-skill-training]");
+  if (trainingButton) {
+    skillTrainingState = {
+      skillKey: document.querySelector("#skillTrainingSkill")?.value || skillTrainingState.skillKey,
+      goalType: document.querySelector("#skillGoalType")?.value || skillTrainingState.goalType,
+      targetPp: document.querySelector("#skillGoalPp")?.value || skillTrainingState.targetPp,
+      targetRank: document.querySelector("#skillGoalRank")?.value || skillTrainingState.targetRank,
+    };
+
+    if (trainingButton.dataset.skillTraining === "save") {
+      const analysis = latestSkillTreeData ? analyzeSkillTree(filterScoresByStars(
+        uniqueScores(latestSkillTreeData.passScores || latestSkillTreeData.scores || allScoresFromData(latestSkillTreeData)),
+        readSkillStarRange().minStars,
+        readSkillStarRange().maxStars,
+      )) : null;
+      const selected = analysis ? selectedTrainingCategory(analysis) : null;
+      const goal = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        username: skillPlayer?.value.trim() || "",
+        mode: latestSkillTreeMode,
+        skillKey: selected?.key || skillTrainingState.skillKey,
+        skillLabel: selected?.label || skillTrainingState.skillKey,
+        goalType: skillTrainingState.goalType,
+        targetPp: skillTrainingState.targetPp,
+        targetRank: skillTrainingState.targetRank,
+        createdAt: new Date().toISOString(),
+      };
+      writeTrainingGoals([goal, ...readTrainingGoals()]);
+    }
+
+    if (latestSkillTreeData) renderSkillTreeResults(latestSkillTreeData, latestSkillTreeMode);
+    return;
+  }
+
   const detailButton = event.target.closest("button[data-score-key]");
   if (detailButton) renderMapDetails(detailButton.dataset.scoreKey);
+});
+
+skillTreeView?.addEventListener("change", (event) => {
+  if (!event.target.closest("#skillTrainingSkill, #skillGoalType")) return;
+  skillTrainingState = {
+    skillKey: document.querySelector("#skillTrainingSkill")?.value || skillTrainingState.skillKey,
+    goalType: document.querySelector("#skillGoalType")?.value || skillTrainingState.goalType,
+    targetPp: document.querySelector("#skillGoalPp")?.value || skillTrainingState.targetPp,
+    targetRank: document.querySelector("#skillGoalRank")?.value || skillTrainingState.targetRank,
+  };
+  if (latestSkillTreeData) renderSkillTreeResults(latestSkillTreeData, latestSkillTreeMode);
 });
 
 skillTreeView?.addEventListener("keydown", (event) => {
@@ -4460,6 +4771,16 @@ skillTreeView?.addEventListener("keydown", (event) => {
   const input = event.target.closest("input");
   if (!input) return;
   event.preventDefault();
+  if (event.target.closest(".training-planner")) {
+    skillTrainingState = {
+      skillKey: document.querySelector("#skillTrainingSkill")?.value || skillTrainingState.skillKey,
+      goalType: document.querySelector("#skillGoalType")?.value || skillTrainingState.goalType,
+      targetPp: document.querySelector("#skillGoalPp")?.value || skillTrainingState.targetPp,
+      targetRank: document.querySelector("#skillGoalRank")?.value || skillTrainingState.targetRank,
+    };
+    if (latestSkillTreeData) renderSkillTreeResults(latestSkillTreeData, latestSkillTreeMode);
+    return;
+  }
   void runSkillTree();
 });
 
