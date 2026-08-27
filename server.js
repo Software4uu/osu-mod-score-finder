@@ -22,6 +22,7 @@ const ppCachePath = path.join(dataDir, "score-pp-cache.json");
 const osuApiBase = "https://osu.ppy.sh/api/v2";
 const tokenUrl = "https://osu.ppy.sh/oauth/token";
 const huisApiBase = "https://api.pp.huismetbenen.nl";
+const osuTrackApiBase = "https://osutrack-api.ameo.dev";
 const huisLiveReworkId = 1;
 const githubOwner = "Software4uu";
 const githubRepo = "osu-mod-score-finder";
@@ -34,6 +35,7 @@ const osuApiMinIntervalMs = 1_050;
 const osuApiMaxRetries = 3;
 const authoritativePpSources = new Set(["osu-api", "huismetbenen-live"]);
 const ppCacheFreshMs = 24 * 60 * 60 * 1000;
+const osuTrackCacheFreshMs = 6 * 60 * 60 * 1000;
 
 loadDotEnv();
 
@@ -41,6 +43,7 @@ const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "127.0.0.1";
 let tokenCache = null;
 const ppProgressJobs = new Map();
+const osuTrackHistoryCache = new Map();
 const osuApiQueue = [];
 let osuApiQueueRunning = false;
 let osuApiQueueSequence = 0;
@@ -1449,6 +1452,110 @@ async function getHuisTopRanks(userId, mode) {
   return scores.map(huisScoreToAppScore);
 }
 
+function osuTrackMode(mode) {
+  if (mode === "taiko") return "1";
+  if (mode === "fruits") return "2";
+  if (mode === "mania") return "3";
+  return "0";
+}
+
+function firstNumber(source, keys) {
+  for (const key of keys) {
+    const value = Number(source?.[key]);
+    if (Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+function normalizeOsuTrackSnapshot(row) {
+  const capturedAt = row?.timestamp || row?.date || row?.created_at || row?.time || null;
+  const counts = {
+    ssh: firstNumber(row, ["count_rank_ssh", "ssh", "rank_ssh"]) || 0,
+    ss: firstNumber(row, ["count_rank_ss", "ss", "rank_ss"]) || 0,
+    sh: firstNumber(row, ["count_rank_sh", "sh", "rank_sh"]) || 0,
+    s: firstNumber(row, ["count_rank_s", "s", "rank_s"]) || 0,
+    a: firstNumber(row, ["count_rank_a", "a", "rank_a"]) || 0,
+  };
+  const hitCounts = {
+    count_300: firstNumber(row, ["count300", "count_300", "count300_total"]) || 0,
+    count_100: firstNumber(row, ["count100", "count_100", "count100_total"]) || 0,
+    count_50: firstNumber(row, ["count50", "count_50", "count50_total"]) || 0,
+  };
+  const totalHits =
+    firstNumber(row, ["total_hits", "totalHits"]) ||
+    hitCounts.count_300 + hitCounts.count_100 + hitCounts.count_50 ||
+    null;
+
+  return {
+    source: "osu!track",
+    captured_at: capturedAt,
+    pp: firstNumber(row, ["pp_raw", "pp", "performance_points"]),
+    global_rank: firstNumber(row, ["pp_rank", "global_rank", "rank"]),
+    ranked_score: firstNumber(row, ["ranked_score", "rankedScore"]),
+    total_score: firstNumber(row, ["total_score", "totalScore"]),
+    hit_accuracy: firstNumber(row, ["accuracy", "hit_accuracy"]),
+    play_count: firstNumber(row, ["playcount", "play_count", "playCount"]),
+    total_hits: totalHits,
+    max_combo: firstNumber(row, ["max_combo", "maximum_combo", "maximumCombo"]),
+    grade_counts: counts,
+    raw: row,
+  };
+}
+
+async function getOsuTrackStatsHistory(userId, mode) {
+  if (!Number.isFinite(Number(userId))) {
+    return { source: "osu!track", available: false, scores: [], warning: "No numeric osu! user id." };
+  }
+
+  const cacheKey = `${osuTrackMode(mode)}:${userId}`;
+  const cached = osuTrackHistoryCache.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < osuTrackCacheFreshMs) return cached.value;
+
+  const query = new URLSearchParams({
+    user: String(userId),
+    mode: osuTrackMode(mode),
+  });
+  const url = `${osuTrackApiBase}/stats_history?${query.toString()}`;
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        accept: "application/json",
+        "user-agent": "osu-mod-score-finder-beta",
+      },
+      signal: AbortSignal.timeout(9_000),
+    });
+
+    if (!response.ok) {
+      throw statusError(response.status, `osu!track returned ${response.status}`);
+    }
+
+    const data = await response.json();
+    const rows = Array.isArray(data) ? data : Array.isArray(data?.stats) ? data.stats : Array.isArray(data?.history) ? data.history : [];
+    const value = {
+      source: "osu!track",
+      available: rows.length > 0,
+      fetched_at: new Date().toISOString(),
+      scores: rows
+        .map(normalizeOsuTrackSnapshot)
+        .filter((item) => item.captured_at && (item.pp || item.global_rank))
+        .sort((a, b) => Date.parse(a.captured_at) - Date.parse(b.captured_at)),
+    };
+    osuTrackHistoryCache.set(cacheKey, { fetchedAt: Date.now(), value });
+    return value;
+  } catch (error) {
+    const value = {
+      source: "osu!track",
+      available: false,
+      fetched_at: new Date().toISOString(),
+      scores: [],
+      warning: error.message || String(error),
+    };
+    osuTrackHistoryCache.set(cacheKey, { fetchedAt: Date.now(), value });
+    return value;
+  }
+}
+
 function compactScore(score) {
   const normalizedMods = normalizeMods(score.mods);
   const scoreForRules = {
@@ -1640,6 +1747,7 @@ async function handleSearch(req, res) {
   const rankedOnly = boolParam(url.searchParams, "rankedOnly", true);
   const includeLoved = boolParam(url.searchParams, "includeLoved", false);
   const includeUnrankedPasses = boolParam(url.searchParams, "includeUnrankedPasses", false);
+  const includeTimeSources = boolParam(url.searchParams, "timeTravel", false);
   const selectedMods = parseSelectedMods(url.searchParams.get("mods"));
   const ppJobId = ppProgressId(url.searchParams.get("ppJobId"));
 
@@ -1772,6 +1880,11 @@ async function handleSearch(req, res) {
 
   const improvements = buildImprovements(filteredCandidates, improvementScope, bestMode).slice(0, 50);
   const calendar = buildCalendar(filteredCandidates, sort);
+  const timeSources = includeTimeSources
+    ? {
+        osutrack: await getOsuTrackStatsHistory(user.id, mode),
+      }
+    : null;
 
   if (dateFilter === "today") {
     filteredCandidates = filteredCandidates.filter(isTodayScore);
@@ -1901,6 +2014,7 @@ async function handleSearch(req, res) {
     },
     improvements,
     calendar,
+    timeSources,
   });
 }
 

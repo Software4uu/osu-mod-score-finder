@@ -61,7 +61,19 @@ http://localhost:5173/callback
 - Calendar tab with a month grid, played days, and all stored scores for a selected day
 - Calendar PP range filter plus orange highlight for the day with the month's top PP play
 - Map detail view with all stored tries on the same map difficulty
+- Time Travel reconstructs older profile states from local scores and labels every data source clearly
+- Optional osu!track history snapshots are used for historical PP, rank, accuracy, score, play count, hit count, and grade-count values when available
 - Built-in GitHub update check that can start the local updater without touching `.env`, `data/`, local score databases, or osu! folders
+
+## Time Travel data sources
+
+Time Travel combines multiple sources and labels them in the UI:
+
+- `osu!api`: current official profile values. These are used for today or the newest known day when available.
+- `osu!track`: historical public snapshots for PP, global rank, accuracy, ranked score, total score, play count, hit counts, and grade counts when that player was tracked there.
+- `local reconstruction`: locally stored scores are replayed up to the selected date, then PP is restacked with the normal osu! weighting model.
+
+Historical ranks are still estimates when no external snapshot exists for that date. osu! does not provide a complete historical global ranking for arbitrary past days.
 
 ## Start
 
@@ -158,6 +170,8 @@ http://localhost:5173/callback
 - Kalender-Tab mit Monatsraster, gespielten Tagen und allen gespeicherten Scores eines Tages
 - Kalender-PP-Range-Filter plus orange Markierung fuer den Tag mit dem Top-PP-Play des Monats
 - Map-Detailansicht mit allen gespeicherten Tries auf derselben Difficulty
+- Time Travel rekonstruiert alte Profilstaende aus lokalen Scores und zeigt pro Wert die Datenquelle an
+- Optionale osu!track-History-Snapshots werden fuer historische PP-, Rank-, Accuracy-, Score-, Playcount-, Hitcount- und Grade-Count-Werte genutzt, wenn vorhanden
 - Eingebauter GitHub-Update-Check, der den lokalen Updater starten kann, ohne `.env`, `data/`, lokale Score-Datenbanken oder osu!-Ordner anzufassen
 
 ## Starten
@@ -176,6 +190,16 @@ npm start
 Danach öffnen:
 
 http://127.0.0.1:5173
+
+## Time-Travel-Datenquellen
+
+Time Travel kombiniert mehrere Quellen und zeigt diese in der UI an:
+
+- `osu!api`: aktuelle offizielle Profilwerte. Diese werden fuer heute bzw. den neuesten bekannten Tag genutzt, wenn sie erreichbar sind.
+- `osu!track`: historische oeffentliche Snapshots fuer PP, globalen Rank, Accuracy, Ranked Score, Total Score, Playcount, Hitcounts und Grade Counts, wenn der Spieler dort getrackt wurde.
+- `lokale Rekonstruktion`: lokal gespeicherte Scores werden bis zum ausgewaehlten Datum nachgespielt und mit dem normalen osu!-Gewichtungsmodell neu gestapelt.
+
+Historische Ranks bleiben geschaetzt, wenn fuer das Datum kein externer Snapshot existiert. osu! stellt keine vollstaendige historische globale Rangliste fuer beliebige alte Tage bereit.
 
 ## Updates
 
