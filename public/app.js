@@ -7,6 +7,7 @@ const results = document.querySelector("#results");
 const passes = document.querySelector("#passes");
 const improvements = document.querySelector("#improvements");
 const calendar = document.querySelector("#calendar");
+const compareView = document.querySelector("#compareView");
 const detailsPanel = document.querySelector("#detailsPanel");
 const summary = document.querySelector("#summary");
 const submitButton = document.querySelector("#submitButton");
@@ -14,6 +15,17 @@ const modButtons = document.querySelector("#modButtons");
 const clearMods = document.querySelector("#clearMods");
 const viewTabs = document.querySelector(".view-tabs");
 const languageSelect = document.querySelector("#languageSelect");
+const menuToggle = document.querySelector("#menuToggle");
+const menuClose = document.querySelector("#menuClose");
+const sideMenu = document.querySelector("#sideMenu");
+const menuBackdrop = document.querySelector("#menuBackdrop");
+const comparePlayerA = document.querySelector("#comparePlayerA");
+const comparePlayerB = document.querySelector("#comparePlayerB");
+const compareRun = document.querySelector("#compareRun");
+const compareReset = document.querySelector("#compareReset");
+const mapComparePlayerA = document.querySelector("#mapComparePlayerA");
+const mapComparePlayerB = document.querySelector("#mapComparePlayerB");
+const mapCompareRun = document.querySelector("#mapCompareRun");
 
 const selectedMods = new Set();
 const languageStorageKey = "osu-mod-score-finder-language";
@@ -35,6 +47,9 @@ let calendarLoadingMonth = "";
 let latestUpdateInfo = null;
 let startupSyncTimer = null;
 let latestStartupSync = null;
+
+document.body.dataset.activeView = activeView;
+document.body.dataset.activeSection = "home";
 
 const modNames = {
   NM: "No Mod",
@@ -1318,7 +1333,7 @@ function renderStartupSync(data = {}) {
       ? `<p class="startup-sync-warning">${escapeHtml(data.error)}</p>`
       : "";
 
-  startupSync.classList.remove("hidden");
+  startupSync.classList.toggle("hidden", document.body.dataset.activeSection !== "home");
   startupSync.innerHTML = `
     <div class="startup-sync-head">
       <div>
@@ -2468,6 +2483,399 @@ function startLiveScanner() {
   liveTimer = setInterval(runLiveScan, 30_000);
 }
 
+function compareParams(username) {
+  const params = new URLSearchParams();
+  params.set("username", username);
+  params.set("type", "recent");
+  params.set("mode", "osu");
+  params.set("sort", "pp");
+  params.set("match", "contains");
+  params.set("pages", "2");
+  params.set("dateFilter", "all");
+  params.set("rankMode", "none");
+  params.set("rankFrom", "1");
+  params.set("rankTo", "200");
+  params.set("limit", "200");
+  params.set("bestMode", "pp");
+  params.set("improvementScope", "lastTry");
+  params.set("mods", "");
+  params.set("includeLazer", "1");
+  params.set("useApiV2", "1");
+  params.set("includeHuis", "1");
+  params.set("recalculatePp", "1");
+  params.set("bestPerMap", "1");
+  params.set("passesOnly", "1");
+  params.set("rankedOnly", "1");
+  params.set("includeLoved", "1");
+  params.set("includeUnrankedPasses", "0");
+  return params;
+}
+
+async function fetchCompareData(username) {
+  const response = await fetch(`/api/search?${compareParams(username).toString()}`);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Vergleich konnte nicht geladen werden.");
+  return data;
+}
+
+function compareOutput(mode = "vs") {
+  return compareView?.querySelector(`[data-compare-placeholder="${mode}"]`);
+}
+
+function setCompareLoading(mode, message, detail = "Bitte kurz warten, die lokale Datenbank und erreichbare API-Daten werden abgefragt.") {
+  const output = compareOutput(mode);
+  if (!output) return;
+  output.classList.remove("hidden");
+  output.innerHTML = `
+    <div>
+      <strong>${escapeHtml(message)}</strong>
+      <p>${escapeHtml(detail)}</p>
+    </div>
+  `;
+}
+
+function setCompareError(mode, error) {
+  const output = compareOutput(mode);
+  if (!output) return;
+  output.classList.remove("hidden");
+  output.innerHTML = `
+    <div>
+      <strong>Vergleich fehlgeschlagen</strong>
+      <p>${escapeHtml(error.message || String(error))}</p>
+    </div>
+  `;
+}
+
+function beatmapNumber(score, keys) {
+  const beatmap = score?.beatmap || {};
+  for (const key of keys) {
+    const value = Number(beatmap[key]);
+    if (Number.isFinite(value) && value > 0) return value;
+  }
+  return 0;
+}
+
+function average(values) {
+  const filtered = values.map(Number).filter((value) => Number.isFinite(value) && value > 0);
+  return filtered.length ? filtered.reduce((total, value) => total + value, 0) / filtered.length : 0;
+}
+
+function topMods(scores, limit = 4) {
+  const counts = new Map();
+  for (const score of scores) {
+    const mods = score.normalized_mods?.length ? score.normalized_mods : [{ acronym: "NM" }];
+    for (const mod of mods) {
+      const acronym = String(mod.acronym || mod || "NM").toUpperCase();
+      counts.set(acronym, (counts.get(acronym) || 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([mod, count]) => `${mod} ${count}x`)
+    .join(", ") || "-";
+}
+
+function compareSummary(data) {
+  const scores = data.scores || [];
+  const user = data.user || {};
+  const stats = user.statistics || {};
+  return {
+    user,
+    scores,
+    count: scores.length,
+    bestPp: scores.reduce((best, score) => Math.max(best, scorePpValue(score)), 0),
+    avgPp: average(scores.map(scorePpValue)),
+    avgStars: average(scores.map(beatmapStarValue)),
+    avgAcc: average(scores.map(accuracyPercentValue)),
+    avgAr: average(scores.map((score) => beatmapNumber(score, ["ar", "approach_rate"]))) || 0,
+    avgOd: average(scores.map((score) => beatmapNumber(score, ["accuracy", "od", "overall_difficulty"]))) || 0,
+    avgCs: average(scores.map((score) => beatmapNumber(score, ["cs", "circle_size"]))) || 0,
+    topMods: topMods(scores),
+    profilePp: Number(stats.pp || stats.pp_raw || 0),
+    globalRank: Number(stats.global_rank || 0),
+    playCount: Number(stats.play_count || 0),
+    hitAccuracy: Number(stats.hit_accuracy || 0),
+  };
+}
+
+function renderCompareMetric(label, left, right, format = (value) => formatNumber(value)) {
+  return `
+    <div class="compare-metric-row">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(format(left))}</strong>
+      <strong>${escapeHtml(format(right))}</strong>
+    </div>
+  `;
+}
+
+function renderMiniScores(scores, mode) {
+  return scores.slice(0, 8).map((score, index) => {
+    const set = score.beatmapset || {};
+    const beatmap = score.beatmap || {};
+    const title = `${set.artist || beatmap.artist || "?"} - ${set.title || beatmap.title || "?"}`;
+    return `
+      <div class="compare-mini-score">
+        <span>#${index + 1}</span>
+        <div>
+          <strong>${escapeHtml(title)}</strong>
+          <small>${escapeHtml(beatmap.version || "Difficulty")} · ${formatPp(scorePpValue(score))} · ${formatAccuracy(score.accuracy)}</small>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function resetCompareOutput(mode) {
+  const output = compareOutput(mode);
+  if (!output) return;
+  output.innerHTML = mode === "maps"
+    ? `
+      <div>
+        <strong>Map-Compare Ergebnisbereich</strong>
+        <p>Hier landen gemeinsame Maps, direkte Score-Unterschiede und optional spaeter die Spieler ueber und unter deinem Rang.</p>
+      </div>
+    `
+    : `
+      <div>
+        <strong>VS Ergebnisbereich</strong>
+        <p>Hier landen die geladenen Top-Passes beider Spieler, Profilwerte und die wichtigsten Unterschiede.</p>
+      </div>
+    `;
+}
+
+function renderVsResults(leftData, rightData) {
+  const left = compareSummary(leftData);
+  const right = compareSummary(rightData);
+  const output = compareOutput("vs");
+  if (!output) return;
+
+  output.innerHTML = `
+    <div class="compare-results">
+      <div class="compare-result-head">
+        <div>
+          <span>Spieler A</span>
+          <strong>${escapeHtml(left.user.username || "-")}</strong>
+        </div>
+        <div>
+          <span>Spieler B</span>
+          <strong>${escapeHtml(right.user.username || "-")}</strong>
+        </div>
+      </div>
+      <div class="compare-metrics">
+        ${renderCompareMetric("Profil PP", left.profilePp, right.profilePp, (value) => value ? formatPp(value) : "-")}
+        ${renderCompareMetric("Global Rank", left.globalRank, right.globalRank, (value) => value ? `#${formatNumber(value)}` : "-")}
+        ${renderCompareMetric("Topplay", left.bestPp, right.bestPp, formatPp)}
+        ${renderCompareMetric("Ø PP", left.avgPp, right.avgPp, formatPp)}
+        ${renderCompareMetric("Ø Sterne", left.avgStars, right.avgStars, formatStars)}
+        ${renderCompareMetric("Ø Accuracy", left.avgAcc, right.avgAcc, (value) => `${value.toFixed(2)}%`)}
+        ${renderCompareMetric("Ø AR", left.avgAr, right.avgAr, (value) => value ? value.toFixed(2) : "-")}
+        ${renderCompareMetric("Ø OD", left.avgOd, right.avgOd, (value) => value ? value.toFixed(2) : "-")}
+        ${renderCompareMetric("Ø CS", left.avgCs, right.avgCs, (value) => value ? value.toFixed(2) : "-")}
+      </div>
+      <div class="compare-mod-row">
+        <div><span>Haefigste Mods</span><strong>${escapeHtml(left.topMods)}</strong></div>
+        <div><span>Haefigste Mods</span><strong>${escapeHtml(right.topMods)}</strong></div>
+      </div>
+      <div class="compare-score-columns">
+        <section>${renderMiniScores(left.scores, "osu")}</section>
+        <section>${renderMiniScores(right.scores, "osu")}</section>
+      </div>
+    </div>
+  `;
+}
+
+function commonMapRows(leftScores, rightScores) {
+  const rightByMap = new Map();
+  for (const score of rightScores) {
+    const key = mapDomKey(score);
+    const current = rightByMap.get(key);
+    if (!current || scorePpValue(score) > scorePpValue(current)) rightByMap.set(key, score);
+  }
+
+  return leftScores
+    .map((leftScore) => ({ leftScore, rightScore: rightByMap.get(mapDomKey(leftScore)) }))
+    .filter((row) => row.rightScore)
+    .sort((a, b) => Math.abs(scorePpValue(b.leftScore) - scorePpValue(b.rightScore)) - Math.abs(scorePpValue(a.leftScore) - scorePpValue(a.rightScore)));
+}
+
+function renderMapCompareResults(leftData, rightData) {
+  const output = compareOutput("maps");
+  if (!output) return;
+
+  const rows = commonMapRows(leftData.scores || [], rightData.scores || []).slice(0, 50);
+  const neighbors = document.querySelector("#mapCompareNeighbors")?.value || "5";
+  output.innerHTML = `
+    <div class="compare-results">
+      <div class="compare-result-head">
+        <div>
+          <span>Gemeinsame Maps</span>
+          <strong>${formatNumber(rows.length)} gefunden</strong>
+        </div>
+        <div>
+          <span>Rangumfeld</span>
+          <strong>${escapeHtml(neighbors)} ueber / ${escapeHtml(neighbors)} unter vorbereitet</strong>
+        </div>
+      </div>
+      <div class="map-compare-table">
+        ${
+          rows.length
+            ? rows.map(({ leftScore, rightScore }) => {
+                const set = leftScore.beatmapset || {};
+                const beatmap = leftScore.beatmap || {};
+                const leftPp = scorePpValue(leftScore);
+                const rightPp = scorePpValue(rightScore);
+                return `
+                  <div class="map-compare-row">
+                    <div>
+                      <strong>${escapeHtml(set.artist || beatmap.artist || "?")} - ${escapeHtml(set.title || beatmap.title || "?")}</strong>
+                      <small>${escapeHtml(beatmap.version || "Difficulty")}</small>
+                    </div>
+                    <span>${formatPp(leftPp)} · ${formatAccuracy(leftScore.accuracy)}</span>
+                    <span>${formatPp(rightPp)} · ${formatAccuracy(rightScore.accuracy)}</span>
+                    <b>${leftPp >= rightPp ? "+" : ""}${(leftPp - rightPp).toFixed(2)}pp</b>
+                  </div>
+                `;
+              }).join("")
+            : `<div class="compare-empty">Keine gemeinsamen Maps in den geladenen Top-/gespeicherten Scores gefunden.</div>`
+        }
+      </div>
+    </div>
+  `;
+}
+
+async function runVsCompare() {
+  const leftName = comparePlayerA?.value.trim() || "";
+  const rightName = comparePlayerB?.value.trim() || "";
+  if (!leftName || !rightName) {
+    setCompareError("vs", new Error("Bitte beide Spielernamen eintragen."));
+    return;
+  }
+
+  setCompareLoading("vs", "VS Vergleich wird geladen...");
+  try {
+    const [leftData, rightData] = await Promise.all([fetchCompareData(leftName), fetchCompareData(rightName)]);
+    renderVsResults(leftData, rightData);
+  } catch (error) {
+    setCompareError("vs", error);
+  }
+}
+
+async function runMapCompare() {
+  const leftName = mapComparePlayerA?.value.trim() || comparePlayerA?.value.trim() || "";
+  const rightName = mapComparePlayerB?.value.trim() || comparePlayerB?.value.trim() || "";
+  if (!leftName || !rightName) {
+    setCompareError("maps", new Error("Bitte beide Spielernamen eintragen."));
+    return;
+  }
+
+  setCompareLoading("maps", "Map Compare wird geladen...", "Gemeinsame Maps brauchen etwas laenger, weil beide Spieler mit bis zu 200 Scores abgeglichen werden.");
+  try {
+    const [leftData, rightData] = await Promise.all([fetchCompareData(leftName), fetchCompareData(rightName)]);
+    renderMapCompareResults(leftData, rightData);
+  } catch (error) {
+    setCompareError("maps", error);
+  }
+}
+
+function setMenuOpen(open) {
+  document.body.classList.toggle("menu-open", open);
+  menuToggle?.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function setActiveSection(section) {
+  const nextSection = section === "compare" ? "compare" : "home";
+  document.body.dataset.activeSection = nextSection;
+  compareView?.classList.toggle("hidden", nextSection !== "compare");
+
+  const showHome = nextSection === "home";
+  form.classList.toggle("hidden", !showHome);
+  document.querySelector(".notice")?.classList.toggle("hidden", !showHome);
+  startupSync.classList.toggle("hidden", !showHome || !latestStartupSync);
+  summary.classList.toggle("hidden", !showHome || !lastSearchData);
+  viewTabs.classList.toggle("hidden", !showHome);
+  results.classList.toggle("hidden", !showHome || activeView !== "scores");
+  passes.classList.toggle("hidden", !showHome || activeView !== "passes");
+  improvements.classList.toggle("hidden", !showHome || activeView !== "improvements");
+  calendar.classList.toggle("hidden", !showHome || activeView !== "calendar");
+}
+
+menuToggle?.addEventListener("click", () => setMenuOpen(!document.body.classList.contains("menu-open")));
+menuClose?.addEventListener("click", () => setMenuOpen(false));
+menuBackdrop?.addEventListener("click", () => setMenuOpen(false));
+
+sideMenu?.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-section]");
+  if (!button) return;
+
+  for (const item of sideMenu.querySelectorAll("[data-section]")) {
+    item.classList.toggle("active", item === button);
+  }
+
+  setActiveSection(button.dataset.section);
+  setMenuOpen(false);
+});
+
+compareView?.addEventListener("click", (event) => {
+  if (event.target.closest("#compareRun")) {
+    void runVsCompare();
+    return;
+  }
+
+  if (event.target.closest("#mapCompareRun")) {
+    void runMapCompare();
+    return;
+  }
+
+  if (event.target.closest("#compareReset")) {
+    if (comparePlayerA) comparePlayerA.value = "";
+    if (comparePlayerB) comparePlayerB.value = "";
+    if (mapComparePlayerA) mapComparePlayerA.value = "";
+    if (mapComparePlayerB) mapComparePlayerB.value = "";
+    resetCompareOutput("vs");
+    resetCompareOutput("maps");
+    return;
+  }
+
+  const button = event.target.closest("button[data-compare-mode]");
+  if (!button) return;
+
+  const mode = button.dataset.compareMode === "maps" ? "maps" : "vs";
+  if (mode === "maps") {
+    if (mapComparePlayerA && !mapComparePlayerA.value && comparePlayerA?.value) mapComparePlayerA.value = comparePlayerA.value;
+    if (mapComparePlayerB && !mapComparePlayerB.value && comparePlayerB?.value) mapComparePlayerB.value = comparePlayerB.value;
+  } else {
+    if (comparePlayerA && !comparePlayerA.value && mapComparePlayerA?.value) comparePlayerA.value = mapComparePlayerA.value;
+    if (comparePlayerB && !comparePlayerB.value && mapComparePlayerB?.value) comparePlayerB.value = mapComparePlayerB.value;
+  }
+
+  for (const tab of compareView.querySelectorAll("button[data-compare-mode]")) {
+    tab.classList.toggle("active", tab === button);
+  }
+
+  for (const view of compareView.querySelectorAll("[data-compare-view]")) {
+    view.classList.toggle("active", view.dataset.compareView === mode);
+  }
+
+  for (const placeholder of compareView.querySelectorAll("[data-compare-placeholder]")) {
+    placeholder.classList.toggle("hidden", placeholder.dataset.comparePlaceholder !== mode);
+  }
+});
+
+compareView?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  const input = event.target.closest("input");
+  if (!input) return;
+
+  event.preventDefault();
+  const activeMode = compareView.querySelector("button[data-compare-mode].active")?.dataset.compareMode === "maps" ? "maps" : "vs";
+  if (activeMode === "maps") {
+    void runMapCompare();
+  } else {
+    void runVsCompare();
+  }
+});
+
 modButtons.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-mods]");
   if (!button) return;
@@ -2501,6 +2909,7 @@ viewTabs.addEventListener("click", (event) => {
   }
 
   activeView = button.dataset.view;
+  document.body.dataset.activeView = activeView;
   results.classList.toggle("hidden", activeView !== "scores");
   passes.classList.toggle("hidden", activeView !== "passes");
   improvements.classList.toggle("hidden", activeView !== "improvements");

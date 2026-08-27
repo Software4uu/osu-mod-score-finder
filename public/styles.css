@@ -1500,3 +1500,697 @@ select:focus {
     height: 190px;
   }
 }
+
+/* Quiet osu!-inspired black/pink beta theme. */
+:root {
+  --bg: #07080c;
+  --panel: #11141c;
+  --panel-soft: #181c26;
+  --line: #293040;
+  --pink: #ff4fa3;
+  --cyan: #8a95a8;
+  --green: #86df72;
+  --shadow: 0 18px 46px rgba(0, 0, 0, 0.34);
+}
+
+body {
+  background:
+    radial-gradient(circle at 50% -16rem, rgba(255, 79, 163, 0.12), transparent 34rem),
+    linear-gradient(180deg, #111019 0, #07080c 24rem, #07080c 100%);
+}
+
+.workspace {
+  width: min(1240px, 100%);
+}
+
+.eyebrow {
+  color: var(--pink);
+}
+
+h1 {
+  color: #f7f7fb;
+  text-shadow: none;
+}
+
+.search-panel,
+.notice,
+.summary,
+.pp-progress-card,
+.passes-panel,
+.score-card,
+.improvement-card,
+.calendar-month-panel,
+.calendar-day-head,
+.details-card,
+.empty-state,
+.error-state,
+.loading-state {
+  border-color: rgba(148, 156, 176, 0.18);
+  background: rgba(17, 20, 28, 0.94);
+  box-shadow: var(--shadow);
+}
+
+.search-panel {
+  border-top-color: rgba(255, 79, 163, 0.36);
+}
+
+input,
+select,
+.purpose-field {
+  border-color: rgba(148, 156, 176, 0.18);
+  background: #090c13;
+}
+
+input:focus,
+select:focus {
+  border-color: rgba(255, 79, 163, 0.72);
+  box-shadow: 0 0 0 3px rgba(255, 79, 163, 0.13);
+}
+
+.quick-mods button,
+.ghost-button,
+.view-tabs button,
+.status-pill {
+  border-color: rgba(148, 156, 176, 0.18);
+  background: #171b25;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.quick-mods button:hover,
+.ghost-button:hover,
+.view-tabs button:hover {
+  border-color: rgba(255, 79, 163, 0.36);
+  background: #1d222e;
+}
+
+.quick-mods button.active,
+.view-tabs button.active {
+  border-color: rgba(255, 79, 163, 0.78);
+  background: rgba(255, 79, 163, 0.14);
+  color: #fff3f9;
+  box-shadow: none;
+}
+
+.primary-button {
+  background: linear-gradient(90deg, #ff4fa3, #ff7a86);
+  color: #08090d;
+  box-shadow: none;
+  transition:
+    transform 140ms ease,
+    filter 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.primary-button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+  box-shadow: 0 10px 26px rgba(255, 79, 163, 0.16);
+}
+
+.score-card {
+  border-left: 3px solid transparent;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    transform 140ms ease;
+}
+
+.score-card:hover {
+  border-color: rgba(148, 156, 176, 0.18);
+  border-left-color: rgba(255, 79, 163, 0.72);
+  background: #141824;
+  transform: translateY(-1px);
+}
+
+.score-side {
+  background: rgba(7, 9, 14, 0.54);
+}
+
+.pp {
+  color: var(--pink);
+  text-shadow: none;
+}
+
+.acc {
+  text-shadow: none;
+}
+
+.mod-badge,
+.client-stable,
+.client-lazer {
+  border-color: rgba(148, 156, 176, 0.18);
+  background: rgba(148, 156, 176, 0.08);
+  color: #e7ebf2;
+}
+
+.client-lazer {
+  border-color: rgba(255, 79, 163, 0.3);
+  background: rgba(255, 79, 163, 0.12);
+  color: #ffd7eb;
+}
+
+.pp-source,
+.notice strong {
+  color: #ffc252;
+}
+
+.pp-progress-bar i {
+  background: linear-gradient(90deg, #ff4fa3, #ff7a86);
+}
+
+.calendar-cell.selected {
+  border-color: rgba(255, 79, 163, 0.86);
+  box-shadow: 0 0 0 2px rgba(255, 79, 163, 0.14);
+}
+
+.details-backdrop {
+  background: rgba(2, 3, 7, 0.78);
+}
+
+.compare-view {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.compare-view.hidden {
+  display: none;
+}
+
+.compare-hero,
+.compare-panel,
+.compare-card,
+.compare-placeholder {
+  border: 1px solid rgba(148, 156, 176, 0.18);
+  border-radius: 8px;
+  background: rgba(17, 20, 28, 0.94);
+  box-shadow: var(--shadow);
+}
+
+.compare-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px;
+  border-top-color: rgba(255, 79, 163, 0.38);
+}
+
+.compare-hero h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(1.45rem, 2.6vw, 2.2rem);
+}
+
+.compare-hero p {
+  max-width: 680px;
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.compare-mode-tabs {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.compare-mode-tabs button {
+  min-height: 38px;
+  border: 1px solid rgba(148, 156, 176, 0.18);
+  border-radius: 7px;
+  background: #171b25;
+  color: var(--muted);
+  padding: 0 14px;
+  font-weight: 850;
+}
+
+.compare-mode-tabs button.active,
+.compare-mode-tabs button:hover {
+  border-color: rgba(255, 79, 163, 0.74);
+  background: rgba(255, 79, 163, 0.13);
+  color: #fff3f9;
+}
+
+.compare-grid {
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+  gap: 14px;
+}
+
+.compare-mode-view {
+  display: none;
+}
+
+.compare-mode-view.active {
+  display: grid;
+}
+
+.compare-panel {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+
+.compare-panel-head,
+.compare-card {
+  display: grid;
+  gap: 4px;
+}
+
+.compare-panel-head span,
+.compare-card span {
+  color: var(--pink);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.compare-panel-head strong,
+.compare-card strong,
+.compare-placeholder strong {
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.compare-player-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.compare-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.compare-actions .primary-button {
+  grid-column: auto;
+}
+
+.compare-muted,
+.compare-card p,
+.compare-placeholder p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.compare-dashboard {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.compare-card {
+  min-height: 122px;
+  padding: 13px;
+}
+
+.compare-placeholder {
+  display: grid;
+  min-height: 260px;
+  place-items: center;
+  padding: 28px;
+  text-align: center;
+  background:
+    linear-gradient(135deg, rgba(255, 79, 163, 0.08), transparent 34%),
+    rgba(17, 20, 28, 0.94);
+}
+
+.compare-results {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+}
+
+.compare-result-head {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.compare-result-head > div,
+.compare-mod-row > div,
+.compare-mini-score,
+.compare-metric-row,
+.map-compare-row,
+.compare-empty {
+  border: 1px solid rgba(148, 156, 176, 0.16);
+  border-radius: 8px;
+  background: rgba(7, 10, 17, 0.56);
+}
+
+.compare-result-head > div,
+.compare-mod-row > div,
+.compare-empty {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.compare-result-head span,
+.compare-mod-row span,
+.compare-mini-score small,
+.map-compare-row small {
+  color: var(--muted);
+}
+
+.compare-result-head strong {
+  color: var(--text);
+  font-size: 1.15rem;
+}
+
+.compare-metrics {
+  display: grid;
+  gap: 8px;
+}
+
+.compare-metric-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(120px, 0.7fr) minmax(120px, 0.7fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 42px;
+  padding: 8px 12px;
+}
+
+.compare-metric-row span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.compare-metric-row strong,
+.map-compare-row b {
+  color: var(--text);
+}
+
+.compare-metric-row strong:last-child,
+.map-compare-row b {
+  color: var(--pink);
+}
+
+.compare-mod-row,
+.compare-score-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.compare-mini-score {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 56px;
+  margin-bottom: 8px;
+  padding: 8px;
+}
+
+.compare-mini-score > span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  min-height: 28px;
+  border: 1px solid rgba(255, 79, 163, 0.38);
+  border-radius: 7px;
+  background: rgba(255, 79, 163, 0.14);
+  color: #fff3f9;
+  font-weight: 900;
+}
+
+.compare-mini-score strong,
+.map-compare-row strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compare-mini-score small,
+.map-compare-row small {
+  display: block;
+  margin-top: 2px;
+}
+
+.map-compare-table {
+  display: grid;
+  gap: 8px;
+}
+
+.map-compare-row {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(130px, 0.45fr) minmax(130px, 0.45fr) minmax(110px, 0.35fr);
+  gap: 12px;
+  align-items: center;
+  min-height: 58px;
+  padding: 10px 12px;
+}
+
+.map-compare-row span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.compare-empty {
+  padding: 18px;
+  color: var(--muted);
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .compare-hero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .compare-grid,
+  .compare-dashboard,
+  .compare-player-fields,
+  .compare-result-head,
+  .compare-mod-row,
+  .compare-score-columns,
+  .map-compare-row {
+    grid-template-columns: 1fr;
+  }
+
+  .compare-metric-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Navigation and section layout. */
+.topbar {
+  align-items: center;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding: 6px 0 10px;
+  border-bottom: 1px solid rgba(148, 156, 176, 0.12);
+}
+
+.brand-block {
+  min-width: 0;
+}
+
+.brand-block h1 {
+  font-size: clamp(2.1rem, 4vw, 3.7rem);
+}
+
+.menu-button {
+  display: grid;
+  place-content: center;
+  gap: 5px;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(148, 156, 176, 0.2);
+  border-radius: 8px;
+  background: #10131a;
+  padding: 0;
+}
+
+.menu-button span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  border-radius: 999px;
+  background: #f4f5f8;
+}
+
+.menu-button:hover,
+.menu-button[aria-expanded="true"] {
+  border-color: rgba(255, 79, 163, 0.7);
+  background: rgba(255, 79, 163, 0.12);
+}
+
+.side-menu {
+  position: fixed;
+  z-index: 1200;
+  top: 0;
+  left: 0;
+  width: min(320px, 86vw);
+  height: 100vh;
+  border-right: 1px solid rgba(148, 156, 176, 0.18);
+  background: #08090e;
+  box-shadow: 24px 0 60px rgba(0, 0, 0, 0.42);
+  padding: 18px;
+  transform: translateX(-102%);
+  transition: transform 180ms ease;
+}
+
+.menu-open .side-menu {
+  transform: translateX(0);
+}
+
+.menu-backdrop {
+  position: fixed;
+  z-index: 1190;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.54);
+  transition: opacity 180ms ease;
+}
+
+.menu-open .menu-backdrop {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.side-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+  color: var(--text);
+}
+
+.side-menu-item {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: 8px;
+  border: 1px solid rgba(148, 156, 176, 0.16);
+  border-radius: 8px;
+  background: #11141c;
+  color: var(--muted);
+  padding: 0 12px;
+  text-align: left;
+  font-weight: 850;
+}
+
+.side-menu-item.active,
+.side-menu-item:hover {
+  border-color: rgba(255, 79, 163, 0.68);
+  background: rgba(255, 79, 163, 0.12);
+  color: #fff3f9;
+}
+
+.search-panel {
+  overflow: hidden;
+  transition:
+    grid-template-rows 180ms ease,
+    padding 180ms ease,
+    border-color 180ms ease;
+}
+
+body[data-active-view="scores"] .search-panel {
+  grid-template-columns: minmax(260px, 2fr) minmax(170px, 1fr) repeat(4, minmax(120px, 1fr));
+}
+
+body[data-active-view="passes"] #rankMode,
+body[data-active-view="passes"] #rankFrom,
+body[data-active-view="passes"] #rankTo,
+body[data-active-view="passes"] #dateFilter,
+body[data-active-view="passes"] #improvementScope,
+body[data-active-view="calendar"] #rankMode,
+body[data-active-view="calendar"] #rankFrom,
+body[data-active-view="calendar"] #rankTo,
+body[data-active-view="calendar"] #bestMode,
+body[data-active-view="calendar"] #improvementScope,
+body[data-active-view="improvements"] #rankMode,
+body[data-active-view="improvements"] #rankFrom,
+body[data-active-view="improvements"] #rankTo,
+body[data-active-view="improvements"] #pages,
+body[data-active-view="improvements"] #match,
+body[data-active-view="improvements"] #bestMode {
+  pointer-events: none;
+}
+
+body[data-active-view="passes"] #rankMode,
+body[data-active-view="passes"] #rankFrom,
+body[data-active-view="passes"] #rankTo,
+body[data-active-view="passes"] #dateFilter,
+body[data-active-view="passes"] #improvementScope,
+body[data-active-view="calendar"] #rankMode,
+body[data-active-view="calendar"] #rankFrom,
+body[data-active-view="calendar"] #rankTo,
+body[data-active-view="calendar"] #bestMode,
+body[data-active-view="calendar"] #improvementScope,
+body[data-active-view="improvements"] #rankMode,
+body[data-active-view="improvements"] #rankFrom,
+body[data-active-view="improvements"] #rankTo,
+body[data-active-view="improvements"] #pages,
+body[data-active-view="improvements"] #match,
+body[data-active-view="improvements"] #bestMode {
+  opacity: 0.38;
+}
+
+body[data-active-view="passes"] label:has(#rankMode),
+body[data-active-view="passes"] label:has(#rankFrom),
+body[data-active-view="passes"] label:has(#rankTo),
+body[data-active-view="passes"] label:has(#dateFilter),
+body[data-active-view="passes"] label:has(#improvementScope),
+body[data-active-view="calendar"] label:has(#rankMode),
+body[data-active-view="calendar"] label:has(#rankFrom),
+body[data-active-view="calendar"] label:has(#rankTo),
+body[data-active-view="calendar"] label:has(#bestMode),
+body[data-active-view="calendar"] label:has(#improvementScope),
+body[data-active-view="improvements"] label:has(#rankMode),
+body[data-active-view="improvements"] label:has(#rankFrom),
+body[data-active-view="improvements"] label:has(#rankTo),
+body[data-active-view="improvements"] label:has(#pages),
+body[data-active-view="improvements"] label:has(#match),
+body[data-active-view="improvements"] label:has(#bestMode) {
+  display: none;
+}
+
+body[data-active-view="passes"] .purpose-field strong::after {
+  content: " · Sterne-Filter unten";
+  color: var(--pink);
+}
+
+body[data-active-view="improvements"] .purpose-field strong,
+body[data-active-view="calendar"] .purpose-field strong {
+  font-size: 0;
+}
+
+body[data-active-view="improvements"] .purpose-field strong::before {
+  content: "Improvement Verlauf";
+  color: var(--text);
+  font-size: 0.96rem;
+}
+
+body[data-active-view="calendar"] .purpose-field strong::before {
+  content: "Kalender Ansicht";
+  color: var(--text);
+  font-size: 0.96rem;
+}
+
+@media (max-width: 900px) {
+  .topbar {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .topbar-actions {
+    grid-column: 1 / -1;
+  }
+}

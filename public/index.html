@@ -10,9 +10,15 @@
     <main class="app-shell">
       <section class="workspace">
         <header class="topbar">
-          <div>
+          <button id="menuToggle" class="menu-button" type="button" aria-label="Menue" aria-expanded="false">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+
+          <div class="brand-block">
             <p class="eyebrow" data-i18n="app.eyebrow">Lokale Beta</p>
-            <h1>osu! Mod Score Finder</h1>
+            <h1>Performance Finder</h1>
           </div>
           <div class="topbar-actions">
             <label class="language-field" for="languageSelect">
@@ -29,6 +35,16 @@
             <div id="apiStatus" class="status-pill" data-i18n="status.checking">API wird geprueft</div>
           </div>
         </header>
+
+        <aside id="sideMenu" class="side-menu" aria-label="Navigation">
+          <div class="side-menu-head">
+            <strong>Menu</strong>
+            <button id="menuClose" class="ghost-button" type="button">close</button>
+          </div>
+          <button class="side-menu-item active" type="button" data-section="home">Hauptseite</button>
+          <button class="side-menu-item" type="button" data-section="compare">Vergleich</button>
+        </aside>
+        <div id="menuBackdrop" class="menu-backdrop"></div>
 
         <form id="searchForm" class="search-panel">
           <label class="field field-wide">
@@ -195,6 +211,152 @@
         <section id="passes" class="results hidden" aria-live="polite"></section>
         <section id="improvements" class="results hidden" aria-live="polite"></section>
         <section id="calendar" class="calendar-view hidden" aria-live="polite"></section>
+
+        <section id="compareView" class="compare-view hidden" aria-live="polite">
+          <div class="compare-hero">
+            <div>
+              <p class="eyebrow">Vergleich</p>
+              <h2>Spieler vergleichen</h2>
+              <p>
+                Eine ruhige Arbeitsfläche für direkte Spieler-Vergleiche. Erst als UI-Preview,
+                danach mit echten Top-Play- und Map-Daten.
+              </p>
+            </div>
+            <div class="compare-mode-tabs">
+              <button class="active" type="button" data-compare-mode="vs">VS</button>
+              <button type="button" data-compare-mode="maps">Map Compare</button>
+            </div>
+          </div>
+
+          <div class="compare-grid compare-mode-view active" data-compare-view="vs">
+            <section class="compare-panel compare-input-panel">
+              <div class="compare-panel-head">
+                <span>Spieler</span>
+                <strong>VS Setup</strong>
+              </div>
+              <div class="compare-player-fields">
+                <label class="field">
+                  <span>Spieler A</span>
+                  <input id="comparePlayerA" type="search" placeholder="z. B. marcy02" />
+                </label>
+                <label class="field">
+                  <span>Spieler B</span>
+                  <input id="comparePlayerB" type="search" placeholder="z. B. Nova Orta" />
+                </label>
+              </div>
+              <div class="compare-actions">
+                <button id="compareRun" class="primary-button" type="button">Vergleich starten</button>
+                <button id="compareReset" class="ghost-button" type="button">Reset</button>
+              </div>
+            </section>
+            <section class="compare-panel compare-guidance-panel">
+              <div class="compare-panel-head">
+                <span>Analyse</span>
+                <strong>Was du hier siehst</strong>
+              </div>
+              <p class="compare-muted">
+                VS laedt pro Spieler bis zu 200 gespeicherte/bekannte Top-Passes und fasst PP,
+                Lieblingsmods, durchschnittliche Mapwerte und die staerksten Plays zusammen.
+              </p>
+            </section>
+          </div>
+
+          <div class="compare-grid compare-mode-view" data-compare-view="maps">
+            <section class="compare-panel compare-input-panel">
+              <div class="compare-panel-head">
+                <span>Map Compare</span>
+                <strong>Gemeinsame Maps suchen</strong>
+              </div>
+              <div class="compare-player-fields">
+                <label class="field">
+                  <span>Spieler A</span>
+                  <input id="mapComparePlayerA" type="search" placeholder="z. B. marcy02" />
+                </label>
+                <label class="field">
+                  <span>Spieler B</span>
+                  <input id="mapComparePlayerB" type="search" placeholder="z. B. Nova Orta" />
+                </label>
+              </div>
+              <div class="compare-actions">
+                <button id="mapCompareRun" class="primary-button" type="button">Map Compare suchen</button>
+              </div>
+              <p class="compare-muted">
+                Hier werden spaeter gemeinsame Difficulties und direkte Map-Matchups gesammelt.
+              </p>
+            </section>
+
+            <section class="compare-panel compare-map-options">
+              <div class="compare-panel-head">
+                <span>Rangumfeld</span>
+                <strong>Leaderboard-Nachbarn</strong>
+              </div>
+              <div class="compare-player-fields">
+                <label class="field">
+                  <span>Nachbarn anzeigen</span>
+                  <select id="mapCompareNeighbors">
+                    <option value="5">5 ueber / 5 unter</option>
+                    <option value="10">10 ueber / 10 unter</option>
+                    <option value="25">25 ueber / 25 unter</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Gemeinsame Maps</span>
+                  <select id="mapCompareScope">
+                    <option value="both">nur beide gespielt</option>
+                    <option value="playerA">alle von Spieler A</option>
+                    <option value="playerB">alle von Spieler B</option>
+                  </select>
+                </label>
+              </div>
+              <p class="compare-muted">
+                Spaeter gecacht, damit Leaderboard-Abfragen nicht in API-Limits laufen.
+              </p>
+            </section>
+          </div>
+
+          <div class="compare-dashboard">
+            <section class="compare-card">
+              <span>Profilwerte</span>
+              <strong>PP, Rank, Playcount, Accuracy</strong>
+              <p>Direkter Kopf-an-Kopf Vergleich der sichtbaren Profilwerte.</p>
+            </section>
+            <section class="compare-card">
+              <span>Top-200 Analyse</span>
+              <strong>AR / OD / CS / BPM / Sterne</strong>
+              <p>Welche Map-Typen, Mods und Difficulty-Werte ein Spieler bevorzugt.</p>
+            </section>
+            <section class="compare-card">
+              <span>Power Chart</span>
+              <strong>Radar wie Stats-Vergleich</strong>
+              <p>Lesbare Werte fuer Speed, Aim, Acc, Consistency und Mod-Fokus.</p>
+            </section>
+            <section class="compare-card">
+              <span>Map Matchups</span>
+              <strong>Gemeinsame Maps</strong>
+              <p>Zeigt, wer auf derselben Difficulty vorne liegt und wo die groessten Unterschiede sind.</p>
+            </section>
+          </div>
+
+          <section class="compare-placeholder" data-compare-placeholder="vs">
+            <div>
+              <strong>VS Ergebnisbereich</strong>
+              <p>
+                Hier wuerden links und rechts die Top-Plays der beiden Spieler stehen.
+                In der Mitte landen spaeter die wichtigsten Unterschiede.
+              </p>
+            </div>
+          </section>
+
+          <section class="compare-placeholder hidden" data-compare-placeholder="maps">
+            <div>
+              <strong>Map-Compare Ergebnisbereich</strong>
+              <p>
+                Hier landen spaeter gemeinsame Maps, direkte Score-Unterschiede und optional
+                die X Spieler ueber und unter deinem Rang.
+              </p>
+            </div>
+          </section>
+        </section>
       </section>
     </main>
 
