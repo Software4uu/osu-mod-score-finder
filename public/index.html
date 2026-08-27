@@ -38,11 +38,11 @@
 
         <aside id="sideMenu" class="side-menu" aria-label="Navigation">
           <div class="side-menu-head">
-            <strong>Menu</strong>
-            <button id="menuClose" class="ghost-button" type="button">close</button>
+            <strong data-i18n="nav.menu">Menu</strong>
+            <button id="menuClose" class="ghost-button" type="button" data-i18n="button.close">close</button>
           </div>
-          <button class="side-menu-item active" type="button" data-section="home">Hauptseite</button>
-          <button class="side-menu-item" type="button" data-section="compare">Vergleich</button>
+          <button class="side-menu-item active" type="button" data-section="home" data-i18n="nav.home">Hauptseite</button>
+          <button class="side-menu-item" type="button" data-section="compare" data-i18n="nav.compare">Vergleich</button>
         </aside>
         <div id="menuBackdrop" class="menu-backdrop"></div>
 
@@ -215,9 +215,9 @@
         <section id="compareView" class="compare-view hidden" aria-live="polite">
           <div class="compare-hero">
             <div>
-              <p class="eyebrow">Vergleich</p>
-              <h2>Spieler vergleichen</h2>
-              <p>
+              <p class="eyebrow" data-i18n="compare.eyebrow">Vergleich</p>
+              <h2 data-i18n="compare.title">Spieler vergleichen</h2>
+              <p data-i18n="compare.description">
                 Eine ruhige Arbeitsfläche für direkte Spieler-Vergleiche. Erst als UI-Preview,
                 danach mit echten Top-Play- und Map-Daten.
               </p>
@@ -231,32 +231,41 @@
           <div class="compare-grid compare-mode-view active" data-compare-view="vs">
             <section class="compare-panel compare-input-panel">
               <div class="compare-panel-head">
-                <span>Spieler</span>
-                <strong>VS Setup</strong>
+                <span data-i18n="compare.players">Spieler</span>
+                <strong data-i18n="compare.vsSetup">VS Setup</strong>
               </div>
               <div class="compare-player-fields">
                 <label class="field">
-                  <span>Spieler A</span>
-                  <input id="comparePlayerA" type="search" placeholder="z. B. marcy02" />
+                  <span data-i18n="compare.playerA">Spieler A</span>
+                  <input id="comparePlayerA" type="search" data-i18n-placeholder="compare.placeholderA" placeholder="z. B. marcy02" />
                 </label>
                 <label class="field">
-                  <span>Spieler B</span>
-                  <input id="comparePlayerB" type="search" placeholder="z. B. Nova Orta" />
+                  <span data-i18n="compare.playerB">Spieler B</span>
+                  <input id="comparePlayerB" type="search" data-i18n-placeholder="compare.placeholderB" placeholder="z. B. Nova Orta" />
+                </label>
+                <label class="field">
+                  <span data-i18n="compare.gameMode">Game mode</span>
+                  <select id="compareMode">
+                    <option value="osu">osu!standard</option>
+                    <option value="taiko">taiko</option>
+                    <option value="fruits">catch</option>
+                    <option value="mania">mania</option>
+                  </select>
                 </label>
               </div>
               <div class="compare-actions">
-                <button id="compareRun" class="primary-button" type="button">Vergleich starten</button>
-                <button id="compareReset" class="ghost-button" type="button">Reset</button>
+                <button id="compareRun" class="primary-button" type="button" data-i18n="compare.runVs">Vergleich starten</button>
+                <button id="compareReset" class="ghost-button" type="button" data-i18n="button.reset">Reset</button>
               </div>
             </section>
             <section class="compare-panel compare-guidance-panel">
               <div class="compare-panel-head">
-                <span>Analyse</span>
-                <strong>Was du hier siehst</strong>
+                <span data-i18n="compare.analysis">Analyse</span>
+                <strong data-i18n="compare.analysisTitle">Was du hier siehst</strong>
               </div>
-              <p class="compare-muted">
-                VS laedt pro Spieler bis zu 200 gespeicherte/bekannte Top-Passes und fasst PP,
-                Lieblingsmods, durchschnittliche Mapwerte und die staerksten Plays zusammen.
+              <p class="compare-muted" data-i18n="compare.analysisText">
+                VS laedt pro Spieler bis zu 200 gespeicherte/bekannte Passes, zeigt klickbare
+                Score-Karten und bindet externe osu-sig Profilkarten als schnelle Skill-Vorschau ein.
               </p>
             </section>
           </div>
@@ -264,51 +273,57 @@
           <div class="compare-grid compare-mode-view" data-compare-view="maps">
             <section class="compare-panel compare-input-panel">
               <div class="compare-panel-head">
-                <span>Map Compare</span>
-                <strong>Gemeinsame Maps suchen</strong>
+                <span data-i18n="compare.mapMode">Map Compare</span>
+                <strong data-i18n="compare.mapSetup">Rangumfeld vorbereiten</strong>
               </div>
               <div class="compare-player-fields">
                 <label class="field">
-                  <span>Spieler A</span>
-                  <input id="mapComparePlayerA" type="search" placeholder="z. B. marcy02" />
+                  <span data-i18n="compare.player">Spieler</span>
+                  <input id="mapComparePlayerA" type="search" data-i18n-placeholder="compare.placeholderA" placeholder="z. B. marcy02" />
                 </label>
                 <label class="field">
-                  <span>Spieler B</span>
-                  <input id="mapComparePlayerB" type="search" placeholder="z. B. Nova Orta" />
+                  <span data-i18n="compare.gameMode">Game mode</span>
+                  <select id="mapCompareMode">
+                    <option value="osu">osu!standard</option>
+                    <option value="taiko">taiko</option>
+                    <option value="fruits">catch</option>
+                    <option value="mania">mania</option>
+                  </select>
                 </label>
               </div>
               <div class="compare-actions">
-                <button id="mapCompareRun" class="primary-button" type="button">Map Compare suchen</button>
+                <button id="mapCompareRun" class="primary-button" type="button" data-i18n="compare.runMaps">Maps laden</button>
               </div>
-              <p class="compare-muted">
-                Hier werden spaeter gemeinsame Difficulties und direkte Map-Matchups gesammelt.
+              <p class="compare-muted" data-i18n="compare.mapText">
+                Zeigt deine geladenen Maps und oeffnet pro Difficulty die passende Leaderboard-Ansicht.
+                Exakte Nachbarn werden spaeter gecacht, damit keine API-Limits explodieren.
               </p>
             </section>
 
             <section class="compare-panel compare-map-options">
               <div class="compare-panel-head">
-                <span>Rangumfeld</span>
-                <strong>Leaderboard-Nachbarn</strong>
+                <span data-i18n="compare.rankArea">Rangumfeld</span>
+                <strong data-i18n="compare.rankTitle">Leaderboard-Nachbarn</strong>
               </div>
               <div class="compare-player-fields">
                 <label class="field">
-                  <span>Nachbarn anzeigen</span>
+                  <span data-i18n="compare.neighbors">Nachbarn anzeigen</span>
                   <select id="mapCompareNeighbors">
-                    <option value="5">5 ueber / 5 unter</option>
-                    <option value="10">10 ueber / 10 unter</option>
-                    <option value="25">25 ueber / 25 unter</option>
+                    <option value="5" data-i18n="compare.neighbors5">5 ueber / 5 unter</option>
+                    <option value="10" data-i18n="compare.neighbors10">10 ueber / 10 unter</option>
+                    <option value="25" data-i18n="compare.neighbors25">25 ueber / 25 unter</option>
                   </select>
                 </label>
                 <label class="field">
-                  <span>Gemeinsame Maps</span>
+                  <span data-i18n="compare.mapScope">Map-Auswahl</span>
                   <select id="mapCompareScope">
-                    <option value="both">nur beide gespielt</option>
-                    <option value="playerA">alle von Spieler A</option>
-                    <option value="playerB">alle von Spieler B</option>
+                    <option value="all" data-i18n="compare.scopeAll">geladene Spieler-Maps</option>
+                    <option value="ranked" data-i18n="compare.scopeRanked">nur ranked/approved</option>
+                    <option value="loved" data-i18n="compare.scopeLoved">ranked + loved</option>
                   </select>
                 </label>
               </div>
-              <p class="compare-muted">
+              <p class="compare-muted" data-i18n="compare.rankText">
                 Spaeter gecacht, damit Leaderboard-Abfragen nicht in API-Limits laufen.
               </p>
             </section>
@@ -316,31 +331,31 @@
 
           <div class="compare-dashboard">
             <section class="compare-card">
-              <span>Profilwerte</span>
-              <strong>PP, Rank, Playcount, Accuracy</strong>
-              <p>Direkter Kopf-an-Kopf Vergleich der sichtbaren Profilwerte.</p>
+              <span data-i18n="compare.cardProfile">Profilwerte</span>
+              <strong data-i18n="compare.cardProfileTitle">PP, Rank, Playcount, Accuracy</strong>
+              <p data-i18n="compare.cardProfileText">Direkter Kopf-an-Kopf Vergleich der sichtbaren Profilwerte.</p>
             </section>
             <section class="compare-card">
-              <span>Top-200 Analyse</span>
-              <strong>AR / OD / CS / BPM / Sterne</strong>
-              <p>Welche Map-Typen, Mods und Difficulty-Werte ein Spieler bevorzugt.</p>
+              <span data-i18n="compare.cardTop">Top-200 Analyse</span>
+              <strong data-i18n="compare.cardTopTitle">AR / OD / CS / BPM / Sterne</strong>
+              <p data-i18n="compare.cardTopText">Welche Map-Typen, Mods und Difficulty-Werte ein Spieler bevorzugt.</p>
             </section>
             <section class="compare-card">
-              <span>Power Chart</span>
-              <strong>Radar wie Stats-Vergleich</strong>
-              <p>Lesbare Werte fuer Speed, Aim, Acc, Consistency und Mod-Fokus.</p>
+              <span data-i18n="compare.cardPower">Power Chart</span>
+              <strong data-i18n="compare.cardPowerTitle">Radar wie Stats-Vergleich</strong>
+              <p data-i18n="compare.cardPowerText">Lesbare Werte fuer Speed, Aim, Acc, Consistency und Mod-Fokus.</p>
             </section>
             <section class="compare-card">
-              <span>Map Matchups</span>
-              <strong>Gemeinsame Maps</strong>
-              <p>Zeigt, wer auf derselben Difficulty vorne liegt und wo die groessten Unterschiede sind.</p>
+              <span data-i18n="compare.cardMatchups">Map Matchups</span>
+              <strong data-i18n="compare.cardMatchupsTitle">Gemeinsame Maps</strong>
+              <p data-i18n="compare.cardMatchupsText">Zeigt, wer auf derselben Difficulty vorne liegt und wo die groessten Unterschiede sind.</p>
             </section>
           </div>
 
           <section class="compare-placeholder" data-compare-placeholder="vs">
             <div>
-              <strong>VS Ergebnisbereich</strong>
-              <p>
+              <strong data-i18n="compare.vsPlaceholderTitle">VS Ergebnisbereich</strong>
+              <p data-i18n="compare.vsPlaceholderText">
                 Hier wuerden links und rechts die Top-Plays der beiden Spieler stehen.
                 In der Mitte landen spaeter die wichtigsten Unterschiede.
               </p>
@@ -349,8 +364,8 @@
 
           <section class="compare-placeholder hidden" data-compare-placeholder="maps">
             <div>
-              <strong>Map-Compare Ergebnisbereich</strong>
-              <p>
+              <strong data-i18n="compare.mapPlaceholderTitle">Map-Compare Ergebnisbereich</strong>
+              <p data-i18n="compare.mapPlaceholderText">
                 Hier landen spaeter gemeinsame Maps, direkte Score-Unterschiede und optional
                 die X Spieler ueber und unter deinem Rang.
               </p>

@@ -1902,6 +1902,128 @@ select:focus {
   gap: 12px;
 }
 
+.compare-mod-bars {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.compare-mod-bar {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 54px;
+  gap: 8px;
+  align-items: center;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 850;
+}
+
+.compare-mod-bar div {
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(148, 156, 176, 0.16);
+}
+
+.compare-mod-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ff4fa3, #67d8f2);
+}
+
+.compare-signatures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.compare-signatures section {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(148, 156, 176, 0.16);
+  border-radius: 8px;
+  background: rgba(7, 10, 17, 0.56);
+}
+
+.compare-sig-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.compare-sig-head strong {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compare-sig-head a,
+.map-compare-actions a {
+  color: #8de9ff;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.compare-signatures small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.compare-signatures img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-height: 92px;
+  border: 1px solid rgba(148, 156, 176, 0.14);
+  border-radius: 8px;
+  background: #080b12;
+  object-fit: contain;
+}
+
+.compare-sig-note {
+  padding: 14px;
+  border: 1px solid rgba(103, 216, 242, 0.28);
+  border-radius: 8px;
+  background: rgba(103, 216, 242, 0.08);
+  color: var(--text);
+}
+
+.compare-score-list {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  max-height: 900px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.compare-score-list header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 156, 176, 0.16);
+  border-radius: 8px;
+  background: rgba(17, 20, 28, 0.98);
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.compare-score-list .score-card {
+  min-width: 0;
+}
+
 .compare-mini-score {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr);
@@ -1946,7 +2068,7 @@ select:focus {
 
 .map-compare-row {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(130px, 0.45fr) minmax(130px, 0.45fr) minmax(110px, 0.35fr);
+  grid-template-columns: minmax(240px, 1fr) minmax(130px, 0.45fr) minmax(130px, 0.45fr) minmax(170px, 0.45fr);
   gap: 12px;
   align-items: center;
   min-height: 58px;
@@ -1956,6 +2078,14 @@ select:focus {
 .map-compare-row span {
   color: var(--muted);
   font-weight: 800;
+}
+
+.map-compare-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .compare-empty {
@@ -1975,6 +2105,7 @@ select:focus {
   .compare-player-fields,
   .compare-result-head,
   .compare-mod-row,
+  .compare-signatures,
   .compare-score-columns,
   .map-compare-row {
     grid-template-columns: 1fr;

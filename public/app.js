@@ -21,10 +21,11 @@ const sideMenu = document.querySelector("#sideMenu");
 const menuBackdrop = document.querySelector("#menuBackdrop");
 const comparePlayerA = document.querySelector("#comparePlayerA");
 const comparePlayerB = document.querySelector("#comparePlayerB");
+const compareMode = document.querySelector("#compareMode");
 const compareRun = document.querySelector("#compareRun");
 const compareReset = document.querySelector("#compareReset");
 const mapComparePlayerA = document.querySelector("#mapComparePlayerA");
-const mapComparePlayerB = document.querySelector("#mapComparePlayerB");
+const mapCompareMode = document.querySelector("#mapCompareMode");
 const mapCompareRun = document.querySelector("#mapCompareRun");
 
 const selectedMods = new Set();
@@ -47,6 +48,7 @@ let calendarLoadingMonth = "";
 let latestUpdateInfo = null;
 let startupSyncTimer = null;
 let latestStartupSync = null;
+let compareDetailScores = [];
 
 document.body.dataset.activeView = activeView;
 document.body.dataset.activeSection = "home";
@@ -228,6 +230,85 @@ const translations = {
     "label.ppFilled": "PP ergaenzt",
     "label.ppCalculated": "PP berechnet",
     "label.ppStatus": "PP-Status",
+    "nav.menu": "Menue",
+    "nav.home": "Hauptseite",
+    "nav.compare": "Vergleich",
+    "compare.eyebrow": "Vergleich",
+    "compare.title": "Spieler vergleichen",
+    "compare.description": "Eine ruhige Arbeitsflaeche fuer direkte Spieler-Vergleiche: Top-200, Profilwerte, Mod-Fokus und Map-Kontext.",
+    "compare.players": "Spieler",
+    "compare.vsSetup": "VS Setup",
+    "compare.player": "Spieler",
+    "compare.playerA": "Spieler A",
+    "compare.playerB": "Spieler B",
+    "compare.placeholderA": "z. B. marcy02",
+    "compare.placeholderB": "z. B. Nova Orta",
+    "compare.gameMode": "Game mode",
+    "compare.runVs": "Vergleich starten",
+    "compare.analysis": "Analyse",
+    "compare.analysisTitle": "Was du hier siehst",
+    "compare.analysisText": "VS laedt pro Spieler bis zu 200 gespeicherte/bekannte Passes, zeigt klickbare Score-Karten und bindet externe osu-sig Profilkarten als schnelle Skill-Vorschau ein.",
+    "compare.mapMode": "Map Compare",
+    "compare.mapSetup": "Rangumfeld vorbereiten",
+    "compare.runMaps": "Maps laden",
+    "compare.mapText": "Zeigt die geladenen Maps eines Spielers und oeffnet pro Difficulty die passende Leaderboard-Ansicht. Exakte Nachbarn werden spaeter gecacht, damit keine API-Limits explodieren.",
+    "compare.rankArea": "Rangumfeld",
+    "compare.rankTitle": "Leaderboard-Nachbarn",
+    "compare.neighbors": "Nachbarn anzeigen",
+    "compare.neighbors5": "5 ueber / 5 unter",
+    "compare.neighbors10": "10 ueber / 10 unter",
+    "compare.neighbors25": "25 ueber / 25 unter",
+    "compare.mapScope": "Map-Auswahl",
+    "compare.scopeAll": "geladene Spieler-Maps",
+    "compare.scopeRanked": "nur ranked/approved",
+    "compare.scopeLoved": "ranked + loved",
+    "compare.rankText": "Spaeter gecacht, damit Leaderboard-Abfragen nicht in API-Limits laufen.",
+    "compare.cardProfile": "Profilwerte",
+    "compare.cardProfileTitle": "PP, Rank, Playcount, Accuracy",
+    "compare.cardProfileText": "Direkter Kopf-an-Kopf Vergleich der sichtbaren Profilwerte.",
+    "compare.cardTop": "Top-200 Analyse",
+    "compare.cardTopTitle": "AR / OD / CS / BPM / Sterne",
+    "compare.cardTopText": "Welche Map-Typen, Mods und Difficulty-Werte ein Spieler bevorzugt.",
+    "compare.cardPower": "Power Chart",
+    "compare.cardPowerTitle": "Radar wie Stats-Vergleich",
+    "compare.cardPowerText": "Lesbare Werte fuer Speed, Aim, Acc, Consistency und Mod-Fokus.",
+    "compare.cardMatchups": "Map Matchups",
+    "compare.cardMatchupsTitle": "Gemeinsame Maps",
+    "compare.cardMatchupsText": "Zeigt, wer auf derselben Difficulty vorne liegt und wo die groessten Unterschiede sind.",
+    "compare.vsPlaceholderTitle": "VS Ergebnisbereich",
+    "compare.vsPlaceholderText": "Hier landen die geladenen Top-Passes beider Spieler, Profilwerte und die wichtigsten Unterschiede.",
+    "compare.mapPlaceholderTitle": "Map-Compare Ergebnisbereich",
+    "compare.mapPlaceholderText": "Hier landen die geladenen Maps eines Spielers und spaeter die Spieler ueber und unter deinem Rang.",
+    "compare.failed": "Vergleich fehlgeschlagen",
+    "compare.loadDetail": "Bitte kurz warten, die lokale Datenbank und erreichbare API-Daten werden abgefragt.",
+    "compare.noMods": "Keine Mods gefunden.",
+    "compare.noScores": "Keine Scores geladen.",
+    "compare.noMaps": "Keine Maps in dieser Auswahl gefunden.",
+    "compare.vsLoading": "VS Vergleich wird geladen...",
+    "compare.mapLoading": "Map Compare wird geladen...",
+    "compare.mapLoadingDetail": "Ein Spieler wird mit bis zu 200 Scores geladen. Leaderboard-Nachbarn werden nicht automatisch massenhaft abgefragt, damit kein API-Limit ausgeloest wird.",
+    "compare.needTwoPlayers": "Bitte beide Spielernamen eintragen.",
+    "compare.needOnePlayer": "Bitte einen Spielernamen eintragen.",
+    "compare.loadedMaps": "Geladene Maps",
+    "compare.shown": "angezeigt",
+    "compare.rankWindow": "Rangumfeld",
+    "compare.rankPrepared": "ueber / unter vorbereitet",
+    "compare.openLeaderboard": "Leaderboard oeffnen",
+    "compare.modA": "Mod-Verteilung Spieler A",
+    "compare.modB": "Mod-Verteilung Spieler B",
+    "compare.osuSigStdOnly": "osu-sig Skills sind nur fuer osu!standard verfuegbar.",
+    "compare.metricProfilePp": "Profil PP",
+    "compare.metricGlobalRank": "Global Rank",
+    "compare.metricTopplay": "Topplay",
+    "compare.metricAvgPp": "Durchschnitts-PP",
+    "compare.metricAvgStars": "Durchschnitts-Sterne",
+    "compare.metricAvgAcc": "Durchschnitts-Accuracy",
+    "compare.metricAvgBpm": "Durchschnitts-BPM",
+    "compare.metricAvgAr": "Durchschnitts-AR",
+    "compare.metricAvgOd": "Durchschnitts-OD",
+    "compare.metricAvgCs": "Durchschnitts-CS",
+    "compare.sigFullSkills": "Full with Skills",
+    "compare.sigSkills": "Skills",
     "sync.title": "Automatischer Score-Sync",
     "sync.scheduled": "Der Hintergrund-Sync wird vorbereitet...",
     "sync.online": "Online-Scores werden geprueft: {done} von {total} API-Seiten",
@@ -459,6 +540,85 @@ const translations = {
     "label.ppFilled": "PP filled",
     "label.ppCalculated": "PP calculated",
     "label.ppStatus": "PP status",
+    "nav.menu": "Menu",
+    "nav.home": "Home",
+    "nav.compare": "Compare",
+    "compare.eyebrow": "Compare",
+    "compare.title": "Compare players",
+    "compare.description": "A calm workspace for direct player comparisons: top 200, profile values, mod focus, and map context.",
+    "compare.players": "Players",
+    "compare.vsSetup": "VS setup",
+    "compare.player": "Player",
+    "compare.playerA": "Player A",
+    "compare.playerB": "Player B",
+    "compare.placeholderA": "e.g. marcy02",
+    "compare.placeholderB": "e.g. Nova Orta",
+    "compare.gameMode": "Game mode",
+    "compare.runVs": "Run comparison",
+    "compare.analysis": "Analysis",
+    "compare.analysisTitle": "What this shows",
+    "compare.analysisText": "VS loads up to 200 stored or known passes per player, shows clickable score cards, and embeds external osu-sig profile cards as a quick skill preview.",
+    "compare.mapMode": "Map Compare",
+    "compare.mapSetup": "Prepare rank window",
+    "compare.runMaps": "Load maps",
+    "compare.mapText": "Shows one player's loaded maps and opens the matching leaderboard for each difficulty. Exact neighbours will be cached later to avoid exploding API limits.",
+    "compare.rankArea": "Rank window",
+    "compare.rankTitle": "Leaderboard neighbours",
+    "compare.neighbors": "Show neighbours",
+    "compare.neighbors5": "5 above / 5 below",
+    "compare.neighbors10": "10 above / 10 below",
+    "compare.neighbors25": "25 above / 25 below",
+    "compare.mapScope": "Map selection",
+    "compare.scopeAll": "loaded player maps",
+    "compare.scopeRanked": "ranked/approved only",
+    "compare.scopeLoved": "ranked + loved",
+    "compare.rankText": "Cached later so leaderboard requests do not run into API limits.",
+    "compare.cardProfile": "Profile values",
+    "compare.cardProfileTitle": "PP, rank, playcount, accuracy",
+    "compare.cardProfileText": "Direct head-to-head comparison of visible profile values.",
+    "compare.cardTop": "Top-200 analysis",
+    "compare.cardTopTitle": "AR / OD / CS / BPM / stars",
+    "compare.cardTopText": "Which map types, mods, and difficulty values a player tends to prefer.",
+    "compare.cardPower": "Power chart",
+    "compare.cardPowerTitle": "Radar-style stat comparison",
+    "compare.cardPowerText": "Readable values for speed, aim, accuracy, consistency, and mod focus.",
+    "compare.cardMatchups": "Map matchups",
+    "compare.cardMatchupsTitle": "Shared maps",
+    "compare.cardMatchupsText": "Shows who is ahead on the same difficulty and where the biggest gaps are.",
+    "compare.vsPlaceholderTitle": "VS result area",
+    "compare.vsPlaceholderText": "Loaded top passes, profile values, and the most important differences will appear here.",
+    "compare.mapPlaceholderTitle": "Map Compare result area",
+    "compare.mapPlaceholderText": "One player's loaded maps appear here, with above/below rank neighbours added later.",
+    "compare.failed": "Comparison failed",
+    "compare.loadDetail": "Please wait while the local database and reachable API data are checked.",
+    "compare.noMods": "No mods found.",
+    "compare.noScores": "No scores loaded.",
+    "compare.noMaps": "No maps found for this selection.",
+    "compare.vsLoading": "Loading VS comparison...",
+    "compare.mapLoading": "Loading Map Compare...",
+    "compare.mapLoadingDetail": "One player is loaded with up to 200 scores. Leaderboard neighbours are not fetched in bulk yet, so the API limit stays calm.",
+    "compare.needTwoPlayers": "Please enter both player names.",
+    "compare.needOnePlayer": "Please enter a player name.",
+    "compare.loadedMaps": "Loaded maps",
+    "compare.shown": "shown",
+    "compare.rankWindow": "Rank window",
+    "compare.rankPrepared": "above / below prepared",
+    "compare.openLeaderboard": "Open leaderboard",
+    "compare.modA": "Mod distribution player A",
+    "compare.modB": "Mod distribution player B",
+    "compare.osuSigStdOnly": "osu-sig skills are only available for osu!standard.",
+    "compare.metricProfilePp": "Profile PP",
+    "compare.metricGlobalRank": "Global rank",
+    "compare.metricTopplay": "Top play",
+    "compare.metricAvgPp": "Average PP",
+    "compare.metricAvgStars": "Average stars",
+    "compare.metricAvgAcc": "Average accuracy",
+    "compare.metricAvgBpm": "Average BPM",
+    "compare.metricAvgAr": "Average AR",
+    "compare.metricAvgOd": "Average OD",
+    "compare.metricAvgCs": "Average CS",
+    "compare.sigFullSkills": "Full with Skills",
+    "compare.sigSkills": "Skills",
     "sync.title": "Automatic score sync",
     "sync.scheduled": "Preparing the background sync...",
     "sync.online": "Checking online scores: {done} of {total} API pages",
@@ -835,13 +995,13 @@ function allCalendarScores() {
 }
 
 function findScoreByDomKey(key) {
-  return [...(lastSearchData?.scores || []), ...passScoresFromData(lastSearchData), ...allCalendarScores()]
+  return [...(lastSearchData?.scores || []), ...passScoresFromData(lastSearchData), ...allCalendarScores(), ...compareDetailScores]
     .find((score) => scoreDomKey(score) === key);
 }
 
 function mapTriesForScore(score) {
   const mapKey = mapDomKey(score);
-  return allCalendarScores()
+  return [...allCalendarScores(), ...compareDetailScores]
     .filter((candidate) => mapDomKey(candidate) === mapKey)
     .sort((a, b) => {
       const timeA = Date.parse(a.ended_at || a.created_at || "") || 0;
@@ -1125,6 +1285,16 @@ function scoreStatusLabel(score) {
   const reason = unrankedScoreReason(score);
   if (reason) return t("label.unrankedMod");
   return score?.beatmap?.status || "unknown";
+}
+
+function isRankedScoreForDisplay(score, includeLoved = false) {
+  if (unrankedScoreReason(score)) return false;
+  const status = String(score?.beatmap?.status || "").toLowerCase();
+  if (["ranked", "approved"].includes(status)) return true;
+  if (includeLoved && status === "loved") return true;
+  const ranked = Number(score?.beatmap?.ranked);
+  if (!Number.isNaN(ranked)) return includeLoved ? [1, 2, 4].includes(ranked) : [1, 2].includes(ranked);
+  return false;
 }
 
 function formatMultiplier(value) {
@@ -2276,8 +2446,6 @@ function goToCalendarToday() {
 }
 
 function renderMapDetails(scoreKey) {
-  if (!lastSearchData) return;
-
   const selectedScore = findScoreByDomKey(scoreKey);
   if (!selectedScore) return;
 
@@ -2483,11 +2651,19 @@ function startLiveScanner() {
   liveTimer = setInterval(runLiveScan, 30_000);
 }
 
-function compareParams(username) {
+function compareGameMode() {
+  return compareMode?.value || "osu";
+}
+
+function mapCompareGameMode() {
+  return mapCompareMode?.value || compareGameMode();
+}
+
+function compareParams(username, mode = compareGameMode(), options = {}) {
   const params = new URLSearchParams();
   params.set("username", username);
   params.set("type", "recent");
-  params.set("mode", "osu");
+  params.set("mode", mode);
   params.set("sort", "pp");
   params.set("match", "contains");
   params.set("pages", "2");
@@ -2508,13 +2684,16 @@ function compareParams(username) {
   params.set("rankedOnly", "1");
   params.set("includeLoved", "1");
   params.set("includeUnrankedPasses", "0");
+  for (const [key, value] of Object.entries(options)) {
+    params.set(key, value);
+  }
   return params;
 }
 
-async function fetchCompareData(username) {
-  const response = await fetch(`/api/search?${compareParams(username).toString()}`);
+async function fetchCompareData(username, mode = compareGameMode(), options = {}) {
+  const response = await fetch(`/api/search?${compareParams(username, mode, options).toString()}`);
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error || "Vergleich konnte nicht geladen werden.");
+  if (!response.ok) throw new Error(data.error || t("compare.failed"));
   return data;
 }
 
@@ -2522,7 +2701,7 @@ function compareOutput(mode = "vs") {
   return compareView?.querySelector(`[data-compare-placeholder="${mode}"]`);
 }
 
-function setCompareLoading(mode, message, detail = "Bitte kurz warten, die lokale Datenbank und erreichbare API-Daten werden abgefragt.") {
+function setCompareLoading(mode, message, detail = t("compare.loadDetail")) {
   const output = compareOutput(mode);
   if (!output) return;
   output.classList.remove("hidden");
@@ -2540,7 +2719,7 @@ function setCompareError(mode, error) {
   output.classList.remove("hidden");
   output.innerHTML = `
     <div>
-      <strong>Vergleich fehlgeschlagen</strong>
+      <strong>${escapeHtml(t("compare.failed"))}</strong>
       <p>${escapeHtml(error.message || String(error))}</p>
     </div>
   `;
@@ -2560,7 +2739,7 @@ function average(values) {
   return filtered.length ? filtered.reduce((total, value) => total + value, 0) / filtered.length : 0;
 }
 
-function topMods(scores, limit = 4) {
+function topMods(scores, limit = 8) {
   const counts = new Map();
   for (const score of scores) {
     const mods = score.normalized_mods?.length ? score.normalized_mods : [{ acronym: "NM" }];
@@ -2571,9 +2750,7 @@ function topMods(scores, limit = 4) {
   }
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .slice(0, limit)
-    .map(([mod, count]) => `${mod} ${count}x`)
-    .join(", ") || "-";
+    .slice(0, limit);
 }
 
 function compareSummary(data) {
@@ -2596,6 +2773,7 @@ function compareSummary(data) {
     globalRank: Number(stats.global_rank || 0),
     playCount: Number(stats.play_count || 0),
     hitAccuracy: Number(stats.hit_accuracy || 0),
+    avgBpm: average(scores.map((score) => effectiveBeatmapStats(score).bpm)),
   };
 }
 
@@ -2609,21 +2787,85 @@ function renderCompareMetric(label, left, right, format = (value) => formatNumbe
   `;
 }
 
-function renderMiniScores(scores, mode) {
-  return scores.slice(0, 8).map((score, index) => {
-    const set = score.beatmapset || {};
-    const beatmap = score.beatmap || {};
-    const title = `${set.artist || beatmap.artist || "?"} - ${set.title || beatmap.title || "?"}`;
+function osuSigMode(mode) {
+  if (mode === "osu") return "std";
+  if (mode === "fruits") return "catch";
+  return mode;
+}
+
+function osuSigUrl(username, mode, type = "full") {
+  const params = new URLSearchParams({
+    user: username,
+    mode: osuSigMode(mode),
+    lang: currentLanguage === "de" ? "en" : currentLanguage,
+    hue: "333",
+    animation: "false",
+  });
+  if (type === "skills") {
+    return `https://osu-sig.s23.moe/skills?${params.toString()}`;
+  }
+  params.set("skills", "true");
+  return `https://osu-sig.s23.moe/card?${params.toString()}`;
+}
+
+function renderSigCards(left, right, mode) {
+  if (mode !== "osu") {
     return `
-      <div class="compare-mini-score">
-        <span>#${index + 1}</span>
-        <div>
-          <strong>${escapeHtml(title)}</strong>
-          <small>${escapeHtml(beatmap.version || "Difficulty")} · ${formatPp(scorePpValue(score))} · ${formatAccuracy(score.accuracy)}</small>
-        </div>
+      <div class="compare-sig-note">
+        <strong>${escapeHtml(t("compare.osuSigStdOnly"))}</strong>
       </div>
     `;
-  }).join("");
+  }
+
+  const users = [left, right].map((summary) => summary.user.username || "");
+  return `
+    <div class="compare-signatures">
+      ${users.map((username) => `
+        <section>
+          <div class="compare-sig-head">
+            <strong>${escapeHtml(username || "-")}</strong>
+            <a href="https://osu-sig.s23.moe" target="_blank" rel="noreferrer">osu-sig</a>
+          </div>
+          <small>${escapeHtml(t("compare.sigFullSkills"))}</small>
+          <img src="${escapeHtml(osuSigUrl(username, mode, "full"))}" alt="${escapeHtml(username)} osu-sig full with skills" loading="lazy" />
+          <small>${escapeHtml(t("compare.sigSkills"))}</small>
+          <img src="${escapeHtml(osuSigUrl(username, mode, "skills"))}" alt="${escapeHtml(username)} osu-sig skills" loading="lazy" />
+        </section>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderModDistribution(summary) {
+  const total = Math.max(1, summary.count);
+  if (!summary.topMods.length) return `<div class="compare-empty">${escapeHtml(t("compare.noMods"))}</div>`;
+  return `
+    <div class="compare-mod-bars">
+      ${summary.topMods.map(([mod, count]) => {
+        const percent = Math.round((count / total) * 100);
+        return `
+          <div class="compare-mod-bar">
+            <span>${escapeHtml(mod)}</span>
+            <div><i style="width: ${percent}%"></i></div>
+            <strong>${formatNumber(count)}x</strong>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderCompareScores(title, summary, mode) {
+  const scores = summary.scores.slice(0, 200).map((score) => renderScore(score, mode)).join("");
+  return `
+    <section class="compare-score-list">
+      <header>
+        <span>${escapeHtml(title)}</span>
+        <strong>${formatNumber(summary.scores.length)} scores</strong>
+      </header>
+      ${scores || `<div class="compare-empty">${escapeHtml(t("compare.noScores"))}</div>`}
+    </section>
+  `;
 }
 
 function resetCompareOutput(mode) {
@@ -2632,14 +2874,14 @@ function resetCompareOutput(mode) {
   output.innerHTML = mode === "maps"
     ? `
       <div>
-        <strong>Map-Compare Ergebnisbereich</strong>
-        <p>Hier landen gemeinsame Maps, direkte Score-Unterschiede und optional spaeter die Spieler ueber und unter deinem Rang.</p>
+        <strong>${escapeHtml(t("compare.mapPlaceholderTitle"))}</strong>
+        <p>${escapeHtml(t("compare.mapPlaceholderText"))}</p>
       </div>
     `
     : `
       <div>
-        <strong>VS Ergebnisbereich</strong>
-        <p>Hier landen die geladenen Top-Passes beider Spieler, Profilwerte und die wichtigsten Unterschiede.</p>
+        <strong>${escapeHtml(t("compare.vsPlaceholderTitle"))}</strong>
+        <p>${escapeHtml(t("compare.vsPlaceholderText"))}</p>
       </div>
     `;
 }
@@ -2649,37 +2891,41 @@ function renderVsResults(leftData, rightData) {
   const right = compareSummary(rightData);
   const output = compareOutput("vs");
   if (!output) return;
+  const mode = leftData.meta?.mode || compareGameMode();
+  compareDetailScores = [...left.scores, ...right.scores];
 
   output.innerHTML = `
     <div class="compare-results">
       <div class="compare-result-head">
         <div>
-          <span>Spieler A</span>
+          <span>${escapeHtml(t("compare.playerA"))}</span>
           <strong>${escapeHtml(left.user.username || "-")}</strong>
         </div>
         <div>
-          <span>Spieler B</span>
+          <span>${escapeHtml(t("compare.playerB"))}</span>
           <strong>${escapeHtml(right.user.username || "-")}</strong>
         </div>
       </div>
       <div class="compare-metrics">
-        ${renderCompareMetric("Profil PP", left.profilePp, right.profilePp, (value) => value ? formatPp(value) : "-")}
-        ${renderCompareMetric("Global Rank", left.globalRank, right.globalRank, (value) => value ? `#${formatNumber(value)}` : "-")}
-        ${renderCompareMetric("Topplay", left.bestPp, right.bestPp, formatPp)}
-        ${renderCompareMetric("Ø PP", left.avgPp, right.avgPp, formatPp)}
-        ${renderCompareMetric("Ø Sterne", left.avgStars, right.avgStars, formatStars)}
-        ${renderCompareMetric("Ø Accuracy", left.avgAcc, right.avgAcc, (value) => `${value.toFixed(2)}%`)}
-        ${renderCompareMetric("Ø AR", left.avgAr, right.avgAr, (value) => value ? value.toFixed(2) : "-")}
-        ${renderCompareMetric("Ø OD", left.avgOd, right.avgOd, (value) => value ? value.toFixed(2) : "-")}
-        ${renderCompareMetric("Ø CS", left.avgCs, right.avgCs, (value) => value ? value.toFixed(2) : "-")}
+        ${renderCompareMetric(t("compare.metricProfilePp"), left.profilePp, right.profilePp, (value) => value ? formatPp(value) : "-")}
+        ${renderCompareMetric(t("compare.metricGlobalRank"), left.globalRank, right.globalRank, (value) => value ? `#${formatNumber(value)}` : "-")}
+        ${renderCompareMetric(t("compare.metricTopplay"), left.bestPp, right.bestPp, formatPp)}
+        ${renderCompareMetric(t("compare.metricAvgPp"), left.avgPp, right.avgPp, formatPp)}
+        ${renderCompareMetric(t("compare.metricAvgStars"), left.avgStars, right.avgStars, formatStars)}
+        ${renderCompareMetric(t("compare.metricAvgAcc"), left.avgAcc, right.avgAcc, (value) => `${value.toFixed(2)}%`)}
+        ${renderCompareMetric(t("compare.metricAvgBpm"), left.avgBpm, right.avgBpm, (value) => value ? `${Math.round(value)} BPM` : "-")}
+        ${renderCompareMetric(t("compare.metricAvgAr"), left.avgAr, right.avgAr, (value) => value ? value.toFixed(2) : "-")}
+        ${renderCompareMetric(t("compare.metricAvgOd"), left.avgOd, right.avgOd, (value) => value ? value.toFixed(2) : "-")}
+        ${renderCompareMetric(t("compare.metricAvgCs"), left.avgCs, right.avgCs, (value) => value ? value.toFixed(2) : "-")}
       </div>
       <div class="compare-mod-row">
-        <div><span>Haefigste Mods</span><strong>${escapeHtml(left.topMods)}</strong></div>
-        <div><span>Haefigste Mods</span><strong>${escapeHtml(right.topMods)}</strong></div>
+        <div><span>${escapeHtml(t("compare.modA"))}</span>${renderModDistribution(left)}</div>
+        <div><span>${escapeHtml(t("compare.modB"))}</span>${renderModDistribution(right)}</div>
       </div>
+      ${renderSigCards(left, right, mode)}
       <div class="compare-score-columns">
-        <section>${renderMiniScores(left.scores, "osu")}</section>
-        <section>${renderMiniScores(right.scores, "osu")}</section>
+        ${renderCompareScores(left.user.username || t("compare.playerA"), left, mode)}
+        ${renderCompareScores(right.user.username || t("compare.playerB"), right, mode)}
       </div>
     </div>
   `;
@@ -2699,45 +2945,58 @@ function commonMapRows(leftScores, rightScores) {
     .sort((a, b) => Math.abs(scorePpValue(b.leftScore) - scorePpValue(b.rightScore)) - Math.abs(scorePpValue(a.leftScore) - scorePpValue(a.rightScore)));
 }
 
-function renderMapCompareResults(leftData, rightData) {
+function renderMapCompareResults(data) {
   const output = compareOutput("maps");
   if (!output) return;
 
-  const rows = commonMapRows(leftData.scores || [], rightData.scores || []).slice(0, 50);
+  const mode = data.meta?.mode || mapCompareGameMode();
+  const scope = document.querySelector("#mapCompareScope")?.value || "all";
+  const allRows = (data.scores || []).filter((score) => {
+    if (scope === "ranked") return isRankedScoreForDisplay(score, false);
+    if (scope === "loved") return isRankedScoreForDisplay(score, true);
+    return true;
+  });
+  const rows = allRows.slice(0, 200);
   const neighbors = document.querySelector("#mapCompareNeighbors")?.value || "5";
+  compareDetailScores = rows;
   output.innerHTML = `
     <div class="compare-results">
       <div class="compare-result-head">
         <div>
-          <span>Gemeinsame Maps</span>
-          <strong>${formatNumber(rows.length)} gefunden</strong>
+          <span>${escapeHtml(t("compare.loadedMaps"))}</span>
+          <strong>${formatNumber(rows.length)} ${escapeHtml(t("compare.shown"))}</strong>
         </div>
         <div>
-          <span>Rangumfeld</span>
-          <strong>${escapeHtml(neighbors)} ueber / ${escapeHtml(neighbors)} unter vorbereitet</strong>
+          <span>${escapeHtml(t("compare.rankWindow"))}</span>
+          <strong>${escapeHtml(neighbors)} ${escapeHtml(t("compare.rankPrepared"))}</strong>
         </div>
       </div>
       <div class="map-compare-table">
         ${
           rows.length
-            ? rows.map(({ leftScore, rightScore }) => {
-                const set = leftScore.beatmapset || {};
-                const beatmap = leftScore.beatmap || {};
-                const leftPp = scorePpValue(leftScore);
-                const rightPp = scorePpValue(rightScore);
+            ? rows.map((score) => {
+                const set = score.beatmapset || {};
+                const beatmap = score.beatmap || {};
+                const ppValue = scorePpValue(score);
+                const leaderboardUrl = beatmap?.id
+                  ? `https://osu.ppy.sh/beatmaps/${encodeURIComponent(beatmap.id)}`
+                  : beatmapUrl(score);
                 return `
                   <div class="map-compare-row">
                     <div>
                       <strong>${escapeHtml(set.artist || beatmap.artist || "?")} - ${escapeHtml(set.title || beatmap.title || "?")}</strong>
                       <small>${escapeHtml(beatmap.version || "Difficulty")}</small>
                     </div>
-                    <span>${formatPp(leftPp)} · ${formatAccuracy(leftScore.accuracy)}</span>
-                    <span>${formatPp(rightPp)} · ${formatAccuracy(rightScore.accuracy)}</span>
-                    <b>${leftPp >= rightPp ? "+" : ""}${(leftPp - rightPp).toFixed(2)}pp</b>
+                    <span>${formatPp(ppValue)} · ${formatAccuracy(score.accuracy)}</span>
+                    <span>${formatNumber(score.max_combo)}x · ${missCount(score)} ${t("label.miss")}</span>
+                    <div class="map-compare-actions">
+                      <button class="detail-button" type="button" data-score-key="${escapeHtml(scoreDomKey(score))}">${escapeHtml(t("button.details"))}</button>
+                      <a href="${escapeHtml(leaderboardUrl)}" target="_blank" rel="noreferrer">${escapeHtml(t("compare.openLeaderboard"))}</a>
+                    </div>
                   </div>
                 `;
               }).join("")
-            : `<div class="compare-empty">Keine gemeinsamen Maps in den geladenen Top-/gespeicherten Scores gefunden.</div>`
+            : `<div class="compare-empty">${escapeHtml(t("compare.noMaps"))}</div>`
         }
       </div>
     </div>
@@ -2748,13 +3007,14 @@ async function runVsCompare() {
   const leftName = comparePlayerA?.value.trim() || "";
   const rightName = comparePlayerB?.value.trim() || "";
   if (!leftName || !rightName) {
-    setCompareError("vs", new Error("Bitte beide Spielernamen eintragen."));
+    setCompareError("vs", new Error(t("compare.needTwoPlayers")));
     return;
   }
 
-  setCompareLoading("vs", "VS Vergleich wird geladen...");
+  setCompareLoading("vs", t("compare.vsLoading"));
   try {
-    const [leftData, rightData] = await Promise.all([fetchCompareData(leftName), fetchCompareData(rightName)]);
+    const mode = compareGameMode();
+    const [leftData, rightData] = await Promise.all([fetchCompareData(leftName, mode), fetchCompareData(rightName, mode)]);
     renderVsResults(leftData, rightData);
   } catch (error) {
     setCompareError("vs", error);
@@ -2763,16 +3023,19 @@ async function runVsCompare() {
 
 async function runMapCompare() {
   const leftName = mapComparePlayerA?.value.trim() || comparePlayerA?.value.trim() || "";
-  const rightName = mapComparePlayerB?.value.trim() || comparePlayerB?.value.trim() || "";
-  if (!leftName || !rightName) {
-    setCompareError("maps", new Error("Bitte beide Spielernamen eintragen."));
+  if (!leftName) {
+    setCompareError("maps", new Error(t("compare.needOnePlayer")));
     return;
   }
 
-  setCompareLoading("maps", "Map Compare wird geladen...", "Gemeinsame Maps brauchen etwas laenger, weil beide Spieler mit bis zu 200 Scores abgeglichen werden.");
+  setCompareLoading("maps", t("compare.mapLoading"), t("compare.mapLoadingDetail"));
   try {
-    const [leftData, rightData] = await Promise.all([fetchCompareData(leftName), fetchCompareData(rightName)]);
-    renderMapCompareResults(leftData, rightData);
+    const scope = document.querySelector("#mapCompareScope")?.value || "all";
+    const data = await fetchCompareData(leftName, mapCompareGameMode(), {
+      rankedOnly: scope === "all" ? "0" : "1",
+      includeLoved: scope === "loved" ? "1" : "0",
+    });
+    renderMapCompareResults(data);
   } catch (error) {
     setCompareError("maps", error);
   }
@@ -2817,6 +3080,12 @@ sideMenu?.addEventListener("click", (event) => {
 });
 
 compareView?.addEventListener("click", (event) => {
+  const detailButton = event.target.closest("button[data-score-key]");
+  if (detailButton) {
+    renderMapDetails(detailButton.dataset.scoreKey);
+    return;
+  }
+
   if (event.target.closest("#compareRun")) {
     void runVsCompare();
     return;
@@ -2831,7 +3100,6 @@ compareView?.addEventListener("click", (event) => {
     if (comparePlayerA) comparePlayerA.value = "";
     if (comparePlayerB) comparePlayerB.value = "";
     if (mapComparePlayerA) mapComparePlayerA.value = "";
-    if (mapComparePlayerB) mapComparePlayerB.value = "";
     resetCompareOutput("vs");
     resetCompareOutput("maps");
     return;
@@ -2843,10 +3111,10 @@ compareView?.addEventListener("click", (event) => {
   const mode = button.dataset.compareMode === "maps" ? "maps" : "vs";
   if (mode === "maps") {
     if (mapComparePlayerA && !mapComparePlayerA.value && comparePlayerA?.value) mapComparePlayerA.value = comparePlayerA.value;
-    if (mapComparePlayerB && !mapComparePlayerB.value && comparePlayerB?.value) mapComparePlayerB.value = comparePlayerB.value;
+    if (mapCompareMode && compareMode) mapCompareMode.value = compareMode.value;
   } else {
     if (comparePlayerA && !comparePlayerA.value && mapComparePlayerA?.value) comparePlayerA.value = mapComparePlayerA.value;
-    if (comparePlayerB && !comparePlayerB.value && mapComparePlayerB?.value) comparePlayerB.value = mapComparePlayerB.value;
+    if (compareMode && mapCompareMode) compareMode.value = mapCompareMode.value;
   }
 
   for (const tab of compareView.querySelectorAll("button[data-compare-mode]")) {
