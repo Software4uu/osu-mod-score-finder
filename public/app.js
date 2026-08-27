@@ -2948,16 +2948,33 @@ function osuSigMode(mode) {
 function osuSigUrl(username, mode, type = "full") {
   const params = new URLSearchParams({
     user: username,
-    mode: osuSigMode(mode),
+    mode,
     lang: currentLanguage === "de" ? "en" : currentLanguage,
-    hue: "333",
-    animation: "false",
+    type,
   });
-  if (type === "skills") {
-    return `https://osu-sig.s23.moe/skills?${params.toString()}`;
-  }
-  params.set("skills", "true");
-  return `https://osu-sig.s23.moe/card?${params.toString()}`;
+  return `/api/osu-sig?${params.toString()}`;
+}
+
+function sigUserKey(summary) {
+  return String(summary?.user?.id || summary?.user?.username || "").trim();
+}
+
+function sigImageTag(summary, mode, type) {
+  const username = summary?.user?.username || "";
+  const userKey = sigUserKey(summary);
+  const label = type === "skills" ? t("compare.sigSkills") : t("compare.sigFullSkills");
+  const src = osuSigUrl(userKey, mode, type);
+  return `
+    <img
+      class="compare-sig-image"
+      src="${escapeHtml(src)}"
+      data-src="${escapeHtml(src)}"
+      data-retry="0"
+      alt="${escapeHtml(username)} osu-sig ${escapeHtml(label)}"
+      loading="eager"
+      decoding="async"
+    />
+  `;
 }
 
 function renderSigCards(left, right, mode) {
@@ -2969,21 +2986,24 @@ function renderSigCards(left, right, mode) {
     `;
   }
 
-  const users = [left, right].map((summary) => summary.user.username || "");
+  const users = [left, right];
   return `
     <div class="compare-signatures">
-      ${users.map((username) => `
+      ${users.map((summary) => {
+        const username = summary?.user?.username || "-";
+        return `
         <section>
           <div class="compare-sig-head">
             <strong>${escapeHtml(username || "-")}</strong>
             <a href="https://osu-sig.s23.moe" target="_blank" rel="noreferrer">osu-sig</a>
           </div>
           <small>${escapeHtml(t("compare.sigFullSkills"))}</small>
-          <img src="${escapeHtml(osuSigUrl(username, mode, "full"))}" alt="${escapeHtml(username)} osu-sig full with skills" loading="lazy" />
+          ${sigImageTag(summary, mode, "full")}
           <small>${escapeHtml(t("compare.sigSkills"))}</small>
-          <img src="${escapeHtml(osuSigUrl(username, mode, "skills"))}" alt="${escapeHtml(username)} osu-sig skills" loading="lazy" />
+          ${sigImageTag(summary, mode, "skills")}
         </section>
-      `).join("")}
+      `;
+      }).join("")}
     </div>
   `;
 }
@@ -3842,6 +3862,25 @@ timeTravelView?.addEventListener("keydown", (event) => {
   event.preventDefault();
   void runTimeTravel();
 });
+
+compareView?.addEventListener("error", (event) => {
+  const image = event.target;
+  if (!(image instanceof HTMLImageElement) || !image.classList.contains("compare-sig-image")) return;
+
+  const retry = Number(image.dataset.retry || 0);
+  if (retry >= 3) {
+    image.classList.add("is-unavailable");
+    return;
+  }
+
+  image.dataset.retry = String(retry + 1);
+  const baseSrc = image.dataset.src || image.src;
+  const separator = baseSrc.includes("?") ? "&" : "?";
+  window.setTimeout(() => {
+    image.classList.remove("is-unavailable");
+    image.src = `${baseSrc}${separator}retry=${retry + 1}&at=${Date.now()}`;
+  }, 900 + retry * 1400);
+}, true);
 
 modButtons.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-mods]");

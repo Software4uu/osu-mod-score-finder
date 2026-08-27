@@ -36,6 +36,7 @@ const osuApiMaxRetries = 3;
 const authoritativePpSources = new Set(["osu-api", "huismetbenen-live"]);
 const ppCacheFreshMs = 24 * 60 * 60 * 1000;
 const osuTrackCacheFreshMs = 6 * 60 * 60 * 1000;
+const osuSigCacheFreshMs = 30 * 60 * 1000;
 
 loadDotEnv();
 
@@ -44,6 +45,7 @@ const host = process.env.HOST || "127.0.0.1";
 let tokenCache = null;
 const ppProgressJobs = new Map();
 const osuTrackHistoryCache = new Map();
+const osuSigImageCache = new Map();
 const osuApiQueue = [];
 let osuApiQueueRunning = false;
 let osuApiQueueSequence = 0;
@@ -2286,6 +2288,77 @@ async function handleUpdateStart(req, res) {
   });
 }
 
+function osuSigMode(mode) {
+  if (mode === "osu") return "std";
+  if (mode === "fruits") return "catch";
+  if (mode === "taiko" || mode === "mania") return mode;
+  return "std";
+}
+
+async function handleOsuSigImage(req, res) {
+  if (req.method !== "GET") {
+    throw statusError(405, "Method not allowed");
+  }
+
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const user = String(url.searchParams.get("user") || "").trim();
+  const mode = osuSigMode(url.searchParams.get("mode") || "osu");
+  const type = url.searchParams.get("type") === "skills" ? "skills" : "full";
+  const lang = url.searchParams.get("lang") === "de" ? "de" : "en";
+  if (!user || user.length > 80) {
+    throw statusError(400, "Missing osu-sig user.");
+  }
+
+  const cacheKey = `${type}:${mode}:${lang}:${user}`;
+  const cached = osuSigImageCache.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < osuSigCacheFreshMs) {
+    res.writeHead(200, {
+      "content-type": cached.contentType,
+      "cache-control": "public, max-age=1800",
+    });
+    return res.end(cached.body);
+  }
+
+  const params = new URLSearchParams({
+    user,
+    mode,
+    lang,
+    hue: "333",
+    animation: "false",
+  });
+  let remoteUrl = "";
+  if (type === "skills") {
+    remoteUrl = `https://osu-sig.s23.moe/skills?${params.toString()}`;
+  } else {
+    params.set("skills", "true");
+    remoteUrl = `https://osu-sig.s23.moe/card?${params.toString()}`;
+  }
+
+  const response = await fetch(remoteUrl, {
+    headers: {
+      accept: "image/png,image/*;q=0.9,*/*;q=0.2",
+      "user-agent": "osu-mod-score-finder-beta",
+    },
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!response.ok) {
+    throw statusError(response.status, `osu-sig returned ${response.status}`);
+  }
+
+  const contentType = response.headers.get("content-type") || "image/png";
+  if (!contentType.startsWith("image/")) {
+    throw statusError(502, "osu-sig did not return an image.");
+  }
+
+  const body = Buffer.from(await response.arrayBuffer());
+  osuSigImageCache.set(cacheKey, { fetchedAt: Date.now(), contentType, body });
+  res.writeHead(200, {
+    "content-type": contentType,
+    "cache-control": "public, max-age=1800",
+  });
+  return res.end(body);
+}
+
 async function serveStatic(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = decodeURIComponent(url.pathname);
@@ -2336,6 +2409,10 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === "/api/update-start") {
       return await handleUpdateStart(req, res);
+    }
+
+    if (url.pathname === "/api/osu-sig") {
+      return await handleOsuSigImage(req, res);
     }
 
     if (url.pathname === "/api/search") {
