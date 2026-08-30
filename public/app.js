@@ -3616,21 +3616,30 @@ function renderPpMapEstimateTray(map) {
   `;
 }
 
+function ppMapsImprovementGain(map) {
+  const best = map?.knownBest;
+  if (!best) return Number.POSITIVE_INFINITY;
+  const currentPp = passPpValue(best) || scorePpValue(best);
+  const targetPp = Number(map.pp || 0);
+  if (!Number.isFinite(targetPp) || targetPp <= 0) return Number.POSITIVE_INFINITY;
+  const gain = targetPp - currentPp;
+  return gain > 0 ? gain : Number.POSITIVE_INFINITY;
+}
+
 function ppMapsImprovementHtml(map) {
   const best = map.knownBest;
   if (!best) return "";
   const currentPp = passPpValue(best) || scorePpValue(best);
-  const targetPp = Number(map.pp || 0);
-  const gain = targetPp - currentPp;
+  const gain = ppMapsImprovementGain(map);
   const acc = accuracyPercentValue(best);
   const misses = missCount(best);
-  const isCloseBreak = acc >= 97 && misses <= 2 && gain > 0;
+  const isCloseBreak = acc >= 97 && misses <= 2 && Number.isFinite(gain);
   return `
     <div class="ppmap-improvement">
       <span>${escapeHtml(t("ppMaps.currentBest"))}</span>
       <strong>${escapeHtml(formatPp(currentPp))}</strong>
       <small>${escapeHtml(formatAccuracy(acc))} · ${escapeHtml(formatNumber(best.max_combo || 0))}x · ${escapeHtml(formatNumber(misses))} Miss</small>
-      <b>${escapeHtml(t("ppMaps.gain"))}: ${escapeHtml(gain > 0 ? `+${formatPp(gain)}` : "0.00pp")}</b>
+      <b>${escapeHtml(t("ppMaps.gain"))}: ${escapeHtml(Number.isFinite(gain) ? `+${formatPp(gain)}` : "0.00pp")}</b>
       ${isCloseBreak ? `<em>${escapeHtml(t("ppMaps.sliderbreak"))}</em>` : ""}
     </div>
   `;
@@ -3684,7 +3693,7 @@ function renderPpMapsResults(payload, knownData, knownError = null) {
     .filter((map) => playedIds.has(Number(map.beatmapId || 0)))
     .map((map) => ({ ...map, knownBest: knownById.get(Number(map.beatmapId || 0))?.[0] || null }))
     .filter((map) => map.knownBest)
-    .sort((a, b) => (Number(b.pp || 0) - (passPpValue(b.knownBest) || scorePpValue(b.knownBest))) - (Number(a.pp || 0) - (passPpValue(a.knownBest) || scorePpValue(a.knownBest))));
+    .sort((a, b) => ppMapsImprovementGain(a) - ppMapsImprovementGain(b) || Number(b.pp || 0) - Number(a.pp || 0));
   const activeMaps = ppMapsResultMode === "improvement" ? improvement : unplayed;
   const maps = activeMaps.slice(0, shownLimit);
   const updated = payload.updatedAt ? formatDate(payload.updatedAt) : "-";
