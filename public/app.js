@@ -3892,6 +3892,7 @@ function renderPpMapsResults(payload, knownData, knownError = null) {
     .map((map) => ppMapsWithImprovement(map, knownById.get(Number(map.beatmapId || 0))?.[0] || null))
     .filter((map) => map.knownBest)
     .filter(ppMapsImprovementMatchesLocalFilters)
+    .filter((map) => Number.isFinite(ppMapsImprovementGain(map)))
     .sort((a, b) =>
       ppMapsImprovementGain(a) - ppMapsImprovementGain(b) ||
       ppMapsNumber(a.pp) - ppMapsNumber(b.pp) ||
