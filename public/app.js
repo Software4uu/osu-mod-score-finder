@@ -3571,6 +3571,7 @@ function syncPpMapsModeRadios() {
 
 function syncPpMapsResultTabs() {
   if (!ppMapsView) return;
+  ppMapsView.dataset.resultMode = ppMapsResultMode;
   for (const button of ppMapsView.querySelectorAll("button[data-ppmaps-view]")) {
     button.classList.toggle("active", button.dataset.ppmapsView === ppMapsResultMode);
   }
@@ -3653,6 +3654,30 @@ function ppMapsNumber(value) {
   if (value === null || value === undefined || value === "") return 0;
   const parsed = Number(String(value).replace(",", "."));
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function ppMapsOptionalNumber(id) {
+  const value = ppMapsFieldValue(id);
+  if (!value) return null;
+  const parsed = Number(String(value).replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function ppMapsImprovementMatchesLocalFilters(map) {
+  const best = map?.knownBest;
+  if (!best) return false;
+  const acc = accuracyPercentValue(best);
+  const misses = missCount(best);
+  const accMin = ppMapsOptionalNumber("ppMapsAccMin");
+  const accMax = ppMapsOptionalNumber("ppMapsAccMax");
+  const missMin = ppMapsOptionalNumber("ppMapsMissMin");
+  const missMax = ppMapsOptionalNumber("ppMapsMissMax");
+
+  if (accMin !== null && acc < accMin) return false;
+  if (accMax !== null && acc > accMax) return false;
+  if (missMin !== null && misses < missMin) return false;
+  if (missMax !== null && misses > missMax) return false;
+  return true;
 }
 
 function ppMapsImprovementGain(map) {
@@ -3742,6 +3767,7 @@ function renderPpMapsResults(payload, knownData, knownError = null) {
     .filter((map) => playedIds.has(Number(map.beatmapId || 0)))
     .map((map) => ppMapsWithImprovement(map, knownById.get(Number(map.beatmapId || 0))?.[0] || null))
     .filter((map) => map.knownBest)
+    .filter(ppMapsImprovementMatchesLocalFilters)
     .sort((a, b) =>
       ppMapsImprovementGain(a) - ppMapsImprovementGain(b) ||
       ppMapsNumber(a.pp) - ppMapsNumber(b.pp) ||
@@ -3838,6 +3864,10 @@ function resetPpMaps() {
     "ppMapsStarsMax",
     "ppMapsPassMin",
     "ppMapsPassMax",
+    "ppMapsAccMin",
+    "ppMapsAccMax",
+    "ppMapsMissMin",
+    "ppMapsMissMax",
     "ppMapsLengthMin",
     "ppMapsLengthMax",
   ]) {
@@ -5516,9 +5546,18 @@ ppMapsMore?.addEventListener("click", () => {
 
 ppMapsView?.addEventListener("change", (event) => {
   const modeChoice = event.target.closest("input[name='ppMapsModeChoice']");
-  if (!modeChoice || !ppMapsMode) return;
-  ppMapsMode.value = modeChoice.value;
-  syncPpMapsModeRadios();
+  if (modeChoice && ppMapsMode) {
+    ppMapsMode.value = modeChoice.value;
+    syncPpMapsModeRadios();
+    return;
+  }
+
+  if (
+    event.target.closest("#ppMapsAccMin, #ppMapsAccMax, #ppMapsMissMin, #ppMapsMissMax, #ppMapsLimit") &&
+    latestPpMapsPayload
+  ) {
+    renderPpMapsResults(latestPpMapsPayload, latestPpMapsKnownData, latestPpMapsKnownError);
+  }
 });
 
 ppMapsView?.addEventListener("keydown", (event) => {

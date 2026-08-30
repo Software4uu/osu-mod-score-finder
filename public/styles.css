@@ -2104,6 +2104,24 @@ select:focus {
   width: 58px;
 }
 
+.ppmaps-local-acc,
+.ppmaps-local-misses {
+  display: none;
+}
+
+#ppMapsView[data-result-mode="improvement"] .ppmaps-local-acc,
+#ppMapsView[data-result-mode="improvement"] .ppmaps-local-misses {
+  display: grid;
+}
+
+#ppMapsView[data-result-mode="improvement"] .ppmaps-local-acc {
+  grid-column: 7;
+}
+
+#ppMapsView[data-result-mode="improvement"] .ppmaps-local-misses {
+  grid-column: 8;
+}
+
 .ppmaps-mods {
   display: flex;
   gap: 6px;
@@ -3754,6 +3772,11 @@ select:focus {
   .ppmaps-range input,
   .ppmaps-range.compact input {
     width: 100%;
+  }
+
+  #ppMapsView[data-result-mode="improvement"] .ppmaps-local-acc,
+  #ppMapsView[data-result-mode="improvement"] .ppmaps-local-misses {
+    grid-column: auto;
   }
 
   .ppmaps-mods {
