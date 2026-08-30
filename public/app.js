@@ -83,6 +83,10 @@ let timeTravelExternalSnapshots = [];
 let latestSkillTreeData = null;
 let latestSkillTreeMode = "osu";
 const ppMapsModStates = new Map();
+let ppMapsResultMode = "unplayed";
+let latestPpMapsPayload = null;
+let latestPpMapsKnownData = null;
+let latestPpMapsKnownError = null;
 let skillTrainingState = {
   skillKey: "weakest",
   goalType: "pp",
@@ -302,16 +306,22 @@ const translations = {
     "ppMaps.loading": "PP-Maps werden geladen...",
     "ppMaps.loadingDetail": "osu-pps Daten und deine bekannten Scores werden abgeglichen.",
     "ppMaps.results": "Ungespielte Kandidaten",
+    "ppMaps.improvementResults": "Improvement-Kandidaten",
     "ppMaps.sourceUpdated": "osu-pps aktualisiert",
     "ppMaps.knownRemoved": "bereits bekannte Maps entfernt",
+    "ppMaps.playedCandidates": "bereits gespielte Kandidaten",
     "ppMaps.available": "osu-pps Treffer",
     "ppMaps.passCount": "Passes",
     "ppMaps.farmValue": "Farm",
     "ppMaps.openPps": "auf osu-pps oeffnen",
     "ppMaps.openMap": "Map oeffnen",
     "ppMaps.noResults": "Keine ungespielten PP-Maps fuer diese Filter gefunden.",
+    "ppMaps.noImprovementResults": "Keine bereits gespielten Improvement-Kandidaten fuer diese Filter gefunden.",
     "ppMaps.failed": "PP-Maps konnten nicht geladen werden.",
     "ppMaps.knownUnavailable": "Score-Abgleich nicht verfuegbar",
+    "ppMaps.currentBest": "bekannter Besttry",
+    "ppMaps.gain": "moeglich",
+    "ppMaps.sliderbreak": "SB/1-Miss Chance",
     "compare.eyebrow": "Vergleich",
     "compare.title": "Spieler vergleichen",
     "compare.description": "Eine ruhige Arbeitsflaeche fuer direkte Spieler-Vergleiche: Top-200, Profilwerte, Mod-Fokus und Map-Kontext.",
@@ -795,16 +805,22 @@ const translations = {
     "ppMaps.loading": "Loading PP maps...",
     "ppMaps.loadingDetail": "Matching osu-pps data against your known scores.",
     "ppMaps.results": "Unplayed candidates",
+    "ppMaps.improvementResults": "Improvement candidates",
     "ppMaps.sourceUpdated": "osu-pps updated",
     "ppMaps.knownRemoved": "known maps removed",
+    "ppMaps.playedCandidates": "already played candidates",
     "ppMaps.available": "osu-pps matches",
     "ppMaps.passCount": "Passes",
     "ppMaps.farmValue": "Farm",
     "ppMaps.openPps": "open on osu-pps",
     "ppMaps.openMap": "Open map",
     "ppMaps.noResults": "No unplayed PP maps found for these filters.",
+    "ppMaps.noImprovementResults": "No already played improvement candidates found for these filters.",
     "ppMaps.failed": "Could not load PP maps.",
     "ppMaps.knownUnavailable": "Score matching unavailable",
+    "ppMaps.currentBest": "known best try",
+    "ppMaps.gain": "possible",
+    "ppMaps.sliderbreak": "SB/1-miss chance",
     "compare.eyebrow": "Compare",
     "compare.title": "Compare players",
     "compare.description": "A calm workspace for direct player comparisons: top 200, profile values, mod focus, and map context.",
@@ -3442,6 +3458,26 @@ function ppMapsPlayedBeatmapIds(data) {
     .filter((id) => Number.isFinite(id) && id > 0));
 }
 
+function ppMapsKnownScoresByBeatmapId(data) {
+  const byId = new Map();
+  const scores = uniqueScores([
+    ...(data?.scores || []),
+    ...passScoresFromData(data),
+    ...allScoresFromData(data),
+  ]);
+  for (const score of scores) {
+    const id = Number(score.beatmap_id || score.beatmap?.id || 0);
+    if (!Number.isFinite(id) || id <= 0) continue;
+    const list = byId.get(id) || [];
+    list.push(score);
+    byId.set(id, list);
+  }
+  for (const [id, list] of byId.entries()) {
+    byId.set(id, sortScoresForDisplay(list, "pp"));
+  }
+  return byId;
+}
+
 function ppMapsParams(limit = 300) {
   const params = new URLSearchParams();
   params.set("mode", ppMapsMode?.value || "osu");
@@ -3497,6 +3533,13 @@ function syncPpMapsModeRadios() {
   if (!ppMapsView || !ppMapsMode) return;
   for (const input of ppMapsView.querySelectorAll("input[name='ppMapsModeChoice']")) {
     input.checked = input.value === ppMapsMode.value;
+  }
+}
+
+function syncPpMapsResultTabs() {
+  if (!ppMapsView) return;
+  for (const button of ppMapsView.querySelectorAll("button[data-ppmaps-view]")) {
+    button.classList.toggle("active", button.dataset.ppmapsView === ppMapsResultMode);
   }
 }
 
@@ -3573,6 +3616,26 @@ function renderPpMapEstimateTray(map) {
   `;
 }
 
+function ppMapsImprovementHtml(map) {
+  const best = map.knownBest;
+  if (!best) return "";
+  const currentPp = passPpValue(best) || scorePpValue(best);
+  const targetPp = Number(map.pp || 0);
+  const gain = targetPp - currentPp;
+  const acc = accuracyPercentValue(best);
+  const misses = missCount(best);
+  const isCloseBreak = acc >= 97 && misses <= 2 && gain > 0;
+  return `
+    <div class="ppmap-improvement">
+      <span>${escapeHtml(t("ppMaps.currentBest"))}</span>
+      <strong>${escapeHtml(formatPp(currentPp))}</strong>
+      <small>${escapeHtml(formatAccuracy(acc))} · ${escapeHtml(formatNumber(best.max_combo || 0))}x · ${escapeHtml(formatNumber(misses))} Miss</small>
+      <b>${escapeHtml(t("ppMaps.gain"))}: ${escapeHtml(gain > 0 ? `+${formatPp(gain)}` : "0.00pp")}</b>
+      ${isCloseBreak ? `<em>${escapeHtml(t("ppMaps.sliderbreak"))}</em>` : ""}
+    </div>
+  `;
+}
+
 function renderPpMapCard(map, index) {
   const cover = ppMapCoverUrl(map);
   const coverHtml = cover
@@ -3602,6 +3665,7 @@ function renderPpMapCard(map, index) {
         <strong>${escapeHtml(formatPp(map.pp))}</strong>
         <small>${escapeHtml(t("ppMaps.passCount"))}: ${escapeHtml(formatNumber(map.passCount || 0))}</small>
         <small>${escapeHtml(t("ppMaps.farmValue"))}: ${escapeHtml(formatNumber(map.farmValue || 0))}</small>
+        ${ppMapsImprovementHtml(map)}
         <a href="${escapeHtml(ppMapsSourceUrl())}" target="_blank" rel="noreferrer">${escapeHtml(t("ppMaps.openPps"))}</a>
       </div>
       ${renderPpMapEstimateTray(map)}
@@ -3609,19 +3673,31 @@ function renderPpMapCard(map, index) {
   `;
 }
 
-function renderPpMapsResults(payload, knownData, unplayed, knownError = null) {
+function renderPpMapsResults(payload, knownData, knownError = null) {
   if (!ppMapsOutput) return;
   const playedIds = ppMapsPlayedBeatmapIds(knownData);
+  const knownById = ppMapsKnownScoresByBeatmapId(knownData);
   const shownLimit = Math.min(Math.max(Number(ppMapsFieldValue("ppMapsLimit") || 100), 1), 300);
-  const maps = unplayed.slice(0, shownLimit);
+  const allMaps = payload.maps || [];
+  const unplayed = allMaps.filter((map) => !playedIds.has(Number(map.beatmapId || 0)));
+  const improvement = allMaps
+    .filter((map) => playedIds.has(Number(map.beatmapId || 0)))
+    .map((map) => ({ ...map, knownBest: knownById.get(Number(map.beatmapId || 0))?.[0] || null }))
+    .filter((map) => map.knownBest)
+    .sort((a, b) => (Number(b.pp || 0) - (passPpValue(b.knownBest) || scorePpValue(b.knownBest))) - (Number(a.pp || 0) - (passPpValue(a.knownBest) || scorePpValue(a.knownBest))));
+  const activeMaps = ppMapsResultMode === "improvement" ? improvement : unplayed;
+  const maps = activeMaps.slice(0, shownLimit);
   const updated = payload.updatedAt ? formatDate(payload.updatedAt) : "-";
+  const title = ppMapsResultMode === "improvement" ? t("ppMaps.improvementResults") : t("ppMaps.results");
+  const emptyText = ppMapsResultMode === "improvement" ? t("ppMaps.noImprovementResults") : t("ppMaps.noResults");
+  const knownLabel = ppMapsResultMode === "improvement" ? t("ppMaps.playedCandidates") : t("ppMaps.knownRemoved");
 
   ppMapsOutput.classList.remove("hidden");
   ppMapsOutput.innerHTML = `
     <div class="ppmaps-results">
       <div class="ppmaps-summary">
         <div>
-          <span>${escapeHtml(t("ppMaps.results"))}</span>
+          <span>${escapeHtml(title)}</span>
           <strong>${escapeHtml(formatNumber(maps.length))}</strong>
         </div>
         <div>
@@ -3629,8 +3705,8 @@ function renderPpMapsResults(payload, knownData, unplayed, knownError = null) {
           <strong>${escapeHtml(formatNumber(payload.returned || payload.maps?.length || 0))}</strong>
         </div>
         <div>
-          <span>${escapeHtml(t("ppMaps.knownRemoved"))}</span>
-          <strong>${knownError ? escapeHtml(t("ppMaps.knownUnavailable")) : escapeHtml(formatNumber(playedIds.size ? (payload.maps || []).length - unplayed.length : 0))}</strong>
+          <span>${escapeHtml(knownLabel)}</span>
+          <strong>${knownError ? escapeHtml(t("ppMaps.knownUnavailable")) : escapeHtml(formatNumber(improvement.length))}</strong>
         </div>
         <div>
           <span>${escapeHtml(t("ppMaps.sourceUpdated"))}</span>
@@ -3639,7 +3715,7 @@ function renderPpMapsResults(payload, knownData, unplayed, knownError = null) {
       </div>
       ${maps.length
         ? `<div class="ppmaps-list">${maps.map((map, index) => renderPpMapCard(map, index)).join("")}</div>`
-        : `<div class="compare-empty">${escapeHtml(t("ppMaps.noResults"))}</div>`}
+        : `<div class="compare-empty">${escapeHtml(emptyText)}</div>`}
     </div>
   `;
 }
@@ -3678,9 +3754,10 @@ async function runPpMapsSearch() {
       knownData = lastSearchData;
     }
 
-    const playedIds = ppMapsPlayedBeatmapIds(knownData);
-    const unplayed = (mapsPayload.maps || []).filter((map) => !playedIds.has(Number(map.beatmapId || 0)));
-    renderPpMapsResults(mapsPayload, knownData, unplayed, knownError);
+    latestPpMapsPayload = mapsPayload;
+    latestPpMapsKnownData = knownData;
+    latestPpMapsKnownError = knownError;
+    renderPpMapsResults(mapsPayload, knownData, knownError);
   } catch (error) {
     setPpMapsError(error);
   } finally {
@@ -3708,6 +3785,9 @@ function resetPpMaps() {
   const limit = document.querySelector("#ppMapsLimit");
   if (limit) limit.value = "100";
   ppMapsModStates.clear();
+  latestPpMapsPayload = null;
+  latestPpMapsKnownData = null;
+  latestPpMapsKnownError = null;
   renderPpMapsMods();
   if (ppMapsOutput) {
     ppMapsOutput.innerHTML = `
@@ -5357,6 +5437,14 @@ ppMapsModButtons?.addEventListener("click", (event) => {
   renderPpMapsMods();
 });
 
+ppMapsView?.addEventListener("click", (event) => {
+  const viewButton = event.target.closest("button[data-ppmaps-view]");
+  if (!viewButton) return;
+  ppMapsResultMode = viewButton.dataset.ppmapsView === "improvement" ? "improvement" : "unplayed";
+  syncPpMapsResultTabs();
+  if (latestPpMapsPayload) renderPpMapsResults(latestPpMapsPayload, latestPpMapsKnownData, latestPpMapsKnownError);
+});
+
 ppMapsMore?.addEventListener("click", () => {
   const advanced = document.querySelector("#ppMapsAdvanced");
   const isOpen = !advanced?.classList.contains("hidden");
@@ -5562,6 +5650,7 @@ form.addEventListener("submit", runSearch);
 initHelp();
 applyLanguage(currentLanguage, { rerender: false });
 renderPpMapsMods();
+syncPpMapsResultTabs();
 checkStatus();
 checkForUpdates();
 startStartupSyncPolling();

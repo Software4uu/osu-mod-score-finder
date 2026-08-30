@@ -1943,15 +1943,33 @@ select:focus {
   gap: 20px;
 }
 
-.ppmaps-heading > div:first-child {
-  display: grid;
+.ppmaps-view-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.ppmaps-heading strong {
-  color: var(--text);
+.ppmaps-view-tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: rgba(206, 214, 229, 0.58);
+  padding: 0 0 4px;
   font-size: 1.72rem;
   font-weight: 950;
   line-height: 1;
+}
+
+.ppmaps-view-tabs button + button::before {
+  content: "·";
+  color: rgba(206, 214, 229, 0.38);
+  margin-right: 8px;
+}
+
+.ppmaps-view-tabs button.active,
+.ppmaps-view-tabs button:hover {
+  border-color: var(--pink);
+  color: var(--text);
 }
 
 .ppmaps-heading span {
@@ -2288,6 +2306,48 @@ select:focus {
   color: #80e9ff;
   font-size: 0.8rem;
   font-weight: 850;
+}
+
+.ppmap-improvement {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+  margin: 3px 0;
+  border: 1px solid rgba(255, 102, 170, 0.18);
+  border-radius: 7px;
+  background: rgba(255, 102, 170, 0.06);
+  padding: 7px;
+}
+
+.ppmap-improvement span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 850;
+}
+
+.ppmap-improvement strong {
+  color: #80e9ff;
+  font-size: 0.9rem;
+}
+
+.ppmap-improvement small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.ppmap-improvement b {
+  color: var(--green);
+  font-size: 0.82rem;
+}
+
+.ppmap-improvement em {
+  border-radius: 999px;
+  background: rgba(255, 102, 170, 0.18);
+  color: #ffd9eb;
+  padding: 2px 7px;
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 900;
 }
 
 .ppmap-estimates {
@@ -3674,7 +3734,7 @@ select:focus {
     gap: 8px;
   }
 
-  .ppmaps-heading strong {
+  .ppmaps-view-tabs button {
     font-size: 1.45rem;
   }
 
@@ -3710,6 +3770,10 @@ select:focus {
   }
 
   .ppmap-side {
+    justify-items: start;
+  }
+
+  .ppmap-improvement {
     justify-items: start;
   }
 
