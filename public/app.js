@@ -437,6 +437,15 @@ const translations = {
     "skill.prepMaps": "Vorbereitungs-Maps",
     "skill.ready": "bereit",
     "skill.needsPrep": "erst vorbereiten",
+    "skill.stepPrep": "1. Vorbereitung",
+    "skill.stepTarget": "2. Ziel-Play",
+    "skill.stepPolish": "3. Stabilisieren",
+    "skill.targetPlayTitle": "Was fuer ein Play dein Ziel braucht",
+    "skill.targetPlayText": "Suche nach einem Run in der Naehe von {pp}. Gute Kandidaten liegen beim gewaehlten Skill hoch, haben wenig Misses und sind nicht zu weit ueber deinem bisherigen Bereich.",
+    "skill.rankTargetText": "Rank-Ziel #{rank}: nutze die Zielmaps als PP-Richtung. Exakte Rank-Grenzen schwanken und werden spaeter ueber externe Snapshots genauer.",
+    "skill.prepText": "Erst aehnliche Maps etwa 0.3 bis 0.8 Sterne darunter stabilisieren.",
+    "skill.targetText": "Dann die Zielmaps spielen, die deiner Ziel-PP und dem gewaehlten Skill am naechsten kommen.",
+    "skill.polishText": "Wenn Vorbereitung schon 95%+ und maximal 1-2 Misses hat, nicht weiter runtergehen, sondern Zielmap grinden.",
     "skill.trainingSummary": "Plan-Zusammenfassung",
     "skill.targetCount": "Zielmaps",
     "skill.prepCount": "Vorbereitung",
@@ -874,6 +883,15 @@ const translations = {
     "skill.prepMaps": "Prep maps",
     "skill.ready": "ready",
     "skill.needsPrep": "prep first",
+    "skill.stepPrep": "1. Preparation",
+    "skill.stepTarget": "2. Target play",
+    "skill.stepPolish": "3. Stabilize",
+    "skill.targetPlayTitle": "What kind of play your goal needs",
+    "skill.targetPlayText": "Look for a run close to {pp}. Good candidates score high in the selected skill, have low misses, and are not too far above your current range.",
+    "skill.rankTargetText": "Rank goal #{rank}: target maps are used as a PP direction. Exact rank thresholds move and can be improved later with external snapshots.",
+    "skill.prepText": "First stabilize similar maps about 0.3 to 0.8 stars below the target.",
+    "skill.targetText": "Then play the target maps closest to your target PP and selected skill.",
+    "skill.polishText": "If prep is already 95%+ and at most 1-2 misses, stop going lower and grind the target map.",
     "skill.trainingSummary": "Plan summary",
     "skill.targetCount": "Target maps",
     "skill.prepCount": "Prep maps",
@@ -3859,6 +3877,7 @@ function buildTrainingPlan(analysis) {
     prepMaps: uniquePrep.slice(0, 8),
     readyCount: uniquePrep.filter((item) => trainingReadiness(item.score) === "ready").length,
     needsPrepCount: uniquePrep.filter((item) => trainingReadiness(item.score) !== "ready").length,
+    targetPp: usableTargetPp,
   };
 }
 
@@ -3893,11 +3912,32 @@ function renderTrainingPlanScore(item, mode, index) {
   `;
 }
 
+function renderTrainingPathStep(numberLabel, title, text, items, mode) {
+  return `
+    <section class="training-step">
+      <header>
+        <span>${escapeHtml(numberLabel)}</span>
+        <strong>${escapeHtml(title)}</strong>
+        <p>${escapeHtml(text)}</p>
+      </header>
+      <div class="training-step-items">
+        ${items.length
+          ? items.map((item, index) => renderTrainingPlanScore(item, mode, index)).join("")
+          : `<div class="compare-empty">${escapeHtml(t("skill.noTrainingMaps"))}</div>`}
+      </div>
+    </section>
+  `;
+}
+
 function renderSkillTrainingPlanner(analysis, mode) {
   const username = skillPlayer?.value.trim() || "";
   const selected = selectedTrainingCategory(analysis);
   const plan = buildTrainingPlan(analysis);
   const goals = readTrainingGoals().filter((goal) => trainingGoalMatches(goal, username, mode));
+  const targetPpLabel = plan.targetPp ? formatPp(plan.targetPp) : formatPp(Number(skillTrainingState.targetPp || 0));
+  const goalText = skillTrainingState.goalType === "rank"
+    ? t("skill.rankTargetText", { rank: skillTrainingState.targetRank || "-" })
+    : t("skill.targetPlayText", { pp: targetPpLabel });
   const categories = [
     { key: "weakest", label: `${t("skill.weakest")}: ${analysis.weakest?.label || "-"}` },
     ...analysis.categories.map((category) => ({ key: category.key, label: category.label })),
@@ -3946,19 +3986,15 @@ function renderSkillTrainingPlanner(analysis, mode) {
         ${renderPassStat(t("skill.readyCount"), formatNumber(plan.readyCount))}
         ${renderPassStat(t("skill.needsPrep"), formatNumber(plan.needsPrepCount))}
       </div>
-      <div class="training-map-plan">
-        <section>
-          <h3>${escapeHtml(t("skill.targetMaps"))}</h3>
-          ${plan.targetMaps.length
-            ? plan.targetMaps.map((item, index) => renderCompareScoreCard(item.score, mode, index)).join("")
-            : `<div class="compare-empty">${escapeHtml(t("skill.noTrainingMaps"))}</div>`}
-        </section>
-        <section>
-          <h3>${escapeHtml(t("skill.prepMaps"))}</h3>
-          ${plan.prepMaps.length
-            ? plan.prepMaps.map((item, index) => renderTrainingPlanScore(item, mode, index)).join("")
-            : `<div class="compare-empty">${escapeHtml(t("skill.noTrainingMaps"))}</div>`}
-        </section>
+      <article class="training-target-requirement">
+        <span>${escapeHtml(t("skill.targetPlayTitle"))}</span>
+        <strong>${escapeHtml(targetPpLabel)}</strong>
+        <p>${escapeHtml(goalText)}</p>
+      </article>
+      <div class="training-path">
+        ${renderTrainingPathStep(t("skill.stepPrep"), t("skill.prepMaps"), t("skill.prepText"), plan.prepMaps, mode)}
+        ${renderTrainingPathStep(t("skill.stepTarget"), t("skill.targetMaps"), t("skill.targetText"), plan.targetMaps, mode)}
+        ${renderTrainingPathStep(t("skill.stepPolish"), selected?.label || "-", t("skill.polishText"), plan.targetMaps.filter((item) => trainingReadiness(item.score) !== "ready").slice(0, 3), mode)}
       </div>
       <section class="training-goals-list">
         <h3>${escapeHtml(t("skill.savedGoals"))}</h3>

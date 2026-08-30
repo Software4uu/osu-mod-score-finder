@@ -50,6 +50,10 @@ button {
   margin: 0 auto;
 }
 
+body[data-active-section="skillTree"] .workspace {
+  width: min(1480px, 100%);
+}
+
 .topbar {
   display: flex;
   align-items: flex-end;
@@ -2484,8 +2488,8 @@ select:focus {
 
 .skill-graph {
   position: relative;
-  overflow: auto;
-  min-height: 760px;
+  overflow: hidden;
+  min-height: 900px;
   border: 1px solid rgba(148, 156, 176, 0.18);
   border-radius: 8px;
   background:
@@ -2498,8 +2502,8 @@ select:focus {
 .skill-links {
   position: absolute;
   inset: 0;
-  width: max(100%, 1180px);
-  min-width: 1180px;
+  width: 100%;
+  min-width: 0;
   height: 100%;
   pointer-events: none;
 }
@@ -2565,7 +2569,7 @@ select:focus {
   position: absolute;
   display: grid;
   gap: 3px;
-  width: 148px;
+  width: 138px;
   min-height: 62px;
   translate: -50% -50%;
   padding: 10px 12px;
@@ -2577,14 +2581,14 @@ select:focus {
 }
 
 .skill-graph-node.major {
-  width: 174px;
+  width: 164px;
   min-height: 96px;
   place-content: center;
 }
 
 .skill-graph-node strong {
   color: inherit;
-  font-size: 0.92rem;
+  font-size: 0.86rem;
   font-weight: 950;
   line-height: 1.1;
 }
@@ -2756,22 +2760,84 @@ select:focus {
   gap: 10px;
 }
 
-.training-map-plan {
+.training-target-requirement {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-  gap: 14px;
+  gap: 5px;
+  padding: 14px;
+  border: 1px solid rgba(103, 216, 242, 0.22);
+  border-radius: 8px;
+  background: rgba(5, 7, 12, 0.64);
 }
 
-.training-map-plan section,
+.training-target-requirement span {
+  color: var(--pink);
+  font-size: 0.78rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.training-target-requirement strong {
+  color: #67d8f2;
+  font-size: 1.6rem;
+  font-weight: 950;
+}
+
+.training-target-requirement p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.training-path {
+  display: grid;
+  gap: 12px;
+}
+
+.training-step,
 .training-goals-list {
   display: grid;
   gap: 10px;
   min-width: 0;
 }
 
+.training-step {
+  padding: 13px;
+  border: 1px solid rgba(148, 156, 176, 0.16);
+  border-radius: 8px;
+  background: rgba(7, 10, 17, 0.46);
+}
+
+.training-step > header {
+  display: grid;
+  gap: 4px;
+}
+
+.training-step > header span {
+  color: var(--pink);
+  font-size: 0.9rem;
+  font-weight: 950;
+}
+
+.training-step > header strong {
+  color: var(--text);
+  font-size: 1.1rem;
+  font-weight: 950;
+}
+
+.training-step > header p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.training-step-items {
+  display: grid;
+  gap: 8px;
+}
+
 .training-plan-score {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(190px, 0.75fr) auto;
+  grid-template-columns: minmax(0, 1.1fr) minmax(240px, 0.9fr) auto;
   gap: 12px;
   align-items: center;
   padding: 12px;
@@ -2986,7 +3052,7 @@ select:focus {
     .skill-star-grid,
     .training-planner-controls,
     .training-plan-summary,
-    .training-map-plan,
+    .training-path,
     .compare-signatures,
     .compare-score-columns,
     .map-compare-row {
