@@ -1039,6 +1039,91 @@ select:focus {
   margin-top: 14px;
 }
 
+.top-scores-view {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.top-range-panel {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255, 79, 163, 0.12), rgba(15, 19, 28, 0.92) 48%, rgba(104, 216, 255, 0.08));
+  padding: 14px;
+}
+
+.top-range-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: end;
+}
+
+.top-range-head > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.top-range-head strong {
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.top-range-head span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.top-range-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(140px, 1fr)) auto auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.top-range-fields label {
+  display: grid;
+  gap: 5px;
+}
+
+.top-range-fields input {
+  min-height: 36px;
+}
+
+.top-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.top-stat {
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(152, 170, 203, 0.18);
+  border-radius: 6px;
+  background: rgba(5, 8, 14, 0.54);
+  padding: 10px 12px;
+}
+
+.top-stat span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.top-stat strong {
+  color: var(--text);
+  font-size: 1.05rem;
+}
+
+.top-score-list {
+  display: grid;
+  gap: 10px;
+}
+
 .calendar-month-panel {
   display: grid;
   gap: 12px;
@@ -1392,6 +1477,12 @@ select:focus {
 
   .calendar-filter {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .top-range-head,
+  .top-range-fields,
+  .top-stat-grid {
+    grid-template-columns: 1fr;
   }
 
   .passes-head,
@@ -3233,6 +3324,10 @@ body[data-active-view="passes"] #rankFrom,
 body[data-active-view="passes"] #rankTo,
 body[data-active-view="passes"] #dateFilter,
 body[data-active-view="passes"] #improvementScope,
+body[data-active-view="top"] #rankMode,
+body[data-active-view="top"] #rankFrom,
+body[data-active-view="top"] #rankTo,
+body[data-active-view="top"] #improvementScope,
 body[data-active-view="calendar"] #rankMode,
 body[data-active-view="calendar"] #rankFrom,
 body[data-active-view="calendar"] #rankTo,
@@ -3252,6 +3347,10 @@ body[data-active-view="passes"] #rankFrom,
 body[data-active-view="passes"] #rankTo,
 body[data-active-view="passes"] #dateFilter,
 body[data-active-view="passes"] #improvementScope,
+body[data-active-view="top"] #rankMode,
+body[data-active-view="top"] #rankFrom,
+body[data-active-view="top"] #rankTo,
+body[data-active-view="top"] #improvementScope,
 body[data-active-view="calendar"] #rankMode,
 body[data-active-view="calendar"] #rankFrom,
 body[data-active-view="calendar"] #rankTo,
@@ -3271,6 +3370,10 @@ body[data-active-view="passes"] label:has(#rankFrom),
 body[data-active-view="passes"] label:has(#rankTo),
 body[data-active-view="passes"] label:has(#dateFilter),
 body[data-active-view="passes"] label:has(#improvementScope),
+body[data-active-view="top"] label:has(#rankMode),
+body[data-active-view="top"] label:has(#rankFrom),
+body[data-active-view="top"] label:has(#rankTo),
+body[data-active-view="top"] label:has(#improvementScope),
 body[data-active-view="calendar"] label:has(#rankMode),
 body[data-active-view="calendar"] label:has(#rankFrom),
 body[data-active-view="calendar"] label:has(#rankTo),

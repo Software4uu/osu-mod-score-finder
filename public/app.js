@@ -43,6 +43,7 @@ const skillMode = document.querySelector("#skillMode");
 const skillRun = document.querySelector("#skillRun");
 const skillStarMinInput = document.querySelector("#skillStarMin");
 const skillStarMaxInput = document.querySelector("#skillStarMax");
+const topScores = document.querySelector("#topScores");
 
 const selectedMods = new Set();
 const languageStorageKey = "osu-mod-score-finder-language";
@@ -54,6 +55,8 @@ let currentCalendarDay = "";
 let currentCalendarMonth = "";
 let calendarPpMin = "";
 let calendarPpMax = "";
+let topDateFrom = "";
+let topDateTo = "";
 let passStarMin = "6.54";
 let passStarMax = "7";
 let liveTimer = null;
@@ -144,6 +147,7 @@ const translations = {
     "field.mods": "Mods",
     "tab.scores": "Scores",
     "tab.passes": "Passes",
+    "tab.top": "Top",
     "tab.improvements": "Improvement",
     "tab.calendar": "Kalender",
     "placeholder.username": "z. B. WhiteCat",
@@ -492,6 +496,14 @@ const translations = {
     "label.ppQueued": "PP-Warteschlange",
     "label.ppAttempted": "bearbeitet",
     "label.ppVisibleReady": "sichtbare Scores geprueft",
+    "label.topRangeTitle": "Top-200 Plays im Zeitraum",
+    "label.topRangeHelp": "Zeigt nur Scores, die aktuell in der rekonstruierten PP-Top-200 deines Profils liegen.",
+    "label.dateFrom": "Von",
+    "label.dateTo": "Bis",
+    "label.topCurrentProfile": "aktuelle Profil-Top-200",
+    "label.topInRange": "Top-Plays im Zeitraum",
+    "label.topBestGain": "Bestes Play",
+    "label.topWeightedPp": "gewichtete PP im Zeitraum",
     "label.ppBackfillUntil": "stueckweise aufgefuellt bis",
     "label.ppEngine": "PP-Engine",
     "label.ppEngineOutdated": "veraltet, aktuell",
@@ -563,6 +575,8 @@ const translations = {
     "empty.noDayScores": "An diesem Tag sind fuer diese Filter keine Scores gespeichert.",
     "empty.noMapDetails": "Fuer diese Difficulty wurden in der aktuellen Suche keine weiteren Tries gefunden.",
     "empty.noStarPasses": "Keine Passes in dieser Sterne-Range gefunden.",
+    "empty.noTopScores": "Keine Top-200 Plays in diesem Zeitraum gefunden.",
+    "empty.noTopSource": "Lade zuerst einen Spieler, damit die aktuellen Profil-Top-200 abgeglichen werden koennen.",
     "empty.passSearchFirst": "Stelle die Sterne-Range ein und starte dann eine Suche.",
     "loading.search": "Passes werden geladen und in der lokalen Datenbank gespeichert.",
     "loading.ppProgress": "PP wird nachberechnet: {done} von {total}",
@@ -590,6 +604,7 @@ const translations = {
     "field.mods": "Mods",
     "tab.scores": "Scores",
     "tab.passes": "Passes",
+    "tab.top": "Top",
     "tab.improvements": "Improvement",
     "tab.calendar": "Calendar",
     "placeholder.username": "e.g. WhiteCat",
@@ -938,6 +953,14 @@ const translations = {
     "label.ppQueued": "PP queue",
     "label.ppAttempted": "processed",
     "label.ppVisibleReady": "visible scores checked",
+    "label.topRangeTitle": "Top-200 plays in range",
+    "label.topRangeHelp": "Shows only scores that are currently in the reconstructed PP top 200 of this profile.",
+    "label.dateFrom": "From",
+    "label.dateTo": "To",
+    "label.topCurrentProfile": "current profile top 200",
+    "label.topInRange": "top plays in range",
+    "label.topBestGain": "Best play",
+    "label.topWeightedPp": "weighted PP in range",
     "label.ppBackfillUntil": "chunked backfill reached",
     "label.ppEngine": "PP engine",
     "label.ppEngineOutdated": "outdated, latest",
@@ -1009,6 +1032,8 @@ const translations = {
     "empty.noDayScores": "No scores are stored for these filters on this day.",
     "empty.noMapDetails": "No other tries for this difficulty were found in the current search.",
     "empty.noStarPasses": "No passes found in this star range.",
+    "empty.noTopScores": "No top-200 plays found in this date range.",
+    "empty.noTopSource": "Load a player first so the current profile top 200 can be matched.",
     "empty.passSearchFirst": "Set the star range, then start a search.",
     "loading.search": "Loading passes and storing them in the local database.",
     "loading.ppProgress": "Recalculating PP: {done} of {total}",
@@ -1448,6 +1473,99 @@ function filteredCalendarScoresByDay(data) {
   }
 
   return filtered;
+}
+
+function scoreDayKey(score) {
+  return berlinDayKeyFromValue(score?.ended_at || score?.created_at || "");
+}
+
+function topDateBounds() {
+  const today = todayDayKey();
+  const from = topDateFrom || today;
+  const to = topDateTo || from;
+  return from <= to ? { from, to } : { from: to, to: from };
+}
+
+function currentProfileTopScores(data) {
+  const candidates = uniqueScores([
+    ...(data?.scores || []),
+    ...passScoresFromData(data),
+    ...allScoresFromData(data),
+  ]).filter((score) => {
+    if (scorePpValue(score) <= 0) return false;
+    return isRankedScoreForDisplay(score, false) || !score?.beatmap?.status;
+  });
+
+  return bestScorePerMapForDisplay(candidates, "pp", scorePpValue)
+    .sort((a, b) => scorePpValue(b) - scorePpValue(a) || scoreTimeValue(b) - scoreTimeValue(a))
+    .slice(0, 200)
+    .map((score, index) => ({ ...score, pp_rank: index + 1 }));
+}
+
+function scoreInTopDateRange(score, from, to) {
+  const dayKey = scoreDayKey(score);
+  return Boolean(dayKey) && dayKey >= from && dayKey <= to;
+}
+
+function renderTopStat(label, value) {
+  return `
+    <div class="top-stat">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </div>
+  `;
+}
+
+function renderTopScores(data = null) {
+  const hasData = Boolean(data);
+  const { from, to } = topDateBounds();
+
+  if (!topDateFrom) topDateFrom = from;
+  if (!topDateTo) topDateTo = to;
+
+  if (!hasData) {
+    topScores.innerHTML = `<div class="empty-state">${escapeHtml(t("empty.noTopSource"))}</div>`;
+    return;
+  }
+
+  const profileTop = currentProfileTopScores(data);
+  const rangeScores = profileTop.filter((score) => scoreInTopDateRange(score, from, to));
+  const bestPp = rangeScores.reduce((best, score) => Math.max(best, scorePpValue(score)), 0);
+  const weightedPp = rangeScores.reduce((total, score) => total + scorePpValue(score) * Math.pow(0.95, Math.max(0, Number(score.pp_rank || 1) - 1)), 0);
+
+  topScores.innerHTML = `
+    <section class="top-range-panel">
+      <div class="top-range-head">
+        <div>
+          <strong>${escapeHtml(t("label.topRangeTitle"))}</strong>
+          <span>${escapeHtml(t("label.topRangeHelp"))}</span>
+        </div>
+        <div class="top-range-fields">
+          <label>
+            <span>${escapeHtml(t("label.dateFrom"))}</span>
+            <input type="date" data-top-date-from value="${escapeHtml(from)}" />
+          </label>
+          <label>
+            <span>${escapeHtml(t("label.dateTo"))}</span>
+            <input type="date" data-top-date-to value="${escapeHtml(to)}" />
+          </label>
+          <button type="button" data-top-range="today">${escapeHtml(t("button.today"))}</button>
+          <button type="button" data-top-range="apply">${escapeHtml(t("button.apply"))}</button>
+        </div>
+      </div>
+      <div class="top-stat-grid">
+        ${renderTopStat(t("label.topCurrentProfile"), formatNumber(profileTop.length))}
+        ${renderTopStat(t("label.topInRange"), formatNumber(rangeScores.length))}
+        ${renderTopStat(t("label.topBestGain"), formatPp(bestPp))}
+        ${renderTopStat(t("label.topWeightedPp"), formatPp(weightedPp))}
+      </div>
+    </section>
+    <div class="top-score-list">
+      ${rangeScores.length
+        ? rangeScores.map((score) => renderScore(score, data.meta?.mode || "osu")).join("")
+        : `<div class="empty-state">${escapeHtml(t("empty.noTopScores"))}</div>`}
+    </div>
+  `;
 }
 
 function calendarDaysFromScoresByDay(scoresByDay, sort = "date") {
@@ -2873,6 +2991,7 @@ function renderMapDetails(scoreKey) {
 function renderSearchData(data) {
   renderSummary(data);
   renderPasses(data);
+  renderTopScores(data);
   renderImprovements(data);
   renderCalendar(data);
 
@@ -2892,6 +3011,7 @@ async function runSearch(event) {
   setLoading(true);
   setResultsState(`<div class="loading-state">${escapeHtml(t("loading.search"))}</div>`);
   renderPasses();
+  renderTopScores();
   setImprovementState("");
   calendar.innerHTML = "";
 
@@ -4622,6 +4742,7 @@ function setActiveSection(section) {
   viewTabs.classList.toggle("hidden", !showHome);
   results.classList.toggle("hidden", !showHome || activeView !== "scores");
   passes.classList.toggle("hidden", !showHome || activeView !== "passes");
+  topScores?.classList.toggle("hidden", !showHome || activeView !== "top");
   improvements.classList.toggle("hidden", !showHome || activeView !== "improvements");
   calendar.classList.toggle("hidden", !showHome || activeView !== "calendar");
 }
@@ -4879,8 +5000,13 @@ viewTabs.addEventListener("click", (event) => {
   document.body.dataset.activeView = activeView;
   results.classList.toggle("hidden", activeView !== "scores");
   passes.classList.toggle("hidden", activeView !== "passes");
+  topScores?.classList.toggle("hidden", activeView !== "top");
   improvements.classList.toggle("hidden", activeView !== "improvements");
   calendar.classList.toggle("hidden", activeView !== "calendar");
+
+  if (activeView === "top") {
+    renderTopScores(lastSearchData);
+  }
 
   if (activeView === "calendar") {
     void backfillCalendarMonth(currentCalendarMonth || dayToMonthKey(currentCalendarDay) || todayDayKey().slice(0, 7));
@@ -4905,6 +5031,22 @@ passes.addEventListener("click", (event) => {
       passStarMax = passes.querySelector("[data-pass-star-max]")?.value.trim() || "";
     }
     renderPasses(lastSearchData);
+    return;
+  }
+
+  handleDetailsClick(event);
+});
+topScores?.addEventListener("click", (event) => {
+  const rangeButton = event.target.closest("button[data-top-range]");
+  if (rangeButton && lastSearchData) {
+    if (rangeButton.dataset.topRange === "today") {
+      topDateFrom = todayDayKey();
+      topDateTo = topDateFrom;
+    } else {
+      topDateFrom = topScores.querySelector("[data-top-date-from]")?.value || todayDayKey();
+      topDateTo = topScores.querySelector("[data-top-date-to]")?.value || topDateFrom;
+    }
+    renderTopScores(lastSearchData);
     return;
   }
 
