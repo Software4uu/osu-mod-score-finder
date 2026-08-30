@@ -1083,7 +1083,7 @@ select:focus {
 
 .top-range-fields {
   display: grid;
-  grid-template-columns: repeat(2, minmax(140px, 1fr)) auto auto;
+  grid-template-columns: repeat(4, minmax(92px, 1fr)) auto auto;
   gap: 8px;
   align-items: end;
 }

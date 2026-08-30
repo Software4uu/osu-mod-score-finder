@@ -65,6 +65,8 @@ let calendarPpMin = "";
 let calendarPpMax = "";
 let topDateFrom = "";
 let topDateTo = "";
+let topTimeFrom = "00:00";
+let topTimeTo = "23:59";
 let passStarMin = "6.54";
 let passStarMax = "7";
 let liveTimer = null;
@@ -555,6 +557,8 @@ const translations = {
     "label.topRangeHelp": "Zeigt nur Scores, die aktuell in der rekonstruierten PP-Top-200 deines Profils liegen.",
     "label.dateFrom": "Von",
     "label.dateTo": "Bis",
+    "label.timeFrom": "Uhrzeit von",
+    "label.timeTo": "Uhrzeit bis",
     "label.topCurrentProfile": "aktuelle Profil-Top-200",
     "label.topInRange": "Top-Plays im Zeitraum",
     "label.topBestGain": "Bestes Play",
@@ -1054,6 +1058,8 @@ const translations = {
     "label.topRangeHelp": "Shows only scores that are currently in the reconstructed PP top 200 of this profile.",
     "label.dateFrom": "From",
     "label.dateTo": "To",
+    "label.timeFrom": "Time from",
+    "label.timeTo": "Time to",
     "label.topCurrentProfile": "current profile top 200",
     "label.topInRange": "top plays in range",
     "label.topBestGain": "Best play",
@@ -1578,9 +1584,15 @@ function scoreDayKey(score) {
 
 function topDateBounds() {
   const today = todayDayKey();
-  const from = topDateFrom || today;
-  const to = topDateTo || from;
-  return from <= to ? { from, to } : { from: to, to: from };
+  const fromDate = topDateFrom || today;
+  const toDate = topDateTo || fromDate;
+  const fromTime = normalizeTimeInput(topTimeFrom, "00:00");
+  const toTime = normalizeTimeInput(topTimeTo, "23:59");
+  const fromMs = dateTimeInputMs(fromDate, fromTime, "00:00");
+  const toMs = dateTimeInputMs(toDate, toTime, "23:59");
+
+  if (fromMs <= toMs) return { from: fromDate, to: toDate, fromTime, toTime, fromMs, toMs };
+  return { from: toDate, to: fromDate, fromTime: toTime, toTime: fromTime, fromMs: toMs, toMs: fromMs };
 }
 
 function currentProfileTopScores(data) {
@@ -1599,9 +1611,19 @@ function currentProfileTopScores(data) {
     .map((score, index) => ({ ...score, pp_rank: index + 1 }));
 }
 
-function scoreInTopDateRange(score, from, to) {
-  const dayKey = scoreDayKey(score);
-  return Boolean(dayKey) && dayKey >= from && dayKey <= to;
+function normalizeTimeInput(value, fallback) {
+  return /^\d{2}:\d{2}$/.test(value || "") ? value : fallback;
+}
+
+function dateTimeInputMs(day, time, fallbackTime) {
+  const safeTime = normalizeTimeInput(time, fallbackTime);
+  const parsed = Date.parse(`${day}T${safeTime}:00`);
+  return Number.isFinite(parsed) ? parsed : Date.parse(`${todayDayKey()}T${fallbackTime}:00`);
+}
+
+function scoreInTopDateRange(score, bounds) {
+  const timestamp = scoreTimeValue(score);
+  return Boolean(timestamp) && timestamp >= bounds.fromMs && timestamp <= bounds.toMs;
 }
 
 function renderTopStat(label, value) {
@@ -1615,10 +1637,13 @@ function renderTopStat(label, value) {
 
 function renderTopScores(data = null) {
   const hasData = Boolean(data);
-  const { from, to } = topDateBounds();
+  const bounds = topDateBounds();
+  const { from, to, fromTime, toTime } = bounds;
 
   if (!topDateFrom) topDateFrom = from;
   if (!topDateTo) topDateTo = to;
+  topTimeFrom = fromTime;
+  topTimeTo = toTime;
 
   if (!hasData) {
     topScores.innerHTML = `<div class="empty-state">${escapeHtml(t("empty.noTopSource"))}</div>`;
@@ -1626,7 +1651,7 @@ function renderTopScores(data = null) {
   }
 
   const profileTop = currentProfileTopScores(data);
-  const rangeScores = profileTop.filter((score) => scoreInTopDateRange(score, from, to));
+  const rangeScores = profileTop.filter((score) => scoreInTopDateRange(score, bounds));
   const bestPp = rangeScores.reduce((best, score) => Math.max(best, scorePpValue(score)), 0);
   const weightedPp = rangeScores.reduce((total, score) => total + scorePpValue(score) * Math.pow(0.95, Math.max(0, Number(score.pp_rank || 1) - 1)), 0);
 
@@ -1643,8 +1668,16 @@ function renderTopScores(data = null) {
             <input type="date" data-top-date-from value="${escapeHtml(from)}" />
           </label>
           <label>
+            <span>${escapeHtml(t("label.timeFrom"))}</span>
+            <input type="time" data-top-time-from value="${escapeHtml(fromTime)}" />
+          </label>
+          <label>
             <span>${escapeHtml(t("label.dateTo"))}</span>
             <input type="date" data-top-date-to value="${escapeHtml(to)}" />
+          </label>
+          <label>
+            <span>${escapeHtml(t("label.timeTo"))}</span>
+            <input type="time" data-top-time-to value="${escapeHtml(toTime)}" />
           </label>
           <button type="button" data-top-range="today">${escapeHtml(t("button.today"))}</button>
           <button type="button" data-top-range="apply">${escapeHtml(t("button.apply"))}</button>
@@ -5587,9 +5620,13 @@ topScores?.addEventListener("click", (event) => {
     if (rangeButton.dataset.topRange === "today") {
       topDateFrom = todayDayKey();
       topDateTo = topDateFrom;
+      topTimeFrom = "00:00";
+      topTimeTo = "23:59";
     } else {
       topDateFrom = topScores.querySelector("[data-top-date-from]")?.value || todayDayKey();
       topDateTo = topScores.querySelector("[data-top-date-to]")?.value || topDateFrom;
+      topTimeFrom = topScores.querySelector("[data-top-time-from]")?.value || "00:00";
+      topTimeTo = topScores.querySelector("[data-top-time-to]")?.value || "23:59";
     }
     renderTopScores(lastSearchData);
     return;
