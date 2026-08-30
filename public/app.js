@@ -217,8 +217,9 @@ const translations = {
     "update.error": "Update Fehler",
     "update.installing": "Updater startet",
     "update.started": "Updater geoeffnet",
-    "update.confirm": "Neue Version verfuegbar: {current} -> {latest}.{changes}\n\nUpdate jetzt starten? .env, Datenbank und lokale Score-Daten bleiben erhalten. Die App startet danach automatisch neu.",
+    "update.confirm": "Neue Version verfuegbar: {current} -> {latest}.{changes}{repo}\n\nUpdate jetzt starten? .env, Datenbank und lokale Score-Daten bleiben erhalten. Die App startet danach automatisch neu.",
     "update.changes": "\n\nWas ist neu:\n{changes}",
+    "update.repo": "\n\nRepository:\n{repo}",
     "update.none": "Du nutzt bereits die aktuelle Version.",
     "aria.mods": "Mods auswaehlen",
     "aria.view": "Ansicht",
@@ -726,8 +727,9 @@ const translations = {
     "update.error": "Update error",
     "update.installing": "Starting updater",
     "update.started": "Updater opened",
-    "update.confirm": "New version available: {current} -> {latest}.{changes}\n\nStart the update now? .env, database, and local score data will be kept. The app will restart automatically afterwards.",
+    "update.confirm": "New version available: {current} -> {latest}.{changes}{repo}\n\nStart the update now? .env, database, and local score data will be kept. The app will restart automatically afterwards.",
     "update.changes": "\n\nWhat's new:\n{changes}",
+    "update.repo": "\n\nRepository:\n{repo}",
     "update.none": "You are already on the latest version.",
     "aria.mods": "Select mods",
     "aria.view": "View",
@@ -2213,6 +2215,7 @@ async function startUpdate() {
       changes: formatUpdateChanges(latestUpdateInfo.changes)
         ? t("update.changes", { changes: formatUpdateChanges(latestUpdateInfo.changes) })
         : "",
+      repo: latestUpdateInfo.repo ? t("update.repo", { repo: latestUpdateInfo.repo }) : "",
     }),
   );
   if (!confirmed) return;
