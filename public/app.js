@@ -3649,20 +3649,36 @@ function renderPpMapEstimateTray(map) {
   `;
 }
 
+function ppMapsNumber(value) {
+  if (value === null || value === undefined || value === "") return 0;
+  const parsed = Number(String(value).replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function ppMapsImprovementGain(map) {
+  if (Number.isFinite(map?.requiredGain)) return map.requiredGain;
   const best = map?.knownBest;
   if (!best) return Number.POSITIVE_INFINITY;
   const currentPp = passPpValue(best) || scorePpValue(best);
-  const targetPp = Number(map.pp || 0);
+  const targetPp = ppMapsNumber(map.pp);
   if (!Number.isFinite(targetPp) || targetPp <= 0) return Number.POSITIVE_INFINITY;
   const gain = targetPp - currentPp;
   return gain > 0 ? gain : Number.POSITIVE_INFINITY;
 }
 
+function ppMapsWithImprovement(map, knownBest) {
+  if (!knownBest) return { ...map, knownBest: null, currentPp: 0, requiredGain: Number.POSITIVE_INFINITY };
+  const currentPp = passPpValue(knownBest) || scorePpValue(knownBest);
+  const targetPp = ppMapsNumber(map.pp);
+  const rawGain = targetPp - currentPp;
+  const requiredGain = Number.isFinite(rawGain) && rawGain > 0 ? rawGain : Number.POSITIVE_INFINITY;
+  return { ...map, knownBest, currentPp, requiredGain };
+}
+
 function ppMapsImprovementHtml(map) {
   const best = map.knownBest;
   if (!best) return "";
-  const currentPp = passPpValue(best) || scorePpValue(best);
+  const currentPp = Number.isFinite(map.currentPp) ? map.currentPp : passPpValue(best) || scorePpValue(best);
   const gain = ppMapsImprovementGain(map);
   const acc = accuracyPercentValue(best);
   const misses = missCount(best);
@@ -3724,9 +3740,13 @@ function renderPpMapsResults(payload, knownData, knownError = null) {
   const unplayed = allMaps.filter((map) => !playedIds.has(Number(map.beatmapId || 0)));
   const improvement = allMaps
     .filter((map) => playedIds.has(Number(map.beatmapId || 0)))
-    .map((map) => ({ ...map, knownBest: knownById.get(Number(map.beatmapId || 0))?.[0] || null }))
+    .map((map) => ppMapsWithImprovement(map, knownById.get(Number(map.beatmapId || 0))?.[0] || null))
     .filter((map) => map.knownBest)
-    .sort((a, b) => ppMapsImprovementGain(a) - ppMapsImprovementGain(b) || Number(b.pp || 0) - Number(a.pp || 0));
+    .sort((a, b) =>
+      ppMapsImprovementGain(a) - ppMapsImprovementGain(b) ||
+      ppMapsNumber(a.pp) - ppMapsNumber(b.pp) ||
+      scoreTimeValue(b.knownBest) - scoreTimeValue(a.knownBest)
+    );
   const activeMaps = ppMapsResultMode === "improvement" ? improvement : unplayed;
   const maps = activeMaps.slice(0, shownLimit);
   const updated = payload.updatedAt ? formatDate(payload.updatedAt) : "-";
