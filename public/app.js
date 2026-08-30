@@ -326,12 +326,12 @@ const translations = {
     "ppMaps.currentBest": "bekannter Besttry",
     "ppMaps.gain": "moeglich",
     "ppMaps.sliderbreak": "SB/1-Miss Chance",
-    "ppMaps.accountCurrent": "aktuell gewichtet",
-    "ppMaps.accountSimulated": "simuliert gewichtet",
+    "ppMaps.accountCurrent": "aktuelle Account-PP",
+    "ppMaps.accountSimulated": "simulierte Account-PP",
     "ppMaps.accountGain": "ungefaehres Plus",
     "ppMaps.accountReplaced": "ersetzte Plays",
     "ppMaps.accountTarget": "Zielwert",
-    "ppMaps.accountHelp": "Ersetzt in deiner rekonstruierten Top-N alle Plays unter dem Zielwert durch diesen PP-Wert und rechnet die osu!-Gewichtung neu.",
+    "ppMaps.accountHelp": "Nutzt deine aktuelle Profil-PP als Basis und addiert den rekonstruierten Toplisten-Delta. Bonus-PP und sehr tiefe Plays bleiben dadurch in der Basis erhalten.",
     "compare.eyebrow": "Vergleich",
     "compare.title": "Spieler vergleichen",
     "compare.description": "Eine ruhige Arbeitsflaeche fuer direkte Spieler-Vergleiche: Top-200, Profilwerte, Mod-Fokus und Map-Kontext.",
@@ -835,12 +835,12 @@ const translations = {
     "ppMaps.currentBest": "known best try",
     "ppMaps.gain": "possible",
     "ppMaps.sliderbreak": "SB/1-miss chance",
-    "ppMaps.accountCurrent": "current weighted",
-    "ppMaps.accountSimulated": "simulated weighted",
+    "ppMaps.accountCurrent": "current account PP",
+    "ppMaps.accountSimulated": "simulated account PP",
     "ppMaps.accountGain": "estimated gain",
     "ppMaps.accountReplaced": "replaced plays",
     "ppMaps.accountTarget": "target value",
-    "ppMaps.accountHelp": "Replaces every play below the target value in your reconstructed top N with that PP value and recalculates osu! weighting.",
+    "ppMaps.accountHelp": "Uses your current profile PP as the base and adds the reconstructed top-list delta, so bonus PP and very deep plays stay in the base.",
     "compare.eyebrow": "Compare",
     "compare.title": "Compare players",
     "compare.description": "A calm workspace for direct player comparisons: top 200, profile values, mod focus, and map context.",
@@ -3736,9 +3736,12 @@ function renderPpMapsAccountSimulation(knownData) {
   const currentValues = profileTop.map(scorePpValue);
   const rowSimulatedValues = currentValues.map((pp) => (pp > 0 && pp < targetPp ? targetPp : pp));
   const simulatedValues = [...rowSimulatedValues].sort((a, b) => b - a);
-  const currentWeighted = weightedPpFromValues(currentValues);
-  const simulatedWeighted = weightedPpFromValues(simulatedValues);
-  const gain = Math.max(0, simulatedWeighted - currentWeighted);
+  const currentWeightedTop = weightedPpFromValues(currentValues);
+  const simulatedWeightedTop = weightedPpFromValues(simulatedValues);
+  const gain = Math.max(0, simulatedWeightedTop - currentWeightedTop);
+  const profilePp = Number(knownData?.user?.statistics?.pp || knownData?.user?.statistics?.pp_raw || 0);
+  const currentAccountPp = profilePp > 0 ? profilePp : currentWeightedTop;
+  const simulatedAccountPp = currentAccountPp + gain;
   const replaced = currentValues.filter((pp) => pp > 0 && pp < targetPp).length;
 
   ppMapsOutput.classList.remove("hidden");
@@ -3763,8 +3766,8 @@ function renderPpMapsAccountSimulation(knownData) {
         </div>
       </div>
       <div class="ppmaps-account-grid">
-        ${renderTopStat(t("ppMaps.accountCurrent"), formatPpExact(currentWeighted))}
-        ${renderTopStat(t("ppMaps.accountSimulated"), formatPpExact(simulatedWeighted))}
+        ${renderTopStat(t("ppMaps.accountCurrent"), formatPpExact(currentAccountPp))}
+        ${renderTopStat(t("ppMaps.accountSimulated"), formatPpExact(simulatedAccountPp))}
         ${renderTopStat(t("ppMaps.accountGain"), `+${formatPpExact(gain)}`)}
         ${renderTopStat("Top-N", formatNumber(topCount))}
       </div>
