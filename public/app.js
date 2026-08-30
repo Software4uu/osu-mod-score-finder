@@ -55,6 +55,7 @@ const ppMapsModButtons = document.querySelector("#ppMapsMods");
 
 const selectedMods = new Set();
 const languageStorageKey = "osu-mod-score-finder-language";
+const ppMapsSettingsStorageKey = "osu-mod-score-finder-ppmaps-settings-v1";
 let currentLanguage = readStoredLanguage();
 let lastSearchData = null;
 let isLoading = false;
@@ -3484,6 +3485,77 @@ function ppMapsFieldValue(id) {
   return document.querySelector(`#${id}`)?.value.trim() || "";
 }
 
+const ppMapsPersistedFieldIds = [
+  "ppMapsSong",
+  "ppMapsPpMin",
+  "ppMapsPpMax",
+  "ppMapsLengthMin",
+  "ppMapsLengthMax",
+  "ppMapsBpmMin",
+  "ppMapsBpmMax",
+  "ppMapsStarsMin",
+  "ppMapsStarsMax",
+  "ppMapsPassMin",
+  "ppMapsPassMax",
+  "ppMapsAccMin",
+  "ppMapsAccMax",
+  "ppMapsMissMin",
+  "ppMapsMissMax",
+  "ppMapsPlayer",
+  "ppMapsLimit",
+  "ppMapsTopCount",
+];
+
+function savePpMapsSettings() {
+  if (!ppMapsView) return;
+  const fields = {};
+  for (const id of ppMapsPersistedFieldIds) fields[id] = ppMapsFieldValue(id);
+  const advanced = document.querySelector("#ppMapsAdvanced");
+  const settings = {
+    resultMode: ppMapsResultMode,
+    mode: ppMapsMode?.value || "osu",
+    fields,
+    mods: Object.fromEntries(ppMapsModStates.entries()),
+    advancedOpen: Boolean(advanced && !advanced.classList.contains("hidden")),
+  };
+
+  try {
+    localStorage.setItem(ppMapsSettingsStorageKey, JSON.stringify(settings));
+  } catch {
+    // Browser storage can be unavailable in private/restricted contexts.
+  }
+}
+
+function restorePpMapsSettings() {
+  if (!ppMapsView) return;
+  try {
+    const settings = JSON.parse(localStorage.getItem(ppMapsSettingsStorageKey) || "null");
+    if (!settings || typeof settings !== "object") return;
+
+    if (["unplayed", "improvement", "account"].includes(settings.resultMode)) {
+      ppMapsResultMode = settings.resultMode;
+    }
+    if (ppMapsMode && ["osu", "mania", "taiko", "fruits"].includes(settings.mode)) {
+      ppMapsMode.value = settings.mode;
+    }
+
+    for (const [id, value] of Object.entries(settings.fields || {})) {
+      const input = document.querySelector(`#${id}`);
+      if (input) input.value = value;
+    }
+
+    ppMapsModStates.clear();
+    for (const [mod, state] of Object.entries(settings.mods || {})) {
+      if (["required", "excluded"].includes(state)) ppMapsModStates.set(mod, state);
+    }
+
+    document.querySelector("#ppMapsAdvanced")?.classList.toggle("hidden", !settings.advancedOpen);
+    ppMapsMore?.setAttribute("aria-expanded", settings.advancedOpen ? "true" : "false");
+  } catch {
+    localStorage.removeItem(ppMapsSettingsStorageKey);
+  }
+}
+
 function parsePpMapsDuration(value) {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -3934,6 +4006,7 @@ function renderPpMapsResults(payload, knownData, knownError = null) {
 }
 
 async function runPpMapsSearch() {
+  savePpMapsSettings();
   const username = ppMapsPlayer?.value.trim() || document.querySelector("#username")?.value.trim() || "";
   const mode = ppMapsMode?.value || "osu";
   setPpMapsLoading();
@@ -4007,6 +4080,7 @@ async function runPpMapsSearch() {
 }
 
 function resetPpMaps() {
+  localStorage.removeItem(ppMapsSettingsStorageKey);
   for (const id of [
     "ppMapsSong",
     "ppMapsPpMin",
@@ -4032,10 +4106,13 @@ function resetPpMaps() {
   const topCount = document.querySelector("#ppMapsTopCount");
   if (topCount) topCount.value = "100";
   ppMapsModStates.clear();
+  ppMapsResultMode = "unplayed";
   latestPpMapsPayload = null;
   latestPpMapsKnownData = null;
   latestPpMapsKnownError = null;
   renderPpMapsMods();
+  syncPpMapsResultTabs();
+  syncPpMapsModeRadios();
   if (ppMapsOutput) {
     ppMapsOutput.innerHTML = `
       <div>
@@ -5682,6 +5759,7 @@ ppMapsModButtons?.addEventListener("click", (event) => {
     ppMapsModStates.set(mod, nextState);
   }
   renderPpMapsMods();
+  savePpMapsSettings();
 });
 
 ppMapsView?.addEventListener("click", (event) => {
@@ -5689,6 +5767,7 @@ ppMapsView?.addEventListener("click", (event) => {
   if (!viewButton) return;
   ppMapsResultMode = ["improvement", "account"].includes(viewButton.dataset.ppmapsView) ? viewButton.dataset.ppmapsView : "unplayed";
   syncPpMapsResultTabs();
+  savePpMapsSettings();
   if (ppMapsResultMode === "account") {
     renderPpMapsAccountSimulation(latestPpMapsKnownData || lastSearchData);
   } else if (latestPpMapsPayload) {
@@ -5701,6 +5780,7 @@ ppMapsMore?.addEventListener("click", () => {
   const isOpen = !advanced?.classList.contains("hidden");
   advanced?.classList.toggle("hidden", isOpen);
   ppMapsMore.setAttribute("aria-expanded", isOpen ? "false" : "true");
+  savePpMapsSettings();
 });
 
 ppMapsView?.addEventListener("change", (event) => {
@@ -5708,8 +5788,11 @@ ppMapsView?.addEventListener("change", (event) => {
   if (modeChoice && ppMapsMode) {
     ppMapsMode.value = modeChoice.value;
     syncPpMapsModeRadios();
+    savePpMapsSettings();
     return;
   }
+
+  if (event.target.closest("#ppMapsView input, #ppMapsView select")) savePpMapsSettings();
 
   if (
     event.target.closest("#ppMapsAccMin, #ppMapsAccMax, #ppMapsMissMin, #ppMapsMissMax, #ppMapsLimit") &&
@@ -5721,6 +5804,17 @@ ppMapsView?.addEventListener("change", (event) => {
 
   if (
     event.target.closest("#ppMapsPpMin, #ppMapsPpMax, #ppMapsTopCount") &&
+    ppMapsResultMode === "account"
+  ) {
+    renderPpMapsAccountSimulation(latestPpMapsKnownData || lastSearchData);
+  }
+});
+
+ppMapsView?.addEventListener("input", (event) => {
+  if (!event.target.closest("input, select")) return;
+  savePpMapsSettings();
+  if (
+    event.target.closest("#ppMapsPpMin, #ppMapsTopCount") &&
     ppMapsResultMode === "account"
   ) {
     renderPpMapsAccountSimulation(latestPpMapsKnownData || lastSearchData);
@@ -5921,7 +6015,9 @@ form.addEventListener("submit", runSearch);
 
 initHelp();
 applyLanguage(currentLanguage, { rerender: false });
+restorePpMapsSettings();
 renderPpMapsMods();
+syncPpMapsModeRadios();
 syncPpMapsResultTabs();
 checkStatus();
 checkForUpdates();
