@@ -82,7 +82,7 @@ let timeTravelDays = [];
 let timeTravelExternalSnapshots = [];
 let latestSkillTreeData = null;
 let latestSkillTreeMode = "osu";
-const ppMapsSelectedMods = new Set();
+const ppMapsModStates = new Map();
 let skillTrainingState = {
   skillKey: "weakest",
   goalType: "pp",
@@ -3446,6 +3446,12 @@ function ppMapsParams(limit = 300) {
   const params = new URLSearchParams();
   params.set("mode", ppMapsMode?.value || "osu");
   params.set("limit", String(limit));
+  const requiredMods = [...ppMapsModStates.entries()]
+    .filter(([, state]) => state === "required")
+    .map(([mod]) => mod);
+  const excludedMods = [...ppMapsModStates.entries()]
+    .filter(([, state]) => state === "excluded")
+    .map(([mod]) => mod);
 
   const fields = [
     ["song", ppMapsFieldValue("ppMapsSong")],
@@ -3459,7 +3465,8 @@ function ppMapsParams(limit = 300) {
     ["passMax", ppMapsFieldValue("ppMapsPassMax")],
     ["lengthMin", parsePpMapsDuration(ppMapsFieldValue("ppMapsLengthMin"))],
     ["lengthMax", parsePpMapsDuration(ppMapsFieldValue("ppMapsLengthMax"))],
-    ["mods", [...ppMapsSelectedMods].join(",")],
+    ["requiredMods", requiredMods.join(",")],
+    ["excludedMods", excludedMods.join(",")],
   ];
 
   for (const [key, value] of fields) {
@@ -3472,7 +3479,17 @@ function ppMapsParams(limit = 300) {
 function renderPpMapsMods() {
   if (!ppMapsModButtons) return;
   for (const button of ppMapsModButtons.querySelectorAll("button[data-ppmaps-mod]")) {
-    button.classList.toggle("active", ppMapsSelectedMods.has(button.dataset.ppmapsMod));
+    const mod = button.dataset.ppmapsMod;
+    const state = ppMapsModStates.get(mod) || "optional";
+    const label = state === "required"
+      ? `${mod}: ${currentLanguage === "de" ? "muss dabei sein" : "required"}`
+      : state === "excluded"
+        ? `${mod}: ${currentLanguage === "de" ? "darf nicht dabei sein" : "excluded"}`
+        : `${mod}: ${currentLanguage === "de" ? "kann dabei sein" : "optional"}`;
+    button.dataset.state = state;
+    button.classList.toggle("active", state === "required");
+    button.setAttribute("aria-label", label);
+    button.setAttribute("title", label);
   }
 }
 
@@ -3655,7 +3672,7 @@ function resetPpMaps() {
   }
   const limit = document.querySelector("#ppMapsLimit");
   if (limit) limit.value = "100";
-  ppMapsSelectedMods.clear();
+  ppMapsModStates.clear();
   renderPpMapsMods();
   if (ppMapsOutput) {
     ppMapsOutput.innerHTML = `
@@ -5295,10 +5312,12 @@ ppMapsModButtons?.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-ppmaps-mod]");
   if (!button) return;
   const mod = button.dataset.ppmapsMod;
-  if (ppMapsSelectedMods.has(mod)) {
-    ppMapsSelectedMods.delete(mod);
+  const currentState = ppMapsModStates.get(mod) || "optional";
+  const nextState = currentState === "optional" ? "required" : currentState === "required" ? "excluded" : "optional";
+  if (nextState === "optional") {
+    ppMapsModStates.delete(mod);
   } else {
-    ppMapsSelectedMods.add(mod);
+    ppMapsModStates.set(mod, nextState);
   }
   renderPpMapsMods();
 });
@@ -5491,6 +5510,7 @@ detailsPanel.addEventListener("click", (event) => {
 languageSelect?.addEventListener("change", () => {
   storeLanguage(languageSelect.value);
   applyLanguage(languageSelect.value);
+  renderPpMapsMods();
   checkStatus();
   checkForUpdates();
 });
@@ -5506,6 +5526,7 @@ form.addEventListener("submit", runSearch);
 
 initHelp();
 applyLanguage(currentLanguage, { rerender: false });
+renderPpMapsMods();
 checkStatus();
 checkForUpdates();
 startStartupSyncPolling();

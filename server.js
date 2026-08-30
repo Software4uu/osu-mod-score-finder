@@ -2525,8 +2525,11 @@ function osuPpsMapMatches(map, filters) {
   if (filters.lengthMax !== null && map.length > filters.lengthMax) return false;
 
   const mods = modsFromBitmask(map.modsBitmask);
-  for (const mod of filters.mods) {
+  for (const mod of filters.requiredMods) {
     if (!mods[mod]) return false;
+  }
+  for (const mod of filters.excludedMods) {
+    if (mods[mod]) return false;
   }
   return true;
 }
@@ -2558,7 +2561,11 @@ async function handleOsuPpsMaps(req, res) {
     passMax: optionalNumber(url.searchParams, "passMax"),
     lengthMin: optionalNumber(url.searchParams, "lengthMin"),
     lengthMax: optionalNumber(url.searchParams, "lengthMax"),
-    mods: String(url.searchParams.get("mods") || "")
+    requiredMods: String(url.searchParams.get("requiredMods") || url.searchParams.get("mods") || "")
+      .split(",")
+      .map((mod) => mod.trim().toUpperCase())
+      .filter(Boolean),
+    excludedMods: String(url.searchParams.get("excludedMods") || "")
       .split(",")
       .map((mod) => mod.trim().toUpperCase())
       .filter(Boolean),
