@@ -23,6 +23,7 @@ const osuApiBase = "https://osu.ppy.sh/api/v2";
 const tokenUrl = "https://osu.ppy.sh/oauth/token";
 const huisApiBase = "https://api.pp.huismetbenen.nl";
 const osuTrackApiBase = "https://osutrack-api.ameo.dev";
+const osuPpsDataBase = "https://raw.githubusercontent.com/grumd/osu-pps/data";
 const huisLiveReworkId = 1;
 const githubOwner = "Software4uu";
 const githubRepo = "osu-mod-score-finder";
@@ -37,6 +38,7 @@ const authoritativePpSources = new Set(["osu-api", "huismetbenen-live"]);
 const ppCacheFreshMs = 24 * 60 * 60 * 1000;
 const osuTrackCacheFreshMs = 6 * 60 * 60 * 1000;
 const osuSigCacheFreshMs = 30 * 60 * 1000;
+const osuPpsCacheFreshMs = 6 * 60 * 60 * 1000;
 
 loadDotEnv();
 
@@ -46,6 +48,7 @@ let tokenCache = null;
 const ppProgressJobs = new Map();
 const osuTrackHistoryCache = new Map();
 const osuSigImageCache = new Map();
+const osuPpsMapsCache = new Map();
 const osuApiQueue = [];
 let osuApiQueueRunning = false;
 let osuApiQueueSequence = 0;
@@ -2362,6 +2365,216 @@ async function handleOsuSigImage(req, res) {
   return res.end(body);
 }
 
+function parseCsvLine(line) {
+  const values = [];
+  let current = "";
+  let quoted = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+    if (char === "\"" && quoted && next === "\"") {
+      current += "\"";
+      index += 1;
+    } else if (char === "\"") {
+      quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      values.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+
+  values.push(current);
+  return values;
+}
+
+function parseCsv(textValue) {
+  const lines = String(textValue || "").replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean);
+  if (!lines.length) return [];
+  const headers = parseCsvLine(lines[0]);
+  return lines.slice(1).map((line) => {
+    const values = parseCsvLine(line);
+    return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""]));
+  });
+}
+
+function numberValue(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function osuPpsMode(mode) {
+  if (mode === "mania" || mode === "taiko" || mode === "fruits") return mode;
+  return "osu";
+}
+
+async function fetchOsuPpsText(pathname) {
+  const response = await fetch(`${osuPpsDataBase}/${pathname}`, {
+    headers: {
+      accept: "text/csv,application/json;q=0.9,*/*;q=0.2",
+      "user-agent": "osu-mod-score-finder-beta",
+    },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!response.ok) {
+    throw statusError(response.status, `osu-pps returned ${response.status}`);
+  }
+  return response.text();
+}
+
+async function getOsuPpsMaps(mode) {
+  const safeMode = osuPpsMode(mode);
+  const cached = osuPpsMapsCache.get(safeMode);
+  if (cached && Date.now() - cached.fetchedAt < osuPpsCacheFreshMs) return cached.value;
+
+  const [mapsetsText, diffsText, metadataText] = await Promise.all([
+    fetchOsuPpsText(`data/maps/${safeMode}/mapsets.csv`),
+    fetchOsuPpsText(`data/maps/${safeMode}/diffs.csv`),
+    fetchOsuPpsText(`data/metadata/${safeMode}/metadata.json`).catch(() => "{}"),
+  ]);
+
+  const mapsets = new Map(
+    parseCsv(mapsetsText).map((row) => [
+      String(row.s || ""),
+      {
+        mapsetId: numberValue(row.s),
+        artist: row.art || "Unknown artist",
+        title: row.t || "Unknown title",
+        baseBpm: numberValue(row.bpm),
+      },
+    ]),
+  );
+
+  let metadata = {};
+  try {
+    metadata = JSON.parse(metadataText);
+  } catch {
+    metadata = {};
+  }
+
+  const maps = parseCsv(diffsText)
+    .map((row) => {
+      const set = mapsets.get(String(row.s || ""));
+      if (!set) return null;
+      const mods = modsFromBitmask(numberValue(row.m));
+      const clockRate = mods.DT ? 1.5 : mods.HT ? 0.75 : 1;
+      const bpm = numberValue(row.bpm || set.baseBpm);
+      return {
+        beatmapId: numberValue(row.b),
+        mapsetId: numberValue(row.s),
+        artist: set.artist,
+        title: set.title,
+        version: row.v || "Difficulty",
+        modsBitmask: numberValue(row.m),
+        mods: Object.entries(mods).filter(([, enabled]) => enabled).map(([mod]) => mod),
+        pp: numberValue(row.pp99),
+        farmValue: numberValue(row.x),
+        adjusted: numberValue(row.adj),
+        length: numberValue(row.l),
+        bpm,
+        effectiveBpm: bpm ? Math.round(bpm * clockRate * 100) / 100 : 0,
+        clockRate,
+        stars: numberValue(row.d),
+        passCount: numberValue(row.p),
+        rankedHours: numberValue(row.appr_h || row.h),
+        ar: numberValue(row.ar),
+        od: numberValue(row.accuracy),
+        cs: numberValue(row.cs),
+        hp: numberValue(row.drain),
+      };
+    })
+    .filter(Boolean);
+
+  const value = {
+    mode: safeMode,
+    updatedAt: metadata.lastUpdated || null,
+    maps,
+  };
+  osuPpsMapsCache.set(safeMode, { fetchedAt: Date.now(), value });
+  return value;
+}
+
+function modsFromBitmask(bitmask) {
+  return {
+    HD: (bitmask & 8) === 8,
+    HR: (bitmask & 16) === 16,
+    DT: (bitmask & 64) === 64,
+    HT: (bitmask & 256) === 256,
+    FL: (bitmask & 1024) === 1024,
+    EZ: (bitmask & 2) === 2,
+  };
+}
+
+function osuPpsMapMatches(map, filters) {
+  if (filters.song) {
+    const haystack = `${map.artist} ${map.title} ${map.version}`.toLowerCase();
+    if (!haystack.includes(filters.song)) return false;
+  }
+  if (filters.ppMin !== null && map.pp < filters.ppMin) return false;
+  if (filters.ppMax !== null && map.pp > filters.ppMax) return false;
+  const bpm = map.effectiveBpm || map.bpm;
+  if (filters.bpmMin !== null && bpm < filters.bpmMin) return false;
+  if (filters.bpmMax !== null && bpm > filters.bpmMax) return false;
+  if (filters.starsMin !== null && map.stars < filters.starsMin) return false;
+  if (filters.starsMax !== null && map.stars > filters.starsMax) return false;
+  if (filters.lengthMin !== null && map.length < filters.lengthMin) return false;
+  if (filters.lengthMax !== null && map.length > filters.lengthMax) return false;
+
+  const mods = modsFromBitmask(map.modsBitmask);
+  for (const mod of filters.mods) {
+    if (!mods[mod]) return false;
+  }
+  return true;
+}
+
+function optionalNumber(params, key) {
+  const raw = String(params.get(key) || "").trim();
+  if (!raw) return null;
+  const number = Number(raw);
+  return Number.isFinite(number) ? number : null;
+}
+
+async function handleOsuPpsMaps(req, res) {
+  if (req.method !== "GET") {
+    throw statusError(405, "Method not allowed");
+  }
+
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const mode = osuPpsMode(url.searchParams.get("mode") || "osu");
+  const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || 120), 1), 500);
+  const filters = {
+    song: String(url.searchParams.get("song") || "").trim().toLowerCase(),
+    ppMin: optionalNumber(url.searchParams, "ppMin"),
+    ppMax: optionalNumber(url.searchParams, "ppMax"),
+    bpmMin: optionalNumber(url.searchParams, "bpmMin"),
+    bpmMax: optionalNumber(url.searchParams, "bpmMax"),
+    starsMin: optionalNumber(url.searchParams, "starsMin"),
+    starsMax: optionalNumber(url.searchParams, "starsMax"),
+    lengthMin: optionalNumber(url.searchParams, "lengthMin"),
+    lengthMax: optionalNumber(url.searchParams, "lengthMax"),
+    mods: String(url.searchParams.get("mods") || "")
+      .split(",")
+      .map((mod) => mod.trim().toUpperCase())
+      .filter(Boolean),
+  };
+
+  const data = await getOsuPpsMaps(mode);
+  const maps = data.maps
+    .filter((map) => osuPpsMapMatches(map, filters))
+    .sort((a, b) => b.pp - a.pp || b.farmValue - a.farmValue)
+    .slice(0, Math.min(limit * 3, 1000));
+
+  return json(res, 200, {
+    mode,
+    updatedAt: data.updatedAt,
+    totalAvailable: data.maps.length,
+    returned: maps.length,
+    maps,
+  });
+}
+
 async function serveStatic(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = decodeURIComponent(url.pathname);
@@ -2416,6 +2629,10 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === "/api/osu-sig") {
       return await handleOsuSigImage(req, res);
+    }
+
+    if (url.pathname === "/api/pp-maps") {
+      return await handleOsuPpsMaps(req, res);
     }
 
     if (url.pathname === "/api/search") {

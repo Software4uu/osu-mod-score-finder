@@ -12,6 +12,8 @@ const timeTravelView = document.querySelector("#timeTravelView");
 const timeTravelOutput = document.querySelector("#timeTravelOutput");
 const skillTreeView = document.querySelector("#skillTreeView");
 const skillTreeOutput = document.querySelector("#skillTreeOutput");
+const ppMapsView = document.querySelector("#ppMapsView");
+const ppMapsOutput = document.querySelector("#ppMapsOutput");
 const detailsPanel = document.querySelector("#detailsPanel");
 const summary = document.querySelector("#summary");
 const submitButton = document.querySelector("#submitButton");
@@ -44,6 +46,11 @@ const skillRun = document.querySelector("#skillRun");
 const skillStarMinInput = document.querySelector("#skillStarMin");
 const skillStarMaxInput = document.querySelector("#skillStarMax");
 const topScores = document.querySelector("#topScores");
+const ppMapsPlayer = document.querySelector("#ppMapsPlayer");
+const ppMapsMode = document.querySelector("#ppMapsMode");
+const ppMapsRun = document.querySelector("#ppMapsRun");
+const ppMapsReset = document.querySelector("#ppMapsReset");
+const ppMapsModButtons = document.querySelector("#ppMapsMods");
 
 const selectedMods = new Set();
 const languageStorageKey = "osu-mod-score-finder-language";
@@ -74,6 +81,7 @@ let timeTravelDays = [];
 let timeTravelExternalSnapshots = [];
 let latestSkillTreeData = null;
 let latestSkillTreeMode = "osu";
+const ppMapsSelectedMods = new Set();
 let skillTrainingState = {
   skillKey: "weakest",
   goalType: "pp",
@@ -267,6 +275,39 @@ const translations = {
     "nav.compare": "Vergleich",
     "nav.timeTravel": "Time Travel",
     "nav.skillTree": "Skill Tree",
+    "nav.ppMaps": "PP Maps",
+    "ppMaps.eyebrow": "PP Maps",
+    "ppMaps.title": "Ungespielte PP-Maps finden",
+    "ppMaps.description": "Laedt Empfehlungen von osu-pps und entfernt Maps, die in deinen bekannten lokalen oder API-Scores schon vorkommen.",
+    "ppMaps.setup": "Setup",
+    "ppMaps.filters": "Filter wie osu-pps",
+    "ppMaps.song": "Songname",
+    "ppMaps.songPlaceholder": "song name...",
+    "ppMaps.ppMin": "PP min",
+    "ppMaps.ppMax": "PP max",
+    "ppMaps.bpmMin": "BPM min",
+    "ppMaps.bpmMax": "BPM max",
+    "ppMaps.starsMin": "Sterne min",
+    "ppMaps.starsMax": "Sterne max",
+    "ppMaps.lengthMin": "Laenge min",
+    "ppMaps.lengthMax": "Laenge max",
+    "ppMaps.run": "PP-Maps suchen",
+    "ppMaps.note": "Datenquelle: osu-pps von grumd. Der Abgleich nutzt Beatmap-IDs aus deinen bekannten lokalen und online geladenen Scores.",
+    "ppMaps.placeholderTitle": "PP-Map Ergebnisbereich",
+    "ppMaps.placeholderText": "Waehle Filter und lade Empfehlungen. Bereits bekannte Maps werden danach aus der Liste entfernt.",
+    "ppMaps.loading": "PP-Maps werden geladen...",
+    "ppMaps.loadingDetail": "osu-pps Daten und deine bekannten Scores werden abgeglichen.",
+    "ppMaps.results": "Ungespielte Kandidaten",
+    "ppMaps.sourceUpdated": "osu-pps aktualisiert",
+    "ppMaps.knownRemoved": "bereits bekannte Maps entfernt",
+    "ppMaps.available": "osu-pps Treffer",
+    "ppMaps.passCount": "Passes",
+    "ppMaps.farmValue": "Farm",
+    "ppMaps.openPps": "auf osu-pps oeffnen",
+    "ppMaps.openMap": "Map oeffnen",
+    "ppMaps.noResults": "Keine ungespielten PP-Maps fuer diese Filter gefunden.",
+    "ppMaps.failed": "PP-Maps konnten nicht geladen werden.",
+    "ppMaps.knownUnavailable": "Score-Abgleich nicht verfuegbar",
     "compare.eyebrow": "Vergleich",
     "compare.title": "Spieler vergleichen",
     "compare.description": "Eine ruhige Arbeitsflaeche fuer direkte Spieler-Vergleiche: Top-200, Profilwerte, Mod-Fokus und Map-Kontext.",
@@ -724,6 +765,39 @@ const translations = {
     "nav.compare": "Compare",
     "nav.timeTravel": "Time Travel",
     "nav.skillTree": "Skill Tree",
+    "nav.ppMaps": "PP Maps",
+    "ppMaps.eyebrow": "PP Maps",
+    "ppMaps.title": "Find unplayed PP maps",
+    "ppMaps.description": "Loads recommendations from osu-pps and removes maps already present in your known local or API scores.",
+    "ppMaps.setup": "Setup",
+    "ppMaps.filters": "osu-pps style filters",
+    "ppMaps.song": "Song name",
+    "ppMaps.songPlaceholder": "song name...",
+    "ppMaps.ppMin": "PP min",
+    "ppMaps.ppMax": "PP max",
+    "ppMaps.bpmMin": "BPM min",
+    "ppMaps.bpmMax": "BPM max",
+    "ppMaps.starsMin": "Stars min",
+    "ppMaps.starsMax": "Stars max",
+    "ppMaps.lengthMin": "Length min",
+    "ppMaps.lengthMax": "Length max",
+    "ppMaps.run": "Search PP maps",
+    "ppMaps.note": "Source: osu-pps by grumd. Matching uses beatmap IDs from your known local and online loaded scores.",
+    "ppMaps.placeholderTitle": "PP map result area",
+    "ppMaps.placeholderText": "Choose filters and load recommendations. Already known maps are removed from the list.",
+    "ppMaps.loading": "Loading PP maps...",
+    "ppMaps.loadingDetail": "Matching osu-pps data against your known scores.",
+    "ppMaps.results": "Unplayed candidates",
+    "ppMaps.sourceUpdated": "osu-pps updated",
+    "ppMaps.knownRemoved": "known maps removed",
+    "ppMaps.available": "osu-pps matches",
+    "ppMaps.passCount": "Passes",
+    "ppMaps.farmValue": "Farm",
+    "ppMaps.openPps": "open on osu-pps",
+    "ppMaps.openMap": "Open map",
+    "ppMaps.noResults": "No unplayed PP maps found for these filters.",
+    "ppMaps.failed": "Could not load PP maps.",
+    "ppMaps.knownUnavailable": "Score matching unavailable",
     "compare.eyebrow": "Compare",
     "compare.title": "Compare players",
     "compare.description": "A calm workspace for direct player comparisons: top 200, profile values, mod focus, and map context.",
@@ -3326,6 +3400,255 @@ function renderSigCards(left, right, mode) {
   `;
 }
 
+function ppMapsFieldValue(id) {
+  return document.querySelector(`#${id}`)?.value.trim() || "";
+}
+
+function parsePpMapsDuration(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (raw.includes(":")) {
+    const parts = raw.split(":").map((part) => Number(part.trim()));
+    if (parts.length === 2 && parts.every((part) => Number.isFinite(part) && part >= 0)) {
+      return String(Math.round(parts[0] * 60 + parts[1]));
+    }
+  }
+  const seconds = Number(raw);
+  return Number.isFinite(seconds) && seconds >= 0 ? String(seconds) : "";
+}
+
+function ppMapsModePath(mode) {
+  if (mode === "fruits") return "fruits";
+  if (mode === "mania") return "mania";
+  if (mode === "taiko") return "taiko";
+  return "osu";
+}
+
+function ppMapsPlayedBeatmapIds(data) {
+  const scores = uniqueScores([
+    ...(data?.scores || []),
+    ...passScoresFromData(data),
+    ...allScoresFromData(data),
+  ]);
+  return new Set(scores
+    .map((score) => Number(score.beatmap_id || score.beatmap?.id || 0))
+    .filter((id) => Number.isFinite(id) && id > 0));
+}
+
+function ppMapsParams(limit = 300) {
+  const params = new URLSearchParams();
+  params.set("mode", ppMapsMode?.value || "osu");
+  params.set("limit", String(limit));
+
+  const fields = [
+    ["song", ppMapsFieldValue("ppMapsSong")],
+    ["ppMin", ppMapsFieldValue("ppMapsPpMin")],
+    ["ppMax", ppMapsFieldValue("ppMapsPpMax")],
+    ["bpmMin", ppMapsFieldValue("ppMapsBpmMin")],
+    ["bpmMax", ppMapsFieldValue("ppMapsBpmMax")],
+    ["starsMin", ppMapsFieldValue("ppMapsStarsMin")],
+    ["starsMax", ppMapsFieldValue("ppMapsStarsMax")],
+    ["lengthMin", parsePpMapsDuration(ppMapsFieldValue("ppMapsLengthMin"))],
+    ["lengthMax", parsePpMapsDuration(ppMapsFieldValue("ppMapsLengthMax"))],
+    ["mods", [...ppMapsSelectedMods].join(",")],
+  ];
+
+  for (const [key, value] of fields) {
+    if (value) params.set(key, value);
+  }
+
+  return params;
+}
+
+function renderPpMapsMods() {
+  if (!ppMapsModButtons) return;
+  for (const button of ppMapsModButtons.querySelectorAll("button[data-ppmaps-mod]")) {
+    button.classList.toggle("active", ppMapsSelectedMods.has(button.dataset.ppmapsMod));
+  }
+}
+
+function setPpMapsLoading() {
+  if (!ppMapsOutput) return;
+  ppMapsOutput.classList.remove("hidden");
+  ppMapsOutput.innerHTML = `
+    <div>
+      <strong>${escapeHtml(t("ppMaps.loading"))}</strong>
+      <p>${escapeHtml(t("ppMaps.loadingDetail"))}</p>
+    </div>
+  `;
+}
+
+function setPpMapsError(error) {
+  if (!ppMapsOutput) return;
+  ppMapsOutput.classList.remove("hidden");
+  ppMapsOutput.innerHTML = `
+    <div class="error-box">
+      <strong>${escapeHtml(t("ppMaps.failed"))}</strong>
+      <span>${escapeHtml(error.message || String(error))}</span>
+    </div>
+  `;
+}
+
+function ppMapCoverUrl(map) {
+  return map?.mapsetId ? `https://assets.ppy.sh/beatmaps/${map.mapsetId}/covers/list.jpg` : "";
+}
+
+function ppMapUrl(map) {
+  return map?.beatmapId ? `https://osu.ppy.sh/beatmaps/${map.beatmapId}` : "https://osu.ppy.sh/beatmapsets";
+}
+
+function ppMapsSourceUrl() {
+  return `https://osu-pps.com/#/${ppMapsModePath(ppMapsMode?.value || "osu")}/maps`;
+}
+
+function renderPpMapMods(map) {
+  const mods = Array.isArray(map?.mods) && map.mods.length ? map.mods : ["NM"];
+  return mods.map((mod) => `<span class="mod-badge" title="${escapeHtml(modNames[mod] || mod)}">${escapeHtml(mod)}</span>`).join("");
+}
+
+function renderPpMapCard(map, index) {
+  const cover = ppMapCoverUrl(map);
+  const coverHtml = cover
+    ? `<img class="ppmap-cover" src="${escapeHtml(cover)}" alt="" loading="lazy" />`
+    : '<div class="ppmap-cover cover-fallback"></div>';
+  const title = `${map.artist || t("label.unknownArtist")} - ${map.title || t("label.unknownMap")}`;
+  return `
+    <article class="ppmap-card">
+      ${coverHtml}
+      <div class="ppmap-main">
+        <div class="ppmap-title-row">
+          <span class="rank-badge">#${formatNumber(index + 1)}</span>
+          ${renderPpMapMods(map)}
+          <a href="${escapeHtml(ppMapUrl(map))}" target="_blank" rel="noreferrer">${escapeHtml(title)}</a>
+        </div>
+        <p>${escapeHtml(map.version || "Difficulty")}</p>
+        <div class="ppmap-meta">
+          <span>${escapeHtml(formatStars(map.stars))}</span>
+          <span>${escapeHtml(formatNumber(map.effectiveBpm || map.bpm || 0))} BPM</span>
+          <span>${escapeHtml(formatDuration(map.length))}</span>
+          <span>AR ${escapeHtml(formatFixed(map.ar, 2))}</span>
+          <span>OD ${escapeHtml(formatFixed(map.od, 2))}</span>
+          <span>CS ${escapeHtml(formatFixed(map.cs, 2))}</span>
+        </div>
+      </div>
+      <div class="ppmap-side">
+        <strong>${escapeHtml(formatPp(map.pp))}</strong>
+        <small>${escapeHtml(t("ppMaps.passCount"))}: ${escapeHtml(formatNumber(map.passCount || 0))}</small>
+        <small>${escapeHtml(t("ppMaps.farmValue"))}: ${escapeHtml(formatNumber(map.farmValue || 0))}</small>
+        <a href="${escapeHtml(ppMapsSourceUrl())}" target="_blank" rel="noreferrer">${escapeHtml(t("ppMaps.openPps"))}</a>
+      </div>
+    </article>
+  `;
+}
+
+function renderPpMapsResults(payload, knownData, unplayed, knownError = null) {
+  if (!ppMapsOutput) return;
+  const playedIds = ppMapsPlayedBeatmapIds(knownData);
+  const shownLimit = Math.min(Math.max(Number(ppMapsFieldValue("ppMapsLimit") || 100), 1), 300);
+  const maps = unplayed.slice(0, shownLimit);
+  const updated = payload.updatedAt ? formatDate(payload.updatedAt) : "-";
+
+  ppMapsOutput.classList.remove("hidden");
+  ppMapsOutput.innerHTML = `
+    <div class="ppmaps-results">
+      <div class="ppmaps-summary">
+        <div>
+          <span>${escapeHtml(t("ppMaps.results"))}</span>
+          <strong>${escapeHtml(formatNumber(maps.length))}</strong>
+        </div>
+        <div>
+          <span>${escapeHtml(t("ppMaps.available"))}</span>
+          <strong>${escapeHtml(formatNumber(payload.returned || payload.maps?.length || 0))}</strong>
+        </div>
+        <div>
+          <span>${escapeHtml(t("ppMaps.knownRemoved"))}</span>
+          <strong>${knownError ? escapeHtml(t("ppMaps.knownUnavailable")) : escapeHtml(formatNumber(playedIds.size ? (payload.maps || []).length - unplayed.length : 0))}</strong>
+        </div>
+        <div>
+          <span>${escapeHtml(t("ppMaps.sourceUpdated"))}</span>
+          <strong>${escapeHtml(updated)}</strong>
+        </div>
+      </div>
+      ${maps.length
+        ? `<div class="ppmaps-list">${maps.map((map, index) => renderPpMapCard(map, index)).join("")}</div>`
+        : `<div class="compare-empty">${escapeHtml(t("ppMaps.noResults"))}</div>`}
+    </div>
+  `;
+}
+
+async function runPpMapsSearch() {
+  const username = ppMapsPlayer?.value.trim() || document.querySelector("#username")?.value.trim() || "";
+  const mode = ppMapsMode?.value || "osu";
+  setPpMapsLoading();
+  ppMapsRun?.setAttribute("disabled", "disabled");
+
+  try {
+    const params = ppMapsParams(300);
+    const mapsResponse = await fetch(`/api/pp-maps?${params.toString()}`);
+    const mapsPayload = await mapsResponse.json();
+    if (!mapsResponse.ok) throw new Error(mapsPayload.error || t("ppMaps.failed"));
+
+    let knownData = null;
+    let knownError = null;
+    if (username) {
+      try {
+        knownData = await fetchCompareData(username, mode, {
+          limit: "500",
+          pages: "1",
+          bestPerMap: "0",
+          passesOnly: "1",
+          rankedOnly: "0",
+          includeLoved: "1",
+          includeUnrankedPasses: "1",
+          recalculatePp: "0",
+        });
+      } catch (error) {
+        knownError = error;
+        knownData = lastSearchData;
+      }
+    } else if (lastSearchData) {
+      knownData = lastSearchData;
+    }
+
+    const playedIds = ppMapsPlayedBeatmapIds(knownData);
+    const unplayed = (mapsPayload.maps || []).filter((map) => !playedIds.has(Number(map.beatmapId || 0)));
+    renderPpMapsResults(mapsPayload, knownData, unplayed, knownError);
+  } catch (error) {
+    setPpMapsError(error);
+  } finally {
+    ppMapsRun?.removeAttribute("disabled");
+  }
+}
+
+function resetPpMaps() {
+  for (const id of [
+    "ppMapsSong",
+    "ppMapsPpMin",
+    "ppMapsPpMax",
+    "ppMapsBpmMin",
+    "ppMapsBpmMax",
+    "ppMapsStarsMin",
+    "ppMapsStarsMax",
+    "ppMapsLengthMin",
+    "ppMapsLengthMax",
+  ]) {
+    const input = document.querySelector(`#${id}`);
+    if (input) input.value = "";
+  }
+  const limit = document.querySelector("#ppMapsLimit");
+  if (limit) limit.value = "100";
+  ppMapsSelectedMods.clear();
+  renderPpMapsMods();
+  if (ppMapsOutput) {
+    ppMapsOutput.innerHTML = `
+      <div>
+        <strong>${escapeHtml(t("ppMaps.placeholderTitle"))}</strong>
+        <p>${escapeHtml(t("ppMaps.placeholderText"))}</p>
+      </div>
+    `;
+  }
+}
+
 function renderModDistribution(summary) {
   const total = Math.max(1, summary.count);
   if (!summary.topMods.length) return `<div class="compare-empty">${escapeHtml(t("compare.noMods"))}</div>`;
@@ -4728,11 +5051,20 @@ function setMenuOpen(open) {
 }
 
 function setActiveSection(section) {
-  const nextSection = section === "compare" ? "compare" : section === "time" ? "time" : section === "skillTree" ? "skillTree" : "home";
+  const nextSection = section === "compare"
+    ? "compare"
+    : section === "time"
+      ? "time"
+      : section === "skillTree"
+        ? "skillTree"
+        : section === "ppMaps"
+          ? "ppMaps"
+          : "home";
   document.body.dataset.activeSection = nextSection;
   compareView?.classList.toggle("hidden", nextSection !== "compare");
   timeTravelView?.classList.toggle("hidden", nextSection !== "time");
   skillTreeView?.classList.toggle("hidden", nextSection !== "skillTree");
+  ppMapsView?.classList.toggle("hidden", nextSection !== "ppMaps");
 
   const showHome = nextSection === "home";
   form.classList.toggle("hidden", !showHome);
@@ -4767,6 +5099,11 @@ sideMenu?.addEventListener("click", (event) => {
   if (button.dataset.section === "skillTree") {
     if (skillPlayer && !skillPlayer.value) skillPlayer.value = document.querySelector("#username")?.value.trim() || comparePlayerA?.value.trim() || timePlayer?.value.trim() || "";
     if (skillMode) skillMode.value = document.querySelector("#mode")?.value || compareMode?.value || timeMode?.value || "osu";
+  }
+
+  if (button.dataset.section === "ppMaps") {
+    if (ppMapsPlayer && !ppMapsPlayer.value) ppMapsPlayer.value = document.querySelector("#username")?.value.trim() || comparePlayerA?.value.trim() || skillPlayer?.value.trim() || timePlayer?.value.trim() || "";
+    if (ppMapsMode) ppMapsMode.value = document.querySelector("#mode")?.value || compareMode?.value || skillMode?.value || timeMode?.value || "osu";
   }
 
   setActiveSection(button.dataset.section);
@@ -4929,6 +5266,30 @@ skillTreeView?.addEventListener("keydown", (event) => {
     return;
   }
   void runSkillTree();
+});
+
+ppMapsRun?.addEventListener("click", () => void runPpMapsSearch());
+
+ppMapsReset?.addEventListener("click", resetPpMaps);
+
+ppMapsModButtons?.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-ppmaps-mod]");
+  if (!button) return;
+  const mod = button.dataset.ppmapsMod;
+  if (ppMapsSelectedMods.has(mod)) {
+    ppMapsSelectedMods.delete(mod);
+  } else {
+    ppMapsSelectedMods.add(mod);
+  }
+  renderPpMapsMods();
+});
+
+ppMapsView?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  const input = event.target.closest("input");
+  if (!input) return;
+  event.preventDefault();
+  void runPpMapsSearch();
 });
 
 compareView?.addEventListener("error", (event) => {

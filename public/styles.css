@@ -1917,6 +1917,152 @@ select:focus {
     rgba(17, 20, 28, 0.94);
 }
 
+.ppmaps-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.ppmaps-filter-grid .field-wide {
+  grid-column: span 2;
+}
+
+.ppmaps-mods {
+  margin-top: 2px;
+}
+
+.ppmaps-results {
+  display: grid;
+  width: 100%;
+  gap: 14px;
+  text-align: left;
+}
+
+.ppmaps-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ppmaps-summary > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  border: 1px solid rgba(148, 156, 176, 0.16);
+  border-radius: 8px;
+  background: rgba(8, 10, 16, 0.72);
+  padding: 12px;
+}
+
+.ppmaps-summary span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.ppmaps-summary strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 1.05rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ppmaps-list {
+  display: grid;
+  gap: 8px;
+}
+
+.ppmap-card {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) minmax(150px, auto);
+  gap: 12px;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid rgba(148, 156, 176, 0.16);
+  border-radius: 8px;
+  background: rgba(7, 10, 17, 0.72);
+}
+
+.ppmap-cover {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+}
+
+.ppmap-main {
+  display: grid;
+  align-content: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 12px 0;
+}
+
+.ppmap-title-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.ppmap-title-row a {
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ppmap-main p {
+  overflow: hidden;
+  margin: 0;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ppmap-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ppmap-meta span {
+  border: 1px solid rgba(148, 156, 176, 0.14);
+  border-radius: 6px;
+  background: rgba(148, 156, 176, 0.08);
+  color: var(--muted);
+  padding: 3px 7px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.ppmap-side {
+  display: grid;
+  align-content: center;
+  justify-items: end;
+  gap: 4px;
+  min-width: 150px;
+  padding: 12px;
+  background: rgba(15, 19, 28, 0.58);
+}
+
+.ppmap-side strong {
+  color: var(--pink);
+  font-size: 1.25rem;
+  font-weight: 950;
+}
+
+.ppmap-side small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.ppmap-side a {
+  color: #80e9ff;
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
 .compare-results {
   display: grid;
   gap: 14px;
@@ -3144,6 +3290,9 @@ select:focus {
     .training-planner-controls,
     .training-plan-summary,
     .training-path,
+    .ppmaps-filter-grid,
+    .ppmaps-summary,
+    .ppmap-card,
     .compare-signatures,
     .compare-score-columns,
     .map-compare-row {
@@ -3191,6 +3340,23 @@ select:focus {
 
   .skill-map-row {
     grid-template-columns: 1fr;
+  }
+
+  .ppmaps-filter-grid .field-wide {
+    grid-column: auto;
+  }
+
+  .ppmap-cover {
+    width: 100%;
+    height: 130px;
+  }
+
+  .ppmap-main {
+    padding: 0 12px;
+  }
+
+  .ppmap-side {
+    justify-items: start;
   }
 
   .skill-graph {

@@ -45,6 +45,7 @@
           <button class="side-menu-item" type="button" data-section="compare" data-i18n="nav.compare">Vergleich</button>
           <button class="side-menu-item" type="button" data-section="time" data-i18n="nav.timeTravel">Time Travel</button>
           <button class="side-menu-item" type="button" data-section="skillTree" data-i18n="nav.skillTree">Skill Tree</button>
+          <button class="side-menu-item" type="button" data-section="ppMaps" data-i18n="nav.ppMaps">PP Maps</button>
         </aside>
         <div id="menuBackdrop" class="menu-backdrop"></div>
 
@@ -485,6 +486,100 @@
             <div>
               <strong data-i18n="skill.placeholderTitle">Skill-Tree Ergebnisbereich</strong>
               <p data-i18n="skill.placeholderText">Lade einen Spieler, dann werden deine staerksten Skill-Bereiche, passende Maps und Trainingsziele sichtbar.</p>
+            </div>
+          </section>
+        </section>
+
+        <section id="ppMapsView" class="compare-view hidden" aria-live="polite">
+          <div class="compare-hero">
+            <div>
+              <p class="eyebrow" data-i18n="ppMaps.eyebrow">PP Maps</p>
+              <h2 data-i18n="ppMaps.title">Ungespielte PP-Maps finden</h2>
+              <p data-i18n="ppMaps.description">
+                Laedt Empfehlungen von osu-pps und entfernt Maps, die in deinen bekannten lokalen oder API-Scores schon vorkommen.
+              </p>
+            </div>
+          </div>
+
+          <section class="compare-panel">
+            <div class="compare-panel-head">
+              <span data-i18n="ppMaps.setup">Setup</span>
+              <strong data-i18n="ppMaps.filters">Filter wie osu-pps</strong>
+            </div>
+            <div class="ppmaps-filter-grid">
+              <label class="field">
+                <span data-i18n="compare.player">Spieler</span>
+                <input id="ppMapsPlayer" type="search" data-i18n-placeholder="compare.placeholderA" placeholder="z. B. marcy02" />
+              </label>
+              <label class="field">
+                <span data-i18n="compare.gameMode">Game mode</span>
+                <select id="ppMapsMode">
+                  <option value="osu">osu!standard</option>
+                  <option value="taiko">taiko</option>
+                  <option value="fruits">catch</option>
+                  <option value="mania">mania</option>
+                </select>
+              </label>
+              <label class="field field-wide">
+                <span data-i18n="ppMaps.song">Songname</span>
+                <input id="ppMapsSong" type="search" data-i18n-placeholder="ppMaps.songPlaceholder" placeholder="song name..." />
+              </label>
+              <label class="field">
+                <span data-i18n="ppMaps.ppMin">PP min</span>
+                <input id="ppMapsPpMin" type="number" min="0" step="1" placeholder="280" />
+              </label>
+              <label class="field">
+                <span data-i18n="ppMaps.ppMax">PP max</span>
+                <input id="ppMapsPpMax" type="number" min="0" step="1" placeholder="320" />
+              </label>
+              <label class="field">
+                <span data-i18n="ppMaps.bpmMin">BPM min</span>
+                <input id="ppMapsBpmMin" type="number" min="0" step="1" />
+              </label>
+              <label class="field">
+                <span data-i18n="ppMaps.bpmMax">BPM max</span>
+                <input id="ppMapsBpmMax" type="number" min="0" step="1" />
+              </label>
+              <label class="field">
+                <span data-i18n="ppMaps.starsMin">Sterne min</span>
+                <input id="ppMapsStarsMin" type="number" min="0" step="0.01" />
+              </label>
+              <label class="field">
+                <span data-i18n="ppMaps.starsMax">Sterne max</span>
+                <input id="ppMapsStarsMax" type="number" min="0" step="0.01" />
+              </label>
+              <label class="field">
+                <span data-i18n="ppMaps.lengthMin">Laenge min</span>
+                <input id="ppMapsLengthMin" type="text" inputmode="numeric" placeholder="0:30" />
+              </label>
+              <label class="field">
+                <span data-i18n="ppMaps.lengthMax">Laenge max</span>
+                <input id="ppMapsLengthMax" type="text" inputmode="numeric" placeholder="2:00" />
+              </label>
+              <label class="field">
+                <span data-i18n="field.limit">Anzeige-Limit</span>
+                <input id="ppMapsLimit" type="number" min="1" max="300" value="100" />
+              </label>
+            </div>
+            <div class="quick-mods ppmaps-mods" id="ppMapsMods">
+              <button type="button" data-ppmaps-mod="DT">DT</button>
+              <button type="button" data-ppmaps-mod="HD">HD</button>
+              <button type="button" data-ppmaps-mod="HR">HR</button>
+              <button type="button" data-ppmaps-mod="FL">FL</button>
+            </div>
+            <div class="compare-actions">
+              <button id="ppMapsRun" class="primary-button" type="button" data-i18n="ppMaps.run">PP-Maps suchen</button>
+              <button id="ppMapsReset" class="ghost-button" type="button" data-i18n="button.reset">Reset</button>
+            </div>
+            <p class="compare-muted" data-i18n="ppMaps.note">
+              Datenquelle: osu-pps von grumd. Der Abgleich nutzt Beatmap-IDs aus deinen bekannten lokalen und online geladenen Scores.
+            </p>
+          </section>
+
+          <section id="ppMapsOutput" class="compare-placeholder">
+            <div>
+              <strong data-i18n="ppMaps.placeholderTitle">PP-Map Ergebnisbereich</strong>
+              <p data-i18n="ppMaps.placeholderText">Waehle Filter und lade Empfehlungen. Bereits bekannte Maps werden danach aus der Liste entfernt.</p>
             </div>
           </section>
         </section>
