@@ -3539,6 +3539,40 @@ function renderPpMapMods(map) {
   return mods.map((mod) => `<span class="mod-badge" title="${escapeHtml(modNames[mod] || mod)}">${escapeHtml(mod)}</span>`).join("");
 }
 
+function ppMapEstimateRows(map) {
+  const basePp = Number(map?.pp || 0);
+  if (!Number.isFinite(basePp) || basePp <= 0) return [];
+  return [95, 96, 97, 98, 99, 100].map((accuracy) => {
+    const accFactor = Math.pow(accuracy / 99, 5.6);
+    const fc = basePp * accFactor;
+    const oneMiss = fc * 0.94;
+    return { accuracy, fc, oneMiss };
+  });
+}
+
+function renderPpMapEstimateTray(map) {
+  const rows = ppMapEstimateRows(map);
+  if (!rows.length) return "";
+  return `
+    <details class="ppmap-estimates">
+      <summary aria-label="PP estimates">
+        <span>PP</span>
+      </summary>
+      <div class="ppmap-estimate-panel">
+        <strong>FC / 1 Miss</strong>
+        <small>Estimate aus osu-pps 99%-Wert</small>
+        <div class="ppmap-estimate-grid">
+          ${rows.map((row) => `
+            <span>${row.accuracy}%</span>
+            <b>${formatPp(row.fc)}</b>
+            <em>${formatPp(row.oneMiss)}</em>
+          `).join("")}
+        </div>
+      </div>
+    </details>
+  `;
+}
+
 function renderPpMapCard(map, index) {
   const cover = ppMapCoverUrl(map);
   const coverHtml = cover
@@ -3570,6 +3604,7 @@ function renderPpMapCard(map, index) {
         <small>${escapeHtml(t("ppMaps.farmValue"))}: ${escapeHtml(formatNumber(map.farmValue || 0))}</small>
         <a href="${escapeHtml(ppMapsSourceUrl())}" target="_blank" rel="noreferrer">${escapeHtml(t("ppMaps.openPps"))}</a>
       </div>
+      ${renderPpMapEstimateTray(map)}
     </article>
   `;
 }
