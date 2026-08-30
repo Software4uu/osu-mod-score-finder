@@ -2519,6 +2519,8 @@ function osuPpsMapMatches(map, filters) {
   if (filters.bpmMax !== null && bpm > filters.bpmMax) return false;
   if (filters.starsMin !== null && map.stars < filters.starsMin) return false;
   if (filters.starsMax !== null && map.stars > filters.starsMax) return false;
+  if (filters.passMin !== null && map.passCount < filters.passMin) return false;
+  if (filters.passMax !== null && map.passCount > filters.passMax) return false;
   if (filters.lengthMin !== null && map.length < filters.lengthMin) return false;
   if (filters.lengthMax !== null && map.length > filters.lengthMax) return false;
 
@@ -2552,6 +2554,8 @@ async function handleOsuPpsMaps(req, res) {
     bpmMax: optionalNumber(url.searchParams, "bpmMax"),
     starsMin: optionalNumber(url.searchParams, "starsMin"),
     starsMax: optionalNumber(url.searchParams, "starsMax"),
+    passMin: optionalNumber(url.searchParams, "passMin"),
+    passMax: optionalNumber(url.searchParams, "passMax"),
     lengthMin: optionalNumber(url.searchParams, "lengthMin"),
     lengthMax: optionalNumber(url.searchParams, "lengthMax"),
     mods: String(url.searchParams.get("mods") || "")

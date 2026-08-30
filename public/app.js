@@ -50,6 +50,7 @@ const ppMapsPlayer = document.querySelector("#ppMapsPlayer");
 const ppMapsMode = document.querySelector("#ppMapsMode");
 const ppMapsRun = document.querySelector("#ppMapsRun");
 const ppMapsReset = document.querySelector("#ppMapsReset");
+const ppMapsMore = document.querySelector("#ppMapsMore");
 const ppMapsModButtons = document.querySelector("#ppMapsMods");
 
 const selectedMods = new Set();
@@ -289,8 +290,11 @@ const translations = {
     "ppMaps.bpmMax": "BPM max",
     "ppMaps.starsMin": "Sterne min",
     "ppMaps.starsMax": "Sterne max",
+    "ppMaps.passMin": "Passes min",
+    "ppMaps.passMax": "Passes max",
     "ppMaps.lengthMin": "Laenge min",
     "ppMaps.lengthMax": "Laenge max",
+    "ppMaps.more": "more",
     "ppMaps.run": "PP-Maps suchen",
     "ppMaps.note": "Datenquelle: osu-pps von grumd. Der Abgleich nutzt Beatmap-IDs aus deinen bekannten lokalen und online geladenen Scores.",
     "ppMaps.placeholderTitle": "PP-Map Ergebnisbereich",
@@ -779,8 +783,11 @@ const translations = {
     "ppMaps.bpmMax": "BPM max",
     "ppMaps.starsMin": "Stars min",
     "ppMaps.starsMax": "Stars max",
+    "ppMaps.passMin": "Passes min",
+    "ppMaps.passMax": "Passes max",
     "ppMaps.lengthMin": "Length min",
     "ppMaps.lengthMax": "Length max",
+    "ppMaps.more": "more",
     "ppMaps.run": "Search PP maps",
     "ppMaps.note": "Source: osu-pps by grumd. Matching uses beatmap IDs from your known local and online loaded scores.",
     "ppMaps.placeholderTitle": "PP map result area",
@@ -3448,6 +3455,8 @@ function ppMapsParams(limit = 300) {
     ["bpmMax", ppMapsFieldValue("ppMapsBpmMax")],
     ["starsMin", ppMapsFieldValue("ppMapsStarsMin")],
     ["starsMax", ppMapsFieldValue("ppMapsStarsMax")],
+    ["passMin", ppMapsFieldValue("ppMapsPassMin")],
+    ["passMax", ppMapsFieldValue("ppMapsPassMax")],
     ["lengthMin", parsePpMapsDuration(ppMapsFieldValue("ppMapsLengthMin"))],
     ["lengthMax", parsePpMapsDuration(ppMapsFieldValue("ppMapsLengthMax"))],
     ["mods", [...ppMapsSelectedMods].join(",")],
@@ -3464,6 +3473,13 @@ function renderPpMapsMods() {
   if (!ppMapsModButtons) return;
   for (const button of ppMapsModButtons.querySelectorAll("button[data-ppmaps-mod]")) {
     button.classList.toggle("active", ppMapsSelectedMods.has(button.dataset.ppmapsMod));
+  }
+}
+
+function syncPpMapsModeRadios() {
+  if (!ppMapsView || !ppMapsMode) return;
+  for (const input of ppMapsView.querySelectorAll("input[name='ppMapsModeChoice']")) {
+    input.checked = input.value === ppMapsMode.value;
   }
 }
 
@@ -3629,6 +3645,8 @@ function resetPpMaps() {
     "ppMapsBpmMax",
     "ppMapsStarsMin",
     "ppMapsStarsMax",
+    "ppMapsPassMin",
+    "ppMapsPassMax",
     "ppMapsLengthMin",
     "ppMapsLengthMax",
   ]) {
@@ -5104,6 +5122,7 @@ sideMenu?.addEventListener("click", (event) => {
   if (button.dataset.section === "ppMaps") {
     if (ppMapsPlayer && !ppMapsPlayer.value) ppMapsPlayer.value = document.querySelector("#username")?.value.trim() || comparePlayerA?.value.trim() || skillPlayer?.value.trim() || timePlayer?.value.trim() || "";
     if (ppMapsMode) ppMapsMode.value = document.querySelector("#mode")?.value || compareMode?.value || skillMode?.value || timeMode?.value || "osu";
+    syncPpMapsModeRadios();
   }
 
   setActiveSection(button.dataset.section);
@@ -5282,6 +5301,20 @@ ppMapsModButtons?.addEventListener("click", (event) => {
     ppMapsSelectedMods.add(mod);
   }
   renderPpMapsMods();
+});
+
+ppMapsMore?.addEventListener("click", () => {
+  const advanced = document.querySelector("#ppMapsAdvanced");
+  const isOpen = !advanced?.classList.contains("hidden");
+  advanced?.classList.toggle("hidden", isOpen);
+  ppMapsMore.setAttribute("aria-expanded", isOpen ? "false" : "true");
+});
+
+ppMapsView?.addEventListener("change", (event) => {
+  const modeChoice = event.target.closest("input[name='ppMapsModeChoice']");
+  if (!modeChoice || !ppMapsMode) return;
+  ppMapsMode.value = modeChoice.value;
+  syncPpMapsModeRadios();
 });
 
 ppMapsView?.addEventListener("keydown", (event) => {

@@ -1923,6 +1923,209 @@ select:focus {
   gap: 12px;
 }
 
+.ppmaps-panel {
+  gap: 10px;
+  padding: 12px;
+}
+
+.ppmaps-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.ppmaps-heading > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.ppmaps-heading strong {
+  color: var(--text);
+  font-size: 1.72rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.ppmaps-heading span {
+  color: rgba(206, 214, 229, 0.58);
+  font-size: 1.45rem;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.ppmaps-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.ppmaps-mode-row label {
+  cursor: pointer;
+}
+
+.ppmaps-mode-row input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ppmaps-mode-row label + label::before {
+  content: "·";
+  color: rgba(206, 214, 229, 0.46);
+  margin-right: 6px;
+}
+
+.ppmaps-mode-row span {
+  color: rgba(206, 214, 229, 0.56);
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.ppmaps-mode-row input:checked + span,
+.ppmaps-mode-row label:hover span {
+  color: var(--text);
+}
+
+.ppmaps-toolbar {
+  display: grid;
+  grid-template-columns:
+    auto
+    minmax(180px, 1.2fr)
+    auto
+    auto
+    auto
+    auto
+    auto
+    auto;
+  gap: 8px;
+  align-items: end;
+  padding-top: 2px;
+}
+
+.ppmaps-stack-actions {
+  display: grid;
+  gap: 4px;
+  align-self: stretch;
+}
+
+.ppmaps-reset,
+.ppmaps-more,
+.ppmaps-run {
+  min-height: 31px;
+  border-radius: 5px;
+  padding: 0 11px;
+  font-weight: 900;
+}
+
+.ppmaps-reset {
+  border: 1px solid rgba(255, 93, 111, 0.68);
+  background: rgba(255, 93, 111, 0.13);
+  color: #ff8794;
+}
+
+.ppmaps-more {
+  border: 1px solid rgba(83, 216, 128, 0.52);
+  background: rgba(83, 216, 128, 0.12);
+  color: #8ff0a3;
+}
+
+.ppmaps-more::before {
+  content: "⌄";
+  margin-right: 6px;
+}
+
+.ppmaps-more[aria-expanded="true"]::before {
+  content: "⌃";
+}
+
+.ppmaps-song,
+.ppmaps-range input {
+  min-height: 37px;
+  border-color: rgba(148, 156, 176, 0.28);
+  border-radius: 7px;
+  background: rgba(6, 8, 13, 0.72);
+}
+
+.ppmaps-song {
+  min-width: 0;
+}
+
+.ppmaps-range {
+  display: grid;
+  grid-template-columns: repeat(2, 48px);
+  gap: 4px;
+  align-items: end;
+}
+
+.ppmaps-range span {
+  grid-column: 1 / -1;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 950;
+  text-align: center;
+  text-transform: lowercase;
+}
+
+.ppmaps-range input {
+  width: 48px;
+  padding: 0 7px;
+  text-align: center;
+}
+
+.ppmaps-range.compact input {
+  width: 46px;
+}
+
+.ppmaps-mods {
+  display: flex;
+  gap: 6px;
+}
+
+.ppmaps-mods button {
+  width: 48px;
+  min-width: 48px;
+  height: 45px;
+  border-color: rgba(255, 176, 48, 0.2);
+  border-radius: 7px;
+  background:
+    linear-gradient(135deg, rgba(255, 176, 48, 0.24) 0 48%, rgba(148, 156, 176, 0.12) 49% 100%),
+    rgba(25, 25, 23, 0.85);
+  color: rgba(244, 245, 248, 0.42);
+  font-size: 1.1rem;
+}
+
+.ppmaps-mods button.active,
+.ppmaps-mods button:hover {
+  border-color: rgba(255, 176, 48, 0.64);
+  background:
+    linear-gradient(135deg, rgba(255, 176, 48, 0.54) 0 48%, rgba(255, 79, 163, 0.2) 49% 100%),
+    rgba(55, 39, 20, 0.92);
+  color: #fff7d6;
+}
+
+.ppmaps-run {
+  border: 1px solid rgba(255, 79, 163, 0.72);
+  background: linear-gradient(90deg, var(--pink), #ff6f84);
+  color: #05060a;
+  white-space: nowrap;
+}
+
+.ppmaps-advanced {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(140px, 180px);
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(148, 156, 176, 0.16);
+  border-radius: 8px;
+  background: rgba(7, 10, 17, 0.58);
+}
+
+.ppmaps-advanced.hidden {
+  display: none;
+}
+
 .ppmaps-filter-grid .field-wide {
   grid-column: span 2;
 }
@@ -3293,6 +3496,8 @@ select:focus {
     .ppmaps-filter-grid,
     .ppmaps-summary,
     .ppmap-card,
+    .ppmaps-toolbar,
+    .ppmaps-advanced,
     .compare-signatures,
     .compare-score-columns,
     .map-compare-row {
@@ -3344,6 +3549,37 @@ select:focus {
 
   .ppmaps-filter-grid .field-wide {
     grid-column: auto;
+  }
+
+  .ppmaps-heading {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .ppmaps-heading strong {
+    font-size: 1.45rem;
+  }
+
+  .ppmaps-heading span,
+  .ppmaps-mode-row span {
+    font-size: 1.08rem;
+  }
+
+  .ppmaps-stack-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ppmaps-range {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ppmaps-range input,
+  .ppmaps-range.compact input {
+    width: 100%;
+  }
+
+  .ppmaps-mods {
+    flex-wrap: wrap;
   }
 
   .ppmap-cover {

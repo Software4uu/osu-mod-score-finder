@@ -1,6 +1,6 @@
 {
   "name": "osu-mod-score-finder-beta",
-  "version": "0.3.16",
+  "version": "0.3.17",
   "private": true,
   "description": "Local beta for finding, storing, filtering, and recalculating osu! scores by mods.",
   "repository": {
