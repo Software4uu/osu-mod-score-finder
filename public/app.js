@@ -1453,17 +1453,6 @@ function mapDomKey(score) {
   );
 }
 
-function mapsetDomKey(score) {
-  const beatmap = score.beatmap || {};
-  const set = score.beatmapset || {};
-  return String(
-    score.beatmapset_id ||
-      beatmap.beatmapset_id ||
-      set.id ||
-      `${set.artist || beatmap.artist || ""}:${set.title || beatmap.title || ""}`
-  );
-}
-
 function allScoresFromData(data) {
   const scoresByDay = data?.calendar?.scoresByDay || {};
   return Object.values(scoresByDay).flat();
@@ -1646,25 +1635,6 @@ function currentProfileTopScores(data) {
     .map((score, index) => ({ ...score, pp_rank: index + 1 }));
 }
 
-function bestTopScoresPerMapset(scores) {
-  const byMapset = new Map();
-  for (const score of scores) {
-    const key = mapsetDomKey(score);
-    const current = byMapset.get(key);
-    if (!current || scorePpValue(score) > scorePpValue(current) || (
-      scorePpValue(score) === scorePpValue(current) &&
-      scoreTimeValue(score) > scoreTimeValue(current)
-    )) {
-      byMapset.set(key, score);
-    }
-  }
-
-  return [...byMapset.values()].sort((a, b) =>
-    Number(a.pp_rank || 9999) - Number(b.pp_rank || 9999) ||
-    scorePpValue(b) - scorePpValue(a)
-  );
-}
-
 function normalizeTimeInput(value, fallback) {
   return /^\d{2}:\d{2}$/.test(value || "") ? value : fallback;
 }
@@ -1705,8 +1675,7 @@ function renderTopScores(data = null) {
   }
 
   const profileTop = currentProfileTopScores(data);
-  const uniqueProfileTop = bestTopScoresPerMapset(profileTop);
-  const rangeScores = uniqueProfileTop.filter((score) => scoreInTopDateRange(score, bounds));
+  const rangeScores = profileTop.filter((score) => scoreInTopDateRange(score, bounds));
   const bestPp = rangeScores.reduce((best, score) => Math.max(best, scorePpValue(score)), 0);
   const weightedPp = rangeScores.reduce((total, score) => total + scorePpValue(score) * Math.pow(0.95, Math.max(0, Number(score.pp_rank || 1) - 1)), 0);
 
