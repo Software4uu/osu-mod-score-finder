@@ -3685,7 +3685,7 @@ function ppMapsOptionalNumber(id) {
 }
 
 function ppMapsAccountTargetPp() {
-  return ppMapsOptionalNumber("ppMapsPpMin") || ppMapsOptionalNumber("ppMapsPpMax") || 280;
+  return ppMapsOptionalNumber("ppMapsPpMin") || 280;
 }
 
 function ppMapsAccountTopCount() {

@@ -2125,6 +2125,18 @@ select:focus {
   display: none;
 }
 
+#ppMapsView[data-result-mode="account"] .ppmaps-pp-range {
+  grid-template-columns: 78px;
+}
+
+#ppMapsView[data-result-mode="account"] #ppMapsPpMax {
+  display: none;
+}
+
+#ppMapsView[data-result-mode="account"] #ppMapsPpMin {
+  width: 78px;
+}
+
 #ppMapsView[data-result-mode="improvement"] .ppmaps-local-acc {
   grid-column: 7;
 }
