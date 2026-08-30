@@ -506,6 +506,7 @@
               <div class="ppmaps-view-tabs">
                 <button class="active" type="button" data-ppmaps-view="unplayed">pp maps</button>
                 <button type="button" data-ppmaps-view="improvement">improvement</button>
+                <button type="button" data-ppmaps-view="account">account pp</button>
               </div>
               <div class="ppmaps-mode-row">
                 <label>
@@ -592,6 +593,10 @@
               <label class="field">
                 <span data-i18n="field.limit">Anzeige-Limit</span>
                 <input id="ppMapsLimit" type="number" min="1" max="300" value="100" />
+              </label>
+              <label class="field ppmaps-account-only">
+                <span>Top-N</span>
+                <input id="ppMapsTopCount" type="number" min="1" max="200" value="100" />
               </label>
             </div>
             <p class="compare-muted" data-i18n="ppMaps.note">

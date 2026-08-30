@@ -309,6 +309,7 @@ const translations = {
     "ppMaps.loadingDetail": "osu-pps Daten und deine bekannten Scores werden abgeglichen.",
     "ppMaps.results": "Ungespielte Kandidaten",
     "ppMaps.improvementResults": "Improvement-Kandidaten",
+    "ppMaps.accountResults": "Account-PP Simulation",
     "ppMaps.sourceUpdated": "osu-pps aktualisiert",
     "ppMaps.knownRemoved": "bereits bekannte Maps entfernt",
     "ppMaps.playedCandidates": "bereits gespielte Kandidaten",
@@ -319,11 +320,18 @@ const translations = {
     "ppMaps.openMap": "Map oeffnen",
     "ppMaps.noResults": "Keine ungespielten PP-Maps fuer diese Filter gefunden.",
     "ppMaps.noImprovementResults": "Keine bereits gespielten Improvement-Kandidaten fuer diese Filter gefunden.",
+    "ppMaps.noAccountSource": "Lade zuerst einen Spieler, damit die Topliste simuliert werden kann.",
     "ppMaps.failed": "PP-Maps konnten nicht geladen werden.",
     "ppMaps.knownUnavailable": "Score-Abgleich nicht verfuegbar",
     "ppMaps.currentBest": "bekannter Besttry",
     "ppMaps.gain": "moeglich",
     "ppMaps.sliderbreak": "SB/1-Miss Chance",
+    "ppMaps.accountCurrent": "aktuell gewichtet",
+    "ppMaps.accountSimulated": "simuliert gewichtet",
+    "ppMaps.accountGain": "ungefaehres Plus",
+    "ppMaps.accountReplaced": "ersetzte Plays",
+    "ppMaps.accountTarget": "Zielwert",
+    "ppMaps.accountHelp": "Ersetzt in deiner rekonstruierten Top-N alle Plays unter dem Zielwert durch diesen PP-Wert und rechnet die osu!-Gewichtung neu.",
     "compare.eyebrow": "Vergleich",
     "compare.title": "Spieler vergleichen",
     "compare.description": "Eine ruhige Arbeitsflaeche fuer direkte Spieler-Vergleiche: Top-200, Profilwerte, Mod-Fokus und Map-Kontext.",
@@ -810,6 +818,7 @@ const translations = {
     "ppMaps.loadingDetail": "Matching osu-pps data against your known scores.",
     "ppMaps.results": "Unplayed candidates",
     "ppMaps.improvementResults": "Improvement candidates",
+    "ppMaps.accountResults": "Account PP simulation",
     "ppMaps.sourceUpdated": "osu-pps updated",
     "ppMaps.knownRemoved": "known maps removed",
     "ppMaps.playedCandidates": "already played candidates",
@@ -820,11 +829,18 @@ const translations = {
     "ppMaps.openMap": "Open map",
     "ppMaps.noResults": "No unplayed PP maps found for these filters.",
     "ppMaps.noImprovementResults": "No already played improvement candidates found for these filters.",
+    "ppMaps.noAccountSource": "Load a player first so the top list can be simulated.",
     "ppMaps.failed": "Could not load PP maps.",
     "ppMaps.knownUnavailable": "Score matching unavailable",
     "ppMaps.currentBest": "known best try",
     "ppMaps.gain": "possible",
     "ppMaps.sliderbreak": "SB/1-miss chance",
+    "ppMaps.accountCurrent": "current weighted",
+    "ppMaps.accountSimulated": "simulated weighted",
+    "ppMaps.accountGain": "estimated gain",
+    "ppMaps.accountReplaced": "replaced plays",
+    "ppMaps.accountTarget": "target value",
+    "ppMaps.accountHelp": "Replaces every play below the target value in your reconstructed top N with that PP value and recalculates osu! weighting.",
     "compare.eyebrow": "Compare",
     "compare.title": "Compare players",
     "compare.description": "A calm workspace for direct player comparisons: top 200, profile values, mod focus, and map context.",
@@ -1190,6 +1206,11 @@ function formatNumber(value) {
 
 function formatPp(value) {
   return value ? `${Number(value).toFixed(2)}pp` : t("label.ppMissing");
+}
+
+function formatPpExact(value) {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) ? `${parsed.toFixed(2)}pp` : "0.00pp";
 }
 
 function formatStars(value) {
@@ -3663,6 +3684,98 @@ function ppMapsOptionalNumber(id) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function ppMapsAccountTargetPp() {
+  return ppMapsOptionalNumber("ppMapsPpMin") || ppMapsOptionalNumber("ppMapsPpMax") || 280;
+}
+
+function ppMapsAccountTopCount() {
+  const value = ppMapsOptionalNumber("ppMapsTopCount") || 100;
+  return Math.min(Math.max(Math.round(value), 1), 200);
+}
+
+function weightedPpFromValues(values) {
+  return values.reduce((total, pp, index) => total + pp * Math.pow(0.95, index), 0);
+}
+
+function renderPpMapsAccountRow(score, index, simulatedPp, mode) {
+  const beatmap = score.beatmap || {};
+  const set = score.beatmapset || {};
+  const artist = set.artist || beatmap.artist || t("label.unknownArtist");
+  const title = set.title || beatmap.title || t("label.unknownMap");
+  const version = beatmap.version || "Difficulty";
+  const currentPp = scorePpValue(score);
+  return `
+    <article class="ppmaps-account-row">
+      <div>
+        <div class="ppmap-title-row">
+          <span class="rank-badge">#${escapeHtml(formatNumber(index + 1))}</span>
+          <a href="${escapeHtml(beatmapUrl(score))}" target="_blank" rel="noreferrer">${escapeHtml(artist)} - ${escapeHtml(title)}</a>
+        </div>
+        <p>${escapeHtml(version)}</p>
+        <div class="ppmap-meta">
+          <span>${escapeHtml(formatAccuracy(score.accuracy))}</span>
+          <span>${escapeHtml(formatNumber(score.max_combo || 0))}x</span>
+          <span>${escapeHtml(formatNumber(missCount(score)))} Miss</span>
+          <a href="${escapeHtml(scoreUrl(score, mode))}" target="_blank" rel="noreferrer">${escapeHtml(scoreLinkLabel(score))}</a>
+        </div>
+      </div>
+      <div class="ppmaps-account-delta">
+        <strong>${escapeHtml(formatPpExact(currentPp))}</strong>
+        <span>-></span>
+        <strong>${escapeHtml(formatPpExact(simulatedPp))}</strong>
+      </div>
+    </article>
+  `;
+}
+
+function renderPpMapsAccountSimulation(knownData) {
+  if (!ppMapsOutput) return;
+  const targetPp = ppMapsAccountTargetPp();
+  const topCount = ppMapsAccountTopCount();
+  const profileTop = currentProfileTopScores(knownData).slice(0, topCount);
+  const currentValues = profileTop.map(scorePpValue);
+  const rowSimulatedValues = currentValues.map((pp) => (pp > 0 && pp < targetPp ? targetPp : pp));
+  const simulatedValues = [...rowSimulatedValues].sort((a, b) => b - a);
+  const currentWeighted = weightedPpFromValues(currentValues);
+  const simulatedWeighted = weightedPpFromValues(simulatedValues);
+  const gain = Math.max(0, simulatedWeighted - currentWeighted);
+  const replaced = currentValues.filter((pp) => pp > 0 && pp < targetPp).length;
+
+  ppMapsOutput.classList.remove("hidden");
+  ppMapsOutput.innerHTML = `
+    <div class="ppmaps-results ppmaps-account-results">
+      <div class="ppmaps-summary">
+        <div>
+          <span>${escapeHtml(t("ppMaps.accountResults"))}</span>
+          <strong>${escapeHtml(formatNumber(profileTop.length))}</strong>
+        </div>
+        <div>
+          <span>${escapeHtml(t("ppMaps.accountTarget"))}</span>
+          <strong>${escapeHtml(formatPpExact(targetPp))}</strong>
+        </div>
+        <div>
+          <span>${escapeHtml(t("ppMaps.accountReplaced"))}</span>
+          <strong>${escapeHtml(formatNumber(replaced))}</strong>
+        </div>
+        <div>
+          <span>${escapeHtml(t("ppMaps.accountGain"))}</span>
+          <strong>+${escapeHtml(formatPpExact(gain))}</strong>
+        </div>
+      </div>
+      <div class="ppmaps-account-grid">
+        ${renderTopStat(t("ppMaps.accountCurrent"), formatPpExact(currentWeighted))}
+        ${renderTopStat(t("ppMaps.accountSimulated"), formatPpExact(simulatedWeighted))}
+        ${renderTopStat(t("ppMaps.accountGain"), `+${formatPpExact(gain)}`)}
+        ${renderTopStat("Top-N", formatNumber(topCount))}
+      </div>
+      <p class="compare-muted">${escapeHtml(t("ppMaps.accountHelp"))}</p>
+      ${profileTop.length
+        ? `<div class="ppmaps-account-list">${profileTop.map((score, index) => renderPpMapsAccountRow(score, index, rowSimulatedValues[index], knownData?.meta?.mode || "osu")).join("")}</div>`
+        : `<div class="compare-empty">${escapeHtml(t("ppMaps.noAccountSource"))}</div>`}
+    </div>
+  `;
+}
+
 function ppMapsImprovementMatchesLocalFilters(map) {
   const best = map?.knownBest;
   if (!best) return false;
@@ -3758,6 +3871,11 @@ function renderPpMapCard(map, index) {
 
 function renderPpMapsResults(payload, knownData, knownError = null) {
   if (!ppMapsOutput) return;
+  if (ppMapsResultMode === "account") {
+    renderPpMapsAccountSimulation(knownData);
+    return;
+  }
+
   const playedIds = ppMapsPlayedBeatmapIds(knownData);
   const knownById = ppMapsKnownScoresByBeatmapId(knownData);
   const shownLimit = Math.min(Math.max(Number(ppMapsFieldValue("ppMapsLimit") || 100), 1), 300);
@@ -3815,6 +3933,34 @@ async function runPpMapsSearch() {
   ppMapsRun?.setAttribute("disabled", "disabled");
 
   try {
+    if (ppMapsResultMode === "account") {
+      let knownData = lastSearchData;
+      let knownError = null;
+      if (username) {
+        try {
+          knownData = await fetchCompareData(username, mode, {
+            limit: "500",
+            pages: "1",
+            bestPerMap: "0",
+            passesOnly: "1",
+            rankedOnly: "0",
+            includeLoved: "1",
+            includeUnrankedPasses: "1",
+            recalculatePp: "0",
+          });
+        } catch (error) {
+          knownError = error;
+        }
+      }
+
+      latestPpMapsPayload = null;
+      latestPpMapsKnownData = knownData;
+      latestPpMapsKnownError = knownError;
+      if (knownError && !knownData) throw knownError;
+      renderPpMapsAccountSimulation(knownData);
+      return;
+    }
+
     const params = ppMapsParams(300);
     const mapsResponse = await fetch(`/api/pp-maps?${params.toString()}`);
     const mapsPayload = await mapsResponse.json();
@@ -3876,6 +4022,8 @@ function resetPpMaps() {
   }
   const limit = document.querySelector("#ppMapsLimit");
   if (limit) limit.value = "100";
+  const topCount = document.querySelector("#ppMapsTopCount");
+  if (topCount) topCount.value = "100";
   ppMapsModStates.clear();
   latestPpMapsPayload = null;
   latestPpMapsKnownData = null;
@@ -5532,9 +5680,13 @@ ppMapsModButtons?.addEventListener("click", (event) => {
 ppMapsView?.addEventListener("click", (event) => {
   const viewButton = event.target.closest("button[data-ppmaps-view]");
   if (!viewButton) return;
-  ppMapsResultMode = viewButton.dataset.ppmapsView === "improvement" ? "improvement" : "unplayed";
+  ppMapsResultMode = ["improvement", "account"].includes(viewButton.dataset.ppmapsView) ? viewButton.dataset.ppmapsView : "unplayed";
   syncPpMapsResultTabs();
-  if (latestPpMapsPayload) renderPpMapsResults(latestPpMapsPayload, latestPpMapsKnownData, latestPpMapsKnownError);
+  if (ppMapsResultMode === "account") {
+    renderPpMapsAccountSimulation(latestPpMapsKnownData || lastSearchData);
+  } else if (latestPpMapsPayload) {
+    renderPpMapsResults(latestPpMapsPayload, latestPpMapsKnownData, latestPpMapsKnownError);
+  }
 });
 
 ppMapsMore?.addEventListener("click", () => {
@@ -5557,6 +5709,14 @@ ppMapsView?.addEventListener("change", (event) => {
     latestPpMapsPayload
   ) {
     renderPpMapsResults(latestPpMapsPayload, latestPpMapsKnownData, latestPpMapsKnownError);
+    return;
+  }
+
+  if (
+    event.target.closest("#ppMapsPpMin, #ppMapsPpMax, #ppMapsTopCount") &&
+    ppMapsResultMode === "account"
+  ) {
+    renderPpMapsAccountSimulation(latestPpMapsKnownData || lastSearchData);
   }
 });
 

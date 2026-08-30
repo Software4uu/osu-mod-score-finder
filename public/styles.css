@@ -2105,13 +2105,24 @@ select:focus {
 }
 
 .ppmaps-local-acc,
-.ppmaps-local-misses {
+.ppmaps-local-misses,
+.ppmaps-account-only {
   display: none;
 }
 
 #ppMapsView[data-result-mode="improvement"] .ppmaps-local-acc,
 #ppMapsView[data-result-mode="improvement"] .ppmaps-local-misses {
   display: grid;
+}
+
+#ppMapsView[data-result-mode="account"] .ppmaps-account-only {
+  display: grid;
+}
+
+#ppMapsView[data-result-mode="account"] .ppmaps-song,
+#ppMapsView[data-result-mode="account"] .ppmaps-mods,
+#ppMapsView[data-result-mode="account"] .ppmaps-range.compact {
+  display: none;
 }
 
 #ppMapsView[data-result-mode="improvement"] .ppmaps-local-acc {
@@ -2460,6 +2471,50 @@ select:focus {
   font-style: normal;
   font-weight: 850;
   text-align: right;
+}
+
+.ppmaps-account-results {
+  gap: 12px;
+}
+
+.ppmaps-account-grid,
+.ppmaps-account-list {
+  display: grid;
+  gap: 8px;
+}
+
+.ppmaps-account-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ppmaps-account-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid rgba(152, 170, 203, 0.16);
+  border-radius: 8px;
+  background: rgba(7, 10, 17, 0.64);
+  padding: 10px 12px;
+}
+
+.ppmaps-account-row p {
+  margin: 5px 0 8px;
+  color: var(--muted);
+}
+
+.ppmaps-account-delta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 180px;
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.ppmaps-account-delta strong:last-child {
+  color: var(--pink);
 }
 
 .compare-results {
@@ -3691,6 +3746,8 @@ select:focus {
     .training-path,
     .ppmaps-filter-grid,
     .ppmaps-summary,
+    .ppmaps-account-grid,
+    .ppmaps-account-row,
     .ppmap-card,
     .ppmaps-toolbar,
     .ppmaps-advanced,
