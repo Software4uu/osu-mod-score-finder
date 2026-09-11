@@ -3998,6 +3998,7 @@ function renderPpMapsResults(payload, knownData, knownError = null) {
           <strong>${escapeHtml(updated)}</strong>
         </div>
       </div>
+      ${payload.stale || payload.warning ? `<p class="compare-muted">osu-pps Quelle temporaer nicht erreichbar, gecachte Daten werden genutzt.</p>` : ""}
       ${maps.length
         ? `<div class="ppmaps-list">${maps.map((map, index) => renderPpMapCard(map, index)).join("")}</div>`
         : `<div class="compare-empty">${escapeHtml(emptyText)}</div>`}
@@ -4042,8 +4043,19 @@ async function runPpMapsSearch() {
     }
 
     const params = ppMapsParams(300);
-    const mapsResponse = await fetch(`/api/pp-maps?${params.toString()}`);
-    const mapsPayload = await mapsResponse.json();
+    let mapsResponse;
+    try {
+      mapsResponse = await fetch(`/api/pp-maps?${params.toString()}`);
+    } catch (error) {
+      throw new Error(`PP-Maps API nicht erreichbar. Bitte pruefe, ob der lokale Server laeuft. (${error.message || error})`);
+    }
+    const responseText = await mapsResponse.text();
+    let mapsPayload = {};
+    try {
+      mapsPayload = responseText ? JSON.parse(responseText) : {};
+    } catch {
+      mapsPayload = { error: responseText || t("ppMaps.failed") };
+    }
     if (!mapsResponse.ok) throw new Error(mapsPayload.error || t("ppMaps.failed"));
 
     let knownData = null;

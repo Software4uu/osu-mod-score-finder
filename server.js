@@ -23,7 +23,10 @@ const osuApiBase = "https://osu.ppy.sh/api/v2";
 const tokenUrl = "https://osu.ppy.sh/oauth/token";
 const huisApiBase = "https://api.pp.huismetbenen.nl";
 const osuTrackApiBase = "https://osutrack-api.ameo.dev";
-const osuPpsDataBase = "https://raw.githubusercontent.com/grumd/osu-pps/data";
+const osuPpsDataBases = [
+  "https://raw.githubusercontent.com/grumd/osu-pps/data",
+  "https://cdn.jsdelivr.net/gh/grumd/osu-pps@data",
+];
 const huisLiveReworkId = 1;
 const githubOwner = "Software4uu";
 const githubRepo = "osu-mod-score-finder";
@@ -2411,17 +2414,26 @@ function osuPpsMode(mode) {
 }
 
 async function fetchOsuPpsText(pathname) {
-  const response = await fetch(`${osuPpsDataBase}/${pathname}`, {
-    headers: {
-      accept: "text/csv,application/json;q=0.9,*/*;q=0.2",
-      "user-agent": "osu-mod-score-finder-beta",
-    },
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!response.ok) {
-    throw statusError(response.status, `osu-pps returned ${response.status}`);
+  const errors = [];
+  for (const baseUrl of osuPpsDataBases) {
+    try {
+      const response = await fetch(`${baseUrl}/${pathname}`, {
+        headers: {
+          accept: "text/csv,application/json;q=0.9,*/*;q=0.2",
+          "user-agent": "osu-mod-score-finder-beta",
+        },
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!response.ok) {
+        errors.push(`${baseUrl}: ${response.status}`);
+        continue;
+      }
+      return response.text();
+    } catch (error) {
+      errors.push(`${baseUrl}: ${error.message || error}`);
+    }
   }
-  return response.text();
+  throw statusError(502, `osu-pps data source unavailable (${errors.join("; ")})`);
 }
 
 async function getOsuPpsMaps(mode) {
@@ -2429,11 +2441,19 @@ async function getOsuPpsMaps(mode) {
   const cached = osuPpsMapsCache.get(safeMode);
   if (cached && Date.now() - cached.fetchedAt < osuPpsCacheFreshMs) return cached.value;
 
-  const [mapsetsText, diffsText, metadataText] = await Promise.all([
-    fetchOsuPpsText(`data/maps/${safeMode}/mapsets.csv`),
-    fetchOsuPpsText(`data/maps/${safeMode}/diffs.csv`),
-    fetchOsuPpsText(`data/metadata/${safeMode}/metadata.json`).catch(() => "{}"),
-  ]);
+  let mapsetsText;
+  let diffsText;
+  let metadataText;
+  try {
+    [mapsetsText, diffsText, metadataText] = await Promise.all([
+      fetchOsuPpsText(`data/maps/${safeMode}/mapsets.csv`),
+      fetchOsuPpsText(`data/maps/${safeMode}/diffs.csv`),
+      fetchOsuPpsText(`data/metadata/${safeMode}/metadata.json`).catch(() => "{}"),
+    ]);
+  } catch (error) {
+    if (cached) return { ...cached.value, stale: true, warning: error.message || String(error) };
+    throw error;
+  }
 
   const mapsets = new Map(
     parseCsv(mapsetsText).map((row) => [
@@ -2490,6 +2510,8 @@ async function getOsuPpsMaps(mode) {
   const value = {
     mode: safeMode,
     updatedAt: metadata.lastUpdated || null,
+    stale: false,
+    warning: null,
     maps,
   };
   osuPpsMapsCache.set(safeMode, { fetchedAt: Date.now(), value });
@@ -2580,6 +2602,8 @@ async function handleOsuPpsMaps(req, res) {
   return json(res, 200, {
     mode,
     updatedAt: data.updatedAt,
+    stale: Boolean(data.stale),
+    warning: data.warning || null,
     totalAvailable: data.maps.length,
     returned: maps.length,
     maps,
