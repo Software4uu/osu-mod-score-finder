@@ -99,6 +99,8 @@ let ppProgressTimer = null;
 let activePpProgressJob = "";
 let calendarLoadingMonth = "";
 let latestUpdateInfo = null;
+let statusRetryTimer = null;
+let updateRetryTimer = null;
 let startupSyncTimer = null;
 let latestStartupSync = null;
 let compareDetailScores = [];
@@ -2083,11 +2085,21 @@ async function checkStatus() {
   try {
     const response = await apiFetch("/api/status");
     const data = await response.json();
+    if (statusRetryTimer) {
+      clearTimeout(statusRetryTimer);
+      statusRetryTimer = null;
+    }
     apiStatus.className = `status-pill ${data.hasCredentials ? "ready" : "missing"}`;
     apiStatus.textContent = data.hasCredentials ? t("status.ready") : t("status.missing");
   } catch {
     apiStatus.className = "status-pill missing";
     apiStatus.textContent = t("status.offline");
+    if (!statusRetryTimer) {
+      statusRetryTimer = setTimeout(() => {
+        statusRetryTimer = null;
+        void checkStatus();
+      }, 3_000);
+    }
   }
 }
 
@@ -2201,6 +2213,10 @@ async function checkForUpdates() {
     const response = await apiFetch("/api/update-check");
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || t("update.error"));
+    if (updateRetryTimer) {
+      clearTimeout(updateRetryTimer);
+      updateRetryTimer = null;
+    }
 
     latestUpdateInfo = data;
     if (data.updateAvailable) {
@@ -2218,6 +2234,12 @@ async function checkForUpdates() {
   } catch (error) {
     latestUpdateInfo = null;
     setUpdateStatus("update.error", "missing", error.message || t("update.error"));
+    if (!updateRetryTimer) {
+      updateRetryTimer = setTimeout(() => {
+        updateRetryTimer = null;
+        void checkForUpdates();
+      }, 5_000);
+    }
   }
 }
 
