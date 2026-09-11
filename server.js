@@ -2610,6 +2610,31 @@ async function handleOsuPpsMaps(req, res) {
   });
 }
 
+async function inlineIndexAssets(body) {
+  let html = body.toString("utf8");
+
+  try {
+    const [css, js] = await Promise.all([
+      readFile(path.join(publicDir, "styles.css"), "utf8"),
+      readFile(path.join(publicDir, "app.js"), "utf8"),
+    ]);
+
+    html = html.replace(
+      /\s*<link rel="stylesheet" href="styles\.css\?v=[^"]+"\s*\/>/,
+      `\n    <style data-inline-asset="styles.css">\n${css}\n    </style>`,
+    );
+
+    html = html.replace(
+      /<script type="module">\s*import\("\.\/app\.js\?v=[^"]+"\)\.catch\(\(\) => import\("\/app\.js\?v=[^"]+"\)\);\s*<\/script>/,
+      `<script type="module" data-inline-asset="app.js">\n${js.replace(/<\/script/gi, "<\\/script")}\n    </script>`,
+    );
+  } catch (error) {
+    console.warn(`Could not inline frontend assets: ${error.message}`);
+  }
+
+  return Buffer.from(html, "utf8");
+}
+
 async function serveStatic(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = decodeURIComponent(url.pathname);
@@ -2622,7 +2647,8 @@ async function serveStatic(req, res) {
   }
 
   try {
-    const body = await readFile(filePath);
+    const rawBody = await readFile(filePath);
+    const body = requested === "index.html" ? await inlineIndexAssets(rawBody) : rawBody;
     const ext = path.extname(filePath).toLowerCase();
     res.writeHead(200, {
       "content-type": mimeTypes.get(ext) || "application/octet-stream",
