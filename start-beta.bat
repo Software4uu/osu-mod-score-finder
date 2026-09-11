@@ -1,6 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
+title Performance Finder Server
 
 call :LoadLanguage
 call :LoadConfig
@@ -72,23 +73,23 @@ if not exist "%~dp0node_modules\rosu-pp-js\package.json" (
 call :CheckAppStatus
 if "!APP_ALREADY_RUNNING!"=="1" (
   if /I "!SETUP_LANG!"=="en" (
-    echo osu^! Mod Score Finder is already running on !APP_URL!.
+    echo osu Mod Score Finder is already running on !APP_URL!.
     echo No second server will be started.
   ) else (
-    echo osu^! Mod Score Finder laeuft bereits auf !APP_URL!.
+    echo osu Mod Score Finder laeuft bereits auf !APP_URL!.
     echo Es wird kein zweiter Server gestartet.
   )
   start "" "!APP_URL!"
-  ping -n 4 127.0.0.1 >nul
+  call :PauseLocalized
   exit /b 0
 )
 
 if "!PORT_BLOCKED!"=="1" (
   if /I "!SETUP_LANG!"=="en" (
-    echo Port !APP_PORT! is in use, but osu^! Mod Score Finder is not responding there.
+    echo Port !APP_PORT! is in use, but osu Mod Score Finder is not responding there.
     echo Close the other program or change PORT in .env.
   ) else (
-    echo Port !APP_PORT! ist belegt, aber dort antwortet nicht osu^! Mod Score Finder.
+    echo Port !APP_PORT! ist belegt, aber dort antwortet nicht osu Mod Score Finder.
     echo Bitte schliesse das andere Programm oder aendere PORT in der .env.
   )
   call :PauseLocalized
@@ -97,18 +98,16 @@ if "!PORT_BLOCKED!"=="1" (
 
 call :UpdatePpEngine
 
-start "" "!APP_URL!"
+call :OpenWhenReady
 node --no-warnings server.js
 set "SERVER_EXIT=%ERRORLEVEL%"
-if not "!SERVER_EXIT!"=="0" (
-  echo.
-  if /I "!SETUP_LANG!"=="en" (
-    echo Server exited with code !SERVER_EXIT!.
-  ) else (
-    echo Server wurde mit Fehlercode !SERVER_EXIT! beendet.
-  )
-  call :PauseLocalized
+echo.
+if /I "!SETUP_LANG!"=="en" (
+  echo Server exited with code !SERVER_EXIT!.
+) else (
+  echo Server wurde mit Fehlercode !SERVER_EXIT! beendet.
 )
+call :PauseLocalized
 exit /b !SERVER_EXIT!
 
 :LoadLanguage
@@ -166,5 +165,13 @@ if not "!PP_ENGINE_EXIT!"=="0" (
   ) else (
     echo PP-Engine Update-Pruefung fehlgeschlagen. Nutze die installierte Version weiter.
   )
+)
+exit /b 0
+
+:OpenWhenReady
+if exist "%~dp0open-app-when-ready.ps1" (
+  start "" /min powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "%~dp0open-app-when-ready.ps1" "!APP_URL!"
+) else (
+  start "" "!APP_URL!"
 )
 exit /b 0
