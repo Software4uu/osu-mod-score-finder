@@ -53,6 +53,29 @@ const ppMapsReset = document.querySelector("#ppMapsReset");
 const ppMapsMore = document.querySelector("#ppMapsMore");
 const ppMapsModButtons = document.querySelector("#ppMapsMods");
 
+const apiOrigin = (() => {
+  const fallback = "http://127.0.0.1:5173";
+  try {
+    const host = window.location.hostname;
+    if (
+      (window.location.protocol === "http:" || window.location.protocol === "https:") &&
+      (host === "127.0.0.1" || host === "localhost")
+    ) {
+      return window.location.origin;
+    }
+  } catch {
+  }
+  return fallback;
+})();
+
+function apiUrl(path) {
+  return new URL(path, apiOrigin).toString();
+}
+
+function apiFetch(path, options) {
+  return fetch(apiUrl(path), options);
+}
+
 const selectedMods = new Set();
 const languageStorageKey = "osu-mod-score-finder-language";
 const ppMapsSettingsStorageKey = "osu-mod-score-finder-ppmaps-settings-v1";
@@ -2058,7 +2081,7 @@ function applyLanguage(language, { rerender = true } = {}) {
 
 async function checkStatus() {
   try {
-    const response = await fetch("/api/status");
+    const response = await apiFetch("/api/status");
     const data = await response.json();
     apiStatus.className = `status-pill ${data.hasCredentials ? "ready" : "missing"}`;
     apiStatus.textContent = data.hasCredentials ? t("status.ready") : t("status.missing");
@@ -2134,7 +2157,7 @@ function renderStartupSync(data = {}) {
 
 async function pollStartupSync() {
   try {
-    const response = await fetch("/api/startup-sync");
+    const response = await apiFetch("/api/startup-sync");
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Sync status failed");
     renderStartupSync(data);
@@ -2175,7 +2198,7 @@ async function checkForUpdates() {
   setUpdateStatus("update.checking", "checking");
 
   try {
-    const response = await fetch("/api/update-check");
+    const response = await apiFetch("/api/update-check");
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || t("update.error"));
 
@@ -2224,7 +2247,7 @@ async function startUpdate() {
   setUpdateStatus("update.installing", "checking");
 
   try {
-    const response = await fetch("/api/update-start", { method: "POST" });
+    const response = await apiFetch("/api/update-start", { method: "POST" });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || t("update.error"));
     setUpdateStatus("update.started", "available", data.logPath || "");
@@ -2314,7 +2337,7 @@ function startPpProgressPolling(jobId, context = "search") {
   renderPpProgress({ total: 0, attempted: 0, filled: 0 }, context);
   ppProgressTimer = setInterval(async () => {
     try {
-      const response = await fetch(`/api/pp-progress?id=${encodeURIComponent(jobId)}`);
+      const response = await apiFetch(`/api/pp-progress?id=${encodeURIComponent(jobId)}`);
       const progress = await response.json();
       if (activePpProgressJob !== jobId) return;
       renderPpProgress(progress, context);
@@ -2992,7 +3015,7 @@ async function backfillCalendarMonth(monthKey) {
   startPpProgressPolling(jobId, "calendar");
 
   try {
-    const response = await fetch(`/api/backfill-month?${params.toString()}`);
+    const response = await apiFetch(`/api/backfill-month?${params.toString()}`);
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || t("error.searchFailed"));
 
@@ -3175,7 +3198,7 @@ async function runSearch(event) {
     const ppJobId = makeJobId("search");
     params.set("ppJobId", ppJobId);
     startPpProgressPolling(ppJobId, "search");
-    const response = await fetch(`/api/search?${params.toString()}`);
+    const response = await apiFetch(`/api/search?${params.toString()}`);
     const data = await response.json();
 
     if (!response.ok) {
@@ -3211,7 +3234,7 @@ async function refreshFromStoredSearch() {
   params.set("useApiV2", "0");
   params.set("includeHuis", "0");
 
-  const response = await fetch(`/api/search?${params.toString()}`);
+  const response = await apiFetch(`/api/search?${params.toString()}`);
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || t("error.searchFailed"));
 
@@ -3229,7 +3252,7 @@ async function runLiveScan() {
 
   try {
     const params = buildLiveScanParams();
-    const response = await fetch(`/api/live-scan?${params.toString()}`);
+    const response = await apiFetch(`/api/live-scan?${params.toString()}`);
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || t("status.liveError"));
 
@@ -3299,7 +3322,7 @@ function compareParams(username, mode = compareGameMode(), options = {}) {
 }
 
 async function fetchCompareData(username, mode = compareGameMode(), options = {}) {
-  const response = await fetch(`/api/search?${compareParams(username, mode, options).toString()}`);
+  const response = await apiFetch(`/api/search?${compareParams(username, mode, options).toString()}`);
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || t("compare.failed"));
   return data;
@@ -3408,7 +3431,7 @@ function osuSigUrl(username, mode, type = "full") {
     lang: currentLanguage === "de" ? "en" : currentLanguage,
     type,
   });
-  return `/api/osu-sig?${params.toString()}`;
+  return apiUrl(`/api/osu-sig?${params.toString()}`);
 }
 
 function remoteOsuSigUrl(username, mode, type = "full") {
@@ -4045,7 +4068,7 @@ async function runPpMapsSearch() {
     const params = ppMapsParams(300);
     let mapsResponse;
     try {
-      mapsResponse = await fetch(`/api/pp-maps?${params.toString()}`);
+      mapsResponse = await apiFetch(`/api/pp-maps?${params.toString()}`);
     } catch (error) {
       throw new Error(`PP-Maps API nicht erreichbar. Bitte pruefe, ob der lokale Server laeuft. (${error.message || error})`);
     }

@@ -310,16 +310,25 @@ function hasCredentials() {
   return Boolean(process.env.OSU_CLIENT_ID && process.env.OSU_CLIENT_SECRET);
 }
 
+function responseHeaders(headers = {}) {
+  return {
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET, POST, OPTIONS",
+    "access-control-allow-headers": "content-type",
+    ...headers,
+  };
+}
+
 function json(res, status, data) {
-  res.writeHead(status, {
+  res.writeHead(status, responseHeaders({
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
-  });
+  }));
   res.end(JSON.stringify(data));
 }
 
 function text(res, status, body) {
-  res.writeHead(status, { "content-type": "text/plain; charset=utf-8" });
+  res.writeHead(status, responseHeaders({ "content-type": "text/plain; charset=utf-8" }));
   res.end(body);
 }
 
@@ -2321,10 +2330,10 @@ async function handleOsuSigImage(req, res) {
   const cacheKey = `${type}:${mode}:${lang}:${user}`;
   const cached = osuSigImageCache.get(cacheKey);
   if (cached && Date.now() - cached.fetchedAt < osuSigCacheFreshMs) {
-    res.writeHead(200, {
+    res.writeHead(200, responseHeaders({
       "content-type": cached.contentType,
       "cache-control": "public, max-age=1800",
-    });
+    }));
     return res.end(cached.body);
   }
 
@@ -2361,10 +2370,10 @@ async function handleOsuSigImage(req, res) {
 
   const body = Buffer.from(await response.arrayBuffer());
   osuSigImageCache.set(cacheKey, { fetchedAt: Date.now(), contentType, body });
-  res.writeHead(200, {
+  res.writeHead(200, responseHeaders({
     "content-type": contentType,
     "cache-control": "public, max-age=1800",
-  });
+  }));
   return res.end(body);
 }
 
@@ -2650,10 +2659,10 @@ async function serveStatic(req, res) {
     const rawBody = await readFile(filePath);
     const body = requested === "index.html" ? await inlineIndexAssets(rawBody) : rawBody;
     const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, {
+    res.writeHead(200, responseHeaders({
       "content-type": mimeTypes.get(ext) || "application/octet-stream",
       "cache-control": "no-store",
-    });
+    }));
     res.end(body);
   } catch {
     text(res, 404, "Not found");
@@ -2663,6 +2672,11 @@ async function serveStatic(req, res) {
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
+
+    if (req.method === "OPTIONS") {
+      res.writeHead(204, responseHeaders());
+      return res.end();
+    }
 
     if (url.pathname === "/api/status") {
       const storeStats = getScoreStoreStats();
