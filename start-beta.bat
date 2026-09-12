@@ -79,7 +79,7 @@ if "!APP_ALREADY_RUNNING!"=="1" (
     echo osu Mod Score Finder laeuft bereits auf !APP_URL!.
     echo Es wird kein zweiter Server gestartet.
   )
-  start "" "!APP_URL!"
+  call :OpenWhenReady
   call :PauseLocalized
   exit /b 0
 )
