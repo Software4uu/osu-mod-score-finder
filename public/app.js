@@ -1191,19 +1191,38 @@ const translations = {
 };
 
 function readStoredLanguage() {
-  try {
-    const stored = localStorage.getItem(languageStorageKey);
-    return stored === "en" || stored === "de" ? stored : "en";
-  } catch {
-    return "en";
-  }
+  const stored = storageGet(languageStorageKey);
+  return stored === "en" || stored === "de" ? stored : "en";
 }
 
 function storeLanguage(language) {
+  storageSet(languageStorageKey, language);
+}
+
+function storageGet(key) {
   try {
-    localStorage.setItem(languageStorageKey, language);
+    const storage = typeof window !== "undefined" ? window.localStorage : null;
+    return storage ? storage.getItem(key) : null;
   } catch {
-    // Language persistence is optional; the UI can still switch for this session.
+    return null;
+  }
+}
+
+function storageSet(key, value) {
+  try {
+    const storage = typeof window !== "undefined" ? window.localStorage : null;
+    if (storage) storage.setItem(key, value);
+  } catch {
+    // Persistence is optional; blocked storage must not break the UI.
+  }
+}
+
+function storageRemove(key) {
+  try {
+    const storage = typeof window !== "undefined" ? window.localStorage : null;
+    if (storage) storage.removeItem(key);
+  } catch {
+    // Persistence is optional; blocked storage must not break the UI.
   }
 }
 
@@ -1995,6 +2014,20 @@ function setLoading(nextLoading) {
 
 function setResultsState(html) {
   results.innerHTML = html;
+}
+
+function showSearchError(message) {
+  activeView = "scores";
+  document.body.dataset.activeView = activeView;
+  for (const tab of viewTabs.querySelectorAll("button")) {
+    tab.classList.toggle("active", tab.dataset.view === "scores");
+  }
+  results.classList.remove("hidden");
+  passes.classList.add("hidden");
+  topScores?.classList.add("hidden");
+  improvements.classList.add("hidden");
+  calendar.classList.add("hidden");
+  setResultsState(`<div class="error-state">${escapeHtml(message)}</div>`);
 }
 
 function setImprovementState(html) {
@@ -3205,6 +3238,13 @@ function renderSearchData(data) {
 
 async function runSearch(event) {
   event.preventDefault();
+  const username = document.querySelector("#username").value.trim();
+  if (!username) {
+    showSearchError(currentLanguage === "de" ? "Bitte zuerst einen Spielernamen eingeben." : "Enter a player name first.");
+    document.querySelector("#username")?.focus();
+    return;
+  }
+
   stopLiveScanner("status.liveWaiting");
   summary.classList.add("hidden");
   lastSearchData = null;
@@ -3564,17 +3604,13 @@ function savePpMapsSettings() {
     advancedOpen: Boolean(advanced && !advanced.classList.contains("hidden")),
   };
 
-  try {
-    localStorage.setItem(ppMapsSettingsStorageKey, JSON.stringify(settings));
-  } catch {
-    // Browser storage can be unavailable in private/restricted contexts.
-  }
+  storageSet(ppMapsSettingsStorageKey, JSON.stringify(settings));
 }
 
 function restorePpMapsSettings() {
   if (!ppMapsView) return;
   try {
-    const settings = JSON.parse(localStorage.getItem(ppMapsSettingsStorageKey) || "null");
+    const settings = JSON.parse(storageGet(ppMapsSettingsStorageKey) || "null");
     if (!settings || typeof settings !== "object") return;
 
     if (["unplayed", "improvement", "account"].includes(settings.resultMode)) {
@@ -3597,7 +3633,7 @@ function restorePpMapsSettings() {
     document.querySelector("#ppMapsAdvanced")?.classList.toggle("hidden", !settings.advancedOpen);
     ppMapsMore?.setAttribute("aria-expanded", settings.advancedOpen ? "true" : "false");
   } catch {
-    localStorage.removeItem(ppMapsSettingsStorageKey);
+    storageRemove(ppMapsSettingsStorageKey);
   }
 }
 
@@ -4137,7 +4173,7 @@ async function runPpMapsSearch() {
 }
 
 function resetPpMaps() {
-  localStorage.removeItem(ppMapsSettingsStorageKey);
+  storageRemove(ppMapsSettingsStorageKey);
   for (const id of [
     "ppMapsSong",
     "ppMapsPpMin",
@@ -4756,7 +4792,7 @@ const trainingGoalsStorageKey = "performance-finder-training-goals-v1";
 
 function readTrainingGoals() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(trainingGoalsStorageKey) || "[]");
+    const parsed = JSON.parse(storageGet(trainingGoalsStorageKey) || "[]");
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
@@ -4764,7 +4800,7 @@ function readTrainingGoals() {
 }
 
 function writeTrainingGoals(goals) {
-  localStorage.setItem(trainingGoalsStorageKey, JSON.stringify(goals.slice(0, 80)));
+  storageSet(trainingGoalsStorageKey, JSON.stringify(goals.slice(0, 80)));
 }
 
 function trainingGoalMatches(goal, username, mode) {

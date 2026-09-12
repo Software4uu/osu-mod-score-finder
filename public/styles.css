@@ -3957,6 +3957,14 @@ select:focus {
   transform: translateX(0);
 }
 
+body:not(.menu-open) .side-menu {
+  pointer-events: none;
+}
+
+body.menu-open .side-menu {
+  pointer-events: auto;
+}
+
 .menu-backdrop {
   position: fixed;
   z-index: 1190;
@@ -3970,6 +3978,11 @@ select:focus {
 .menu-open .menu-backdrop {
   opacity: 1;
   pointer-events: auto;
+}
+
+body:not(.menu-open) .menu-backdrop {
+  display: none !important;
+  pointer-events: none !important;
 }
 
 .side-menu-head {
