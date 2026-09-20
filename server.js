@@ -1745,7 +1745,8 @@ async function handleSearch(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const username = (url.searchParams.get("username") || "").trim();
   const mode = url.searchParams.get("mode") || "osu";
-  const type = "recent";
+  const requestedType = url.searchParams.get("type") || "recent";
+  const type = ["recent", "best"].includes(requestedType) ? requestedType : "recent";
   const matchMode = url.searchParams.get("match") || "contains";
   const sort = url.searchParams.get("sort") || "date";
   const dateFilter = url.searchParams.get("dateFilter") || "all";

@@ -3355,7 +3355,7 @@ function mapCompareGameMode() {
 function compareParams(username, mode = compareGameMode(), options = {}) {
   const params = new URLSearchParams();
   params.set("username", username);
-  params.set("type", "recent");
+  params.set("type", "best");
   params.set("mode", mode);
   params.set("sort", "pp");
   params.set("match", "contains");
