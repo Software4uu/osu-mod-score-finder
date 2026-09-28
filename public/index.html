@@ -47,7 +47,7 @@
         padding: 28px;
       }
     </style>
-    <link rel="stylesheet" href="styles.css?v=0.3.45" />
+    <link rel="stylesheet" href="styles.css?v=0.3.46" />
   </head>
   <body>
     <main class="app-shell">
@@ -356,9 +356,9 @@
                 <label class="field">
                   <span data-i18n="compare.mapScope">Map-Auswahl</span>
                   <select id="mapCompareScope">
-                    <option value="ranked" data-i18n="compare.scopeRanked">ranked</option>
+                    <option value="ranked" data-i18n="compare.scopeRanked" selected>ranked</option>
                     <option value="loved" data-i18n="compare.scopeLoved">loved</option>
-                    <option value="both" data-i18n="compare.scopeBoth" selected>ranked + loved</option>
+                    <option value="both" data-i18n="compare.scopeBoth">ranked + loved</option>
                   </select>
                 </label>
               </div>
@@ -659,7 +659,7 @@
     <section id="detailsPanel" class="details-panel hidden" aria-live="polite"></section>
 
     <script type="module">
-      import("./app.js?v=0.3.45").catch(() => import("/app.js?v=0.3.45"));
+      import("./app.js?v=0.3.46").catch(() => import("/app.js?v=0.3.46"));
     </script>
   </body>
 </html>

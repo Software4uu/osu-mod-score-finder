@@ -431,6 +431,8 @@ const translations = {
     "compare.metricAvgPp": "Durchschnitts-PP",
     "compare.metricAvgStars": "Durchschnitts-Sterne",
     "compare.metricAvgAcc": "Durchschnitts-Accuracy",
+    "compare.metricMissesTop100": "Misses gesamt (Top 100)",
+    "compare.metricMissesTop200": "Misses gesamt (Top 200)",
     "compare.metricAvgBpm": "Durchschnitts-BPM",
     "compare.metricAvgAr": "Durchschnitts-AR",
     "compare.metricAvgOd": "Durchschnitts-OD",
@@ -941,6 +943,8 @@ const translations = {
     "compare.metricAvgPp": "Average PP",
     "compare.metricAvgStars": "Average stars",
     "compare.metricAvgAcc": "Average accuracy",
+    "compare.metricMissesTop100": "Total misses (Top 100)",
+    "compare.metricMissesTop200": "Total misses (Top 200)",
     "compare.metricAvgBpm": "Average BPM",
     "compare.metricAvgAr": "Average AR",
     "compare.metricAvgOd": "Average OD",
@@ -3375,7 +3379,7 @@ function compareParams(username, mode = compareGameMode(), options = {}) {
   params.set("bestPerMap", "1");
   params.set("passesOnly", "1");
   params.set("rankedOnly", "1");
-  params.set("includeLoved", "1");
+  params.set("includeLoved", "0");
   params.set("includeUnrankedPasses", "0");
   for (const [key, value] of Object.entries(options)) {
     params.set(key, value);
@@ -3447,13 +3451,18 @@ function topMods(scores, limit = 8) {
 }
 
 function compareSummary(data) {
-  const scores = data.scores || [];
+  const scores = (data.scores || [])
+    .filter((score) => isRankedScoreForDisplay(score, false))
+    .sort((a, b) => scorePpValue(b) - scorePpValue(a) || scoreTimeValue(b) - scoreTimeValue(a))
+    .slice(0, 200);
   const user = data.user || {};
   const stats = user.statistics || {};
   return {
     user,
     scores,
     count: scores.length,
+    missesTop100: scores.slice(0, 100).reduce((total, score) => total + Number(missCount(score)), 0),
+    missesTop200: scores.reduce((total, score) => total + Number(missCount(score)), 0),
     bestPp: scores.reduce((best, score) => Math.max(best, scorePpValue(score)), 0),
     avgPp: average(scores.map(scorePpValue)),
     avgStars: average(scores.map(beatmapStarValue)),
@@ -4338,6 +4347,8 @@ function renderVsResults(leftData, rightData) {
         ${renderCompareMetric(t("compare.metricAvgPp"), left.avgPp, right.avgPp, formatPp)}
         ${renderCompareMetric(t("compare.metricAvgStars"), left.avgStars, right.avgStars, formatStars)}
         ${renderCompareMetric(t("compare.metricAvgAcc"), left.avgAcc, right.avgAcc, (value) => `${value.toFixed(2)}%`)}
+        ${renderCompareMetric(t("compare.metricMissesTop100"), left.count ? left.missesTop100 : null, right.count ? right.missesTop100 : null, (value) => value === null ? "-" : formatNumber(value))}
+        ${renderCompareMetric(t("compare.metricMissesTop200"), left.count ? left.missesTop200 : null, right.count ? right.missesTop200 : null, (value) => value === null ? "-" : formatNumber(value))}
         ${renderCompareMetric(t("compare.metricAvgBpm"), left.avgBpm, right.avgBpm, (value) => value ? `${Math.round(value)} BPM` : "-")}
         ${renderCompareMetric(t("compare.metricAvgAr"), left.avgAr, right.avgAr, (value) => value ? value.toFixed(2) : "-")}
         ${renderCompareMetric(t("compare.metricAvgOd"), left.avgOd, right.avgOd, (value) => value ? value.toFixed(2) : "-")}
@@ -4375,7 +4386,7 @@ function renderMapCompareResults(data) {
   if (!output) return;
 
   const mode = data.meta?.mode || mapCompareGameMode();
-  const scope = document.querySelector("#mapCompareScope")?.value || "both";
+  const scope = document.querySelector("#mapCompareScope")?.value || "ranked";
   const allRows = (data.scores || []).filter((score) => {
     if (scope === "ranked") return isRankedScoreForDisplay(score, false);
     if (scope === "loved") return isLovedScoreForDisplay(score);
@@ -5142,7 +5153,7 @@ async function runMapCompare() {
 
   setCompareLoading("maps", t("compare.mapLoading"), t("compare.mapLoadingDetail"));
   try {
-    const scope = document.querySelector("#mapCompareScope")?.value || "both";
+    const scope = document.querySelector("#mapCompareScope")?.value || "ranked";
     const data = await fetchCompareData(leftName, mapCompareGameMode(), {
       rankedOnly: "1",
       includeLoved: scope === "ranked" ? "0" : "1",
