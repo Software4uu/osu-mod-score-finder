@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { importLocalScores } from "./localImport.js";
 import { hydrateCalculatedPp } from "./ppCalculator.js";
+import { matchesScoreFilters, parseScoreFilters } from "./scoreFilters.js";
 import {
   getMostRecentStoredUser,
   getScoreStoreStats,
@@ -669,6 +670,10 @@ function scoreStorageKey(score) {
 }
 
 function compareScores(a, b, sort) {
+  if (sort === "comboDesc") return Number(b.max_combo || 0) - Number(a.max_combo || 0) || effectivePp(b) - effectivePp(a);
+  if (sort === "comboAsc") return Number(a.max_combo || 0) - Number(b.max_combo || 0) || effectivePp(b) - effectivePp(a);
+  if (sort === "missesDesc") return missCount(b) - missCount(a) || effectivePp(b) - effectivePp(a);
+  if (sort === "missesAsc") return missCount(a) - missCount(b) || effectivePp(b) - effectivePp(a);
   if (sort === "acc") return (b.accuracy || 0) - (a.accuracy || 0);
   if (sort === "date") return scoreTime(b) - scoreTime(a);
   if (sort === "score") return (b.score || 0) - (a.score || 0);
@@ -703,14 +708,16 @@ function beatmapKey(score) {
 }
 
 function parseBestMode(value) {
-  return ["score", "pp", "acc", "date"].includes(value) ? value : "score";
+  return ["score", "pp", "acc", "date", "combo"].includes(value) ? value : "score";
 }
 
 function isBetterScore(next, current, bestMode = "score") {
   if (!current) return true;
 
   const modes =
-    bestMode === "pp"
+    bestMode === "combo"
+      ? [(score) => Number(score.max_combo || 0), effectivePp, (score) => Number(score.accuracy || 0), (score) => -missCount(score)]
+      : bestMode === "pp"
       ? [effectivePp, (score) => Number(score.accuracy || 0), (score) => Number(score.score || 0), (score) => -missCount(score)]
       : bestMode === "acc"
         ? [(score) => Number(score.accuracy || 0), (score) => -missCount(score), (score) => Number(score.score || 0), effectivePp]
@@ -1610,6 +1617,9 @@ function compactScore(score) {
     accuracy: score.accuracy,
     pp: score.pp,
     max_combo: score.max_combo,
+    perfect: typeof score.perfect === "boolean" ? score.perfect : null,
+    is_perfect_combo: typeof score.is_perfect_combo === "boolean" ? score.is_perfect_combo : null,
+    legacy_perfect: typeof score.legacy_perfect === "boolean" ? score.legacy_perfect : null,
     passed: score.passed,
     rank: score.rank,
     statistics: score.statistics,
@@ -1755,6 +1765,7 @@ async function handleSearch(req, res) {
   const rankTo = clampNumber(url.searchParams.get("rankTo"), 100, 1, 9999);
   const pages = clampNumber(url.searchParams.get("pages"), 2, 1, 20);
   const finalLimit = clampNumber(url.searchParams.get("limit"), 100, 1, 500);
+  const scoreFilters = parseScoreFilters(url.searchParams);
   const bestMode = parseBestMode(url.searchParams.get("bestMode"));
   const improvementScope = ["lastTry", "lastHour", "today"].includes(url.searchParams.get("improvementScope"))
     ? url.searchParams.get("improvementScope")
@@ -1899,7 +1910,12 @@ async function handleSearch(req, res) {
     updateStoredScores(user, mode, ppWorkSet);
   }
 
-  const improvements = buildImprovements(filteredCandidates, improvementScope, bestMode).slice(0, 50);
+  const profileTopCandidates = filteredCandidates;
+  const improvements = buildImprovements(filteredCandidates, improvementScope, bestMode)
+    .filter((item) => matchesScoreFilters(item.score, scoreFilters))
+    .slice(0, 50);
+  filteredCandidates = filteredCandidates.filter((score) => matchesScoreFilters(score, scoreFilters));
+  passCandidates = passCandidates.filter((score) => matchesScoreFilters(score, scoreFilters));
   const calendar = buildCalendar(filteredCandidates, sort);
   const timeSources = includeTimeSources
     ? {
@@ -1966,6 +1982,12 @@ async function handleSearch(req, res) {
     }
   }
 
+  const profileTopScores = bestScorePerBeatmap(profileTopCandidates.filter((score) => isRankedBeatmap(score, false)), "pp")
+    .filter((score) => effectivePp(score) > 0)
+    .sort((a, b) => compareScores(a, b, "pp"))
+    .slice(0, 200)
+    .map((score) => ({ ...score, matches_search_filters: matchesScoreFilters(score, scoreFilters) }));
+
   finishPpProgress(ppJobId, {
     total: ppCalculationLimit + visiblePpWorkSet.length,
     attempted: calculatedHydration.attempted + visibleCalculatedHydration.attempted,
@@ -1983,10 +2005,12 @@ async function handleSearch(req, res) {
       statistics: user.statistics,
     },
     scores: filteredScores,
+    profileTopScores,
     passScores: passCandidates.sort((a, b) => compareScores(a, b, sort)),
     meta: {
       fetched: fetchedScores.length,
       returned: filteredScores.length,
+      scoreFilters,
       pages,
       limit: finalLimit,
       mode,
@@ -2058,6 +2082,7 @@ async function handleBackfillMonth(req, res) {
   const mode = url.searchParams.get("mode") || "osu";
   const sort = url.searchParams.get("sort") || "date";
   const month = cleanMonthKey(url.searchParams.get("month"));
+  const scoreFilters = parseScoreFilters(url.searchParams);
   const matchMode = url.searchParams.get("match") || "contains";
   const includeLazer = boolParam(url.searchParams, "includeLazer", true);
   const rankedOnly = boolParam(url.searchParams, "rankedOnly", true);
@@ -2138,7 +2163,7 @@ async function handleBackfillMonth(req, res) {
     updateStoredScores(user, mode, ppWorkSet);
   }
 
-  const calendar = buildCalendar(filteredCandidates, sort);
+  const calendar = buildCalendar(filteredCandidates.filter((score) => matchesScoreFilters(score, scoreFilters)), sort);
   finishPpProgress(ppJobId, {
     month,
     total: ppWorkSet.length,

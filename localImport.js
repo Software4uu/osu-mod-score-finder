@@ -590,6 +590,7 @@ function localScoreToAppScore(raw, metadata, source) {
     accuracy,
     pp: null,
     max_combo: raw.maxCombo,
+    perfect: raw.perfect,
     passed: rank !== "F",
     rank,
     statistics: {

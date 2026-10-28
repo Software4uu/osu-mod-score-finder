@@ -47,7 +47,7 @@
         padding: 28px;
       }
     </style>
-    <link rel="stylesheet" href="styles.css?v=0.3.46" />
+    <link rel="stylesheet" href="styles.css?v=0.3.47" />
   </head>
   <body>
     <main class="app-shell">
@@ -127,6 +127,10 @@
               <option value="pp" data-help-key="help.sort.pp" selected>PP</option>
               <option value="acc" data-help-key="help.sort.acc">Accuracy</option>
               <option value="score" data-help-key="help.sort.score">Score</option>
+              <option value="missesDesc" data-i18n="option.sort.missesDesc">meiste Misses</option>
+              <option value="missesAsc" data-i18n="option.sort.missesAsc">wenigste Misses</option>
+              <option value="comboDesc" data-i18n="option.sort.comboDesc">Combo: hoch</option>
+              <option value="comboAsc" data-i18n="option.sort.comboAsc">Combo: niedrig</option>
             </select>
           </label>
 
@@ -182,6 +186,7 @@
               <option value="pp" data-help-key="help.best.pp" selected>PP</option>
               <option value="acc" data-help-key="help.best.acc">Accuracy</option>
               <option value="date" data-i18n="option.best.date" data-help-key="help.best.date">neuster</option>
+              <option value="combo" data-help-key="help.best.combo">Combo</option>
             </select>
           </label>
 
@@ -192,6 +197,48 @@
               <option value="lastHour" data-i18n="option.improvement.lastHour" data-help-key="help.improvement.lastHour">letzte Stunde</option>
               <option value="today" data-i18n="option.improvement.today" data-help-key="help.improvement.today">heute</option>
             </select>
+          </label>
+
+          <label class="field">
+            <span><span data-i18n="field.grade">Note</span> <span class="help-icon" data-help-key="help.grade">?</span></span>
+            <select id="grade" name="grade">
+              <option value="all" data-i18n="option.filter.all">alle</option>
+              <option value="SS">SS</option>
+              <option value="S">S</option>
+              <option value="A">A</option>
+              <option value="B">B</option>
+              <option value="C">C</option>
+              <option value="D">D</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span><span data-i18n="field.comboFilter">Combo</span> <span class="help-icon" data-help-key="help.comboFilter">?</span></span>
+            <select id="comboFilter" name="combo">
+              <option value="all" data-i18n="option.filter.all">alle</option>
+              <option value="fc" data-i18n="option.combo.fc">nur FC</option>
+              <option value="notFc" data-i18n="option.combo.notFc">ohne FC</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span><span data-i18n="field.missMin">Misses von</span> <span class="help-icon" data-help-key="help.missRange">?</span></span>
+            <input id="missMin" name="missMin" type="number" min="0" step="1" inputmode="numeric" placeholder="0" />
+          </label>
+
+          <label class="field">
+            <span><span data-i18n="field.missMax">Misses bis</span> <span class="help-icon" data-help-key="help.missRange">?</span></span>
+            <input id="missMax" name="missMax" type="number" min="0" step="1" inputmode="numeric" data-i18n-placeholder="placeholder.unlimited" placeholder="unbegrenzt" />
+          </label>
+
+          <label class="field">
+            <span data-i18n="field.comboMin">Combo von</span>
+            <input id="comboMin" name="comboMin" type="number" min="0" step="1" inputmode="numeric" placeholder="0" />
+          </label>
+
+          <label class="field">
+            <span data-i18n="field.comboMax">Combo bis</span>
+            <input id="comboMax" name="comboMax" type="number" min="0" step="1" inputmode="numeric" data-i18n-placeholder="placeholder.unlimited" placeholder="unbegrenzt" />
           </label>
 
           <div class="toggles">
@@ -659,7 +706,7 @@
     <section id="detailsPanel" class="details-panel hidden" aria-live="polite"></section>
 
     <script type="module">
-      import("./app.js?v=0.3.46").catch(() => import("/app.js?v=0.3.46"));
+      import("./app.js?v=0.3.47-combo2").catch(() => import("/app.js?v=0.3.47-combo2"));
     </script>
   </body>
 </html>

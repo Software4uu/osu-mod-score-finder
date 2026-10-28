@@ -176,6 +176,24 @@ const translations = {
     "field.purpose": "Gepasste Maps mit Mod",
     "field.mode": "Modus",
     "field.sort": "Sortierung",
+    "field.grade": "Note",
+    "field.comboFilter": "Combo",
+    "field.missMin": "Misses von",
+    "field.comboMin": "Combo von",
+    "field.comboMax": "Combo bis",
+    "field.missMax": "Misses bis",
+    "option.filter.all": "alle",
+    "option.combo.fc": "nur FC",
+    "option.combo.notFc": "ohne FC",
+    "option.sort.missesDesc": "meiste Misses",
+    "option.sort.comboDesc": "Combo: hoch",
+    "option.sort.comboAsc": "Combo: niedrig",
+    "help.best.combo": "Waehlt pro Map den Versuch mit der hoechsten erreichten Combo.",
+    "option.sort.missesAsc": "wenigste Misses",
+    "placeholder.unlimited": "unbegrenzt",
+    "help.grade": "Filtert nach der Score-Note. S und SS schliessen die silbernen Varianten ein.",
+    "help.comboFilter": "FC verwendet die gespeicherte FC-Kennung oder bestaetigte volle Combo. 0 Misses allein reichen wegen Sliderbreaks nicht. Unbekannte FC-Werte werden bei beiden Combo-Filtern ausgelassen.",
+    "help.missRange": "Inklusive Grenzen. Leere Felder setzen keine Grenze; 0 bis 0 zeigt Plays ohne Misses, auch mit Sliderbreaks.",
     "field.match": "Mod-Match",
     "field.scanPages": "Scan-Seiten",
     "field.dateRange": "Zeitraum",
@@ -256,7 +274,7 @@ const translations = {
     "help.mode.taiko": "taiko filtert nur Taiko-Scores dieses Spielers.",
     "help.mode.fruits": "catch filtert nur Catch-the-Beat-Scores.",
     "help.mode.mania": "mania filtert nur osu!mania-Scores.",
-    "help.sort": "Bestimmt die Reihenfolge der Ergebnisliste: Datum, PP, Accuracy oder Score.",
+    "help.sort": "Bestimmt die Reihenfolge: Datum, PP, Accuracy, Score oder Misses (meiste/wenigste zuerst).",
     "help.sort.date": "Datum zeigt die neuesten gespeicherten oder neu gefundenen Scores zuerst.",
     "help.sort.pp": "PP sortiert nach dem besten verfuegbaren PP-Wert, inklusive nachberechneter PP.",
     "help.sort.acc": "Accuracy sortiert nach Genauigkeit, unabhaengig davon ob der Score viele PP hat.",
@@ -688,6 +706,24 @@ const translations = {
     "field.purpose": "Passed maps with mod",
     "field.mode": "Mode",
     "field.sort": "Sort",
+    "field.grade": "Grade",
+    "field.comboFilter": "Combo",
+    "field.missMin": "Misses from",
+    "field.comboMin": "Combo from",
+    "field.comboMax": "Combo to",
+    "field.missMax": "Misses to",
+    "option.filter.all": "all",
+    "option.combo.fc": "FC only",
+    "option.combo.notFc": "without FC",
+    "option.sort.missesDesc": "most misses",
+    "option.sort.comboDesc": "Combo: high",
+    "option.sort.comboAsc": "Combo: low",
+    "help.best.combo": "Selects the play with the highest achieved combo per map.",
+    "option.sort.missesAsc": "fewest misses",
+    "placeholder.unlimited": "unlimited",
+    "help.grade": "Filters by score grade. S and SS include their silver variants.",
+    "help.comboFilter": "FC requires a stored FC flag or confirmed full combo. Zero misses alone do not rule out sliderbreaks. Unknown FC status is excluded from both combo filters.",
+    "help.missRange": "Inclusive bounds. Empty fields leave the range open; 0 to 0 includes zero-miss plays with sliderbreaks.",
     "field.match": "Mod match",
     "field.scanPages": "Scan pages",
     "field.dateRange": "Date range",
@@ -768,7 +804,7 @@ const translations = {
     "help.mode.taiko": "taiko filters only this player's Taiko scores.",
     "help.mode.fruits": "catch filters only Catch the Beat scores.",
     "help.mode.mania": "mania filters only osu!mania scores.",
-    "help.sort": "Controls the result order: date, PP, accuracy, or score.",
+    "help.sort": "Controls the result order: date, PP, accuracy, score, or misses (most/fewest first).",
     "help.sort.date": "Date shows the newest stored or newly found scores first.",
     "help.sort.pp": "PP sorts by the best available PP value, including recalculated PP.",
     "help.sort.acc": "Accuracy sorts by accuracy, independent of how much PP the score has.",
@@ -1516,7 +1552,7 @@ function allCalendarScores() {
 }
 
 function findScoreByDomKey(key) {
-  return [...(lastSearchData?.scores || []), ...passScoresFromData(lastSearchData), ...allCalendarScores(), ...compareDetailScores]
+  return [...(lastSearchData?.scores || []), ...(lastSearchData?.profileTopScores || []), ...passScoresFromData(lastSearchData), ...allCalendarScores(), ...compareDetailScores]
     .find((score) => scoreDomKey(score) === key);
 }
 
@@ -1580,11 +1616,15 @@ function scoreTimeValue(score) {
   return Date.parse(score?.ended_at || score?.created_at || "") || 0;
 }
 
-function sortScoresForDisplay(scores, sort = "date") {
+function sortScoresForDisplay(scores, sort = "date", ppValue = scorePpValue) {
   return [...scores].sort((a, b) => {
+    if (sort === "comboDesc") return Number(b.max_combo || 0) - Number(a.max_combo || 0) || ppValue(b) - ppValue(a);
+    if (sort === "comboAsc") return Number(a.max_combo || 0) - Number(b.max_combo || 0) || ppValue(b) - ppValue(a);
+    if (sort === "missesDesc") return missCount(b) - missCount(a) || ppValue(b) - ppValue(a);
+    if (sort === "missesAsc") return missCount(a) - missCount(b) || ppValue(b) - ppValue(a);
     if (sort === "acc") return Number(b.accuracy || 0) - Number(a.accuracy || 0);
     if (sort === "score") return Number(b.score || 0) - Number(a.score || 0);
-    if (sort === "pp") return scorePpValue(b) - scorePpValue(a) || scoreTimeValue(b) - scoreTimeValue(a);
+    if (sort === "pp") return ppValue(b) - ppValue(a) || scoreTimeValue(b) - scoreTimeValue(a);
     return scoreTimeValue(b) - scoreTimeValue(a);
   });
 }
@@ -1600,6 +1640,10 @@ function uniqueScores(scores) {
 }
 
 function bestModeMetrics(bestMode = "score", ppValue = scorePpValue) {
+  if (bestMode === "combo") {
+    return [(score) => Number(score.max_combo || 0), ppValue, accuracyPercentValue, (score) => -missCount(score)];
+  }
+
   if (bestMode === "pp") {
     return [ppValue, accuracyPercentValue, (score) => Number(score.score || 0), (score) => -missCount(score)];
   }
@@ -1668,7 +1712,7 @@ function topDateBounds() {
 }
 
 function currentProfileTopScores(data) {
-  const candidates = uniqueScores([
+  const candidates = uniqueScores(data?.profileTopScores || [
     ...(data?.scores || []),
     ...passScoresFromData(data),
     ...allScoresFromData(data),
@@ -1723,7 +1767,7 @@ function renderTopScores(data = null) {
   }
 
   const profileTop = currentProfileTopScores(data);
-  const rangeScores = profileTop.filter((score) => scoreInTopDateRange(score, bounds));
+  const rangeScores = profileTop.filter((score) => score.matches_search_filters !== false && scoreInTopDateRange(score, bounds));
   const bestPp = rangeScores.reduce((best, score) => Math.max(best, scorePpValue(score)), 0);
   const weightedPp = rangeScores.reduce((total, score) => total + scorePpValue(score) * Math.pow(0.95, Math.max(0, Number(score.pp_rank || 1) - 1)), 0);
 
@@ -1775,12 +1819,7 @@ function calendarDaysFromScoresByDay(scoresByDay, sort = "date") {
     .map(([date, scores]) => {
       const totalAccuracy = scores.reduce((total, score) => total + Number(score.accuracy || 0), 0);
       const latestTime = scores.reduce((latest, score) => Math.max(latest, Date.parse(score.ended_at || score.created_at || "") || 0), 0);
-      const sortedScores = [...scores].sort((a, b) => {
-        if (sort === "pp") return scorePpValue(b) - scorePpValue(a);
-        if (sort === "acc") return Number(b.accuracy || 0) - Number(a.accuracy || 0);
-        if (sort === "score") return Number(b.score || 0) - Number(a.score || 0);
-        return (Date.parse(b.ended_at || b.created_at || "") || 0) - (Date.parse(a.ended_at || a.created_at || "") || 0);
-      });
+      const sortedScores = sortScoresForDisplay(scores, sort);
 
       return {
         date,
@@ -2321,6 +2360,12 @@ function buildSearchParams() {
   params.set("type", "recent");
   params.set("mode", document.querySelector("#mode").value);
   params.set("sort", document.querySelector("#sort").value);
+  params.set("grade", document.querySelector("#grade").value);
+  params.set("combo", document.querySelector("#comboFilter").value);
+  params.set("missMin", document.querySelector("#missMin").value);
+  params.set("missMax", document.querySelector("#missMax").value);
+  params.set("comboMin", document.querySelector("#comboMin").value);
+  params.set("comboMax", document.querySelector("#comboMax").value);
   params.set("match", document.querySelector("#match").value);
   params.set("pages", document.querySelector("#pages").value || "2");
   params.set("dateFilter", document.querySelector("#dateFilter").value);
@@ -2555,12 +2600,7 @@ function renderPasses(data = null) {
   const bestMode = data?.meta?.bestMode || document.querySelector("#bestMode")?.value || "score";
   const bestMapScores = bestScorePerMapForDisplay(matchingScores, bestMode, passPpValue);
   const sort = data?.meta?.sort || document.querySelector("#sort")?.value || "date";
-  const sortedScores = [...bestMapScores].sort((a, b) => {
-    if (sort === "acc") return Number(b.accuracy || 0) - Number(a.accuracy || 0);
-    if (sort === "score") return Number(b.score || 0) - Number(a.score || 0);
-    if (sort === "pp") return passPpValue(b) - passPpValue(a) || scoreTimeValue(b) - scoreTimeValue(a);
-    return scoreTimeValue(b) - scoreTimeValue(a);
-  });
+  const sortedScores = sortScoresForDisplay(bestMapScores, sort, passPpValue);
   const limit = Math.max(1, Number(data?.meta?.limit || document.querySelector("#limit")?.value || 100));
   const ppRankByScore = new Map(
     [...bestMapScores]

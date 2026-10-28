@@ -205,6 +205,9 @@ function insertScore(bucket, user, mode, score, now, countNew) {
   const existingScore = parseJson(existing?.score_json, null);
 
   if (existingScore) {
+    for (const field of ["perfect", "is_perfect_combo", "legacy_perfect"]) {
+      if (score[field] == null && typeof existingScore[field] === "boolean") score[field] = existingScore[field];
+    }
     if (!score.pp && existingScore.pp) {
       score.pp = existingScore.pp;
       score.pp_source = existingScore.pp_source || score.pp_source || null;
